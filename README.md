@@ -1,20 +1,31 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# LexiLearn
 
-# Run and deploy your AI Studio app
+Ứng dụng học từ vựng tiếng Anh bằng React, Vite và Supabase.
 
-This contains everything you need to run your app locally.
+## Chạy local
 
-View your app in AI Studio: https://ai.studio/apps/d6064787-d7e5-40ae-9271-708221b88804
+Yêu cầu Node.js 22 trở lên.
 
-## Run Locally
+1. Cài dependencies:
 
-**Prerequisites:**  Node.js
+   ```bash
+   npm install
+   ```
 
+2. Tạo `.env.local` từ `.env.example`, rồi điền hai giá trị lấy từ
+   Supabase Dashboard → Project Settings → API:
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+   ```dotenv
+   VITE_SUPABASE_URL="https://your-project-ref.supabase.co"
+   VITE_SUPABASE_PUBLISHABLE_KEY="sb_publishable_your-key"
+   ```
+
+3. Khởi động ứng dụng:
+
+   ```bash
+   npm run dev
+   ```
+
+Các biến có tiền tố `VITE_` được đưa vào bundle trình duyệt. Chỉ dùng
+Supabase publishable key ở đây; không đặt secret key trong `.env.local`,
+source code hoặc cấu hình frontend.
