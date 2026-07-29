@@ -38,7 +38,7 @@ import { RootWordInsightsView } from './components/RootWordInsightsView';
 import { buildSessionQuestions } from './utils/sessionBuilder';
 
 export default function App() {
-  const {status, roles} = useAuth();
+  const {status, roles, user, signOut} = useAuth();
   const location = useLocation();
   if (status !== 'authenticated') return <LoginView />;
   const authenticatedRole: UserRole = roles.includes('admin') ? 'admin' : 'learner';
@@ -236,6 +236,12 @@ export default function App() {
           onOpenAdmin={() => setCurrentTab('admin_submissions')}
           onOpenStudyScope={() => setShowStudyScopeModal(true)}
           pendingSubmissionsCount={pendingSubmissionsCount}
+          userProfile={{
+            name: (user?.user_metadata.full_name || user?.user_metadata.name || user?.email || 'Learner') as string,
+            email: user?.email || '',
+            avatarUrl: (user?.user_metadata.avatar_url || user?.user_metadata.picture) as string | undefined,
+          }}
+          onSignOut={() => void signOut()}
         />
       )}
 

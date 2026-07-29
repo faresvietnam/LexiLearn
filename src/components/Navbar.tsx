@@ -9,7 +9,7 @@ import {
   BarChart3,
   Settings as SettingsIcon,
   ShieldCheck,
-  User,
+  LogOut,
   Sliders,
   Menu,
   X,
@@ -25,6 +25,12 @@ interface NavbarProps {
   onOpenAdmin: () => void;
   onOpenStudyScope: () => void;
   pendingSubmissionsCount: number;
+  userProfile: {
+    name: string;
+    email: string;
+    avatarUrl?: string;
+  };
+  onSignOut: () => void;
 }
 
 interface NavItem {
@@ -42,6 +48,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAdmin,
   onOpenStudyScope,
   pendingSubmissionsCount,
+  userProfile,
+  onSignOut,
 }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -181,6 +189,38 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Sidebar Footer Controls */}
         <div className="p-4 border-t border-slate-100 bg-slate-50/50 space-y-2.5">
+          <div className="flex items-center gap-3 px-1 py-1">
+            {userProfile.avatarUrl ? (
+              <img
+                src={userProfile.avatarUrl}
+                alt=""
+                className="w-9 h-9 rounded-full border border-slate-200 object-cover"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-bold">
+                {userProfile.name.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold text-slate-800">{userProfile.name}</p>
+              <p className="truncate text-xs text-slate-500">{userProfile.email}</p>
+            </div>
+            {userRole === 'admin' && (
+              <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-800">Admin</span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            aria-label="Đăng xuất"
+            onClick={onSignOut}
+            className="w-full flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+          >
+            <LogOut className="w-4 h-4" />
+            Đăng xuất
+          </button>
+
           {/* Study Scope Toggle Button */}
           <button
             id="btn-open-study-scope"
