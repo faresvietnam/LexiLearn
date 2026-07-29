@@ -32,7 +32,7 @@ import { DecksAndTagsView } from './components/DecksAndTagsView';
 import { StudyScopeModal } from './components/StudyScopeModal';
 import { ProgressView } from './components/ProgressView';
 import { SettingsView } from './components/SettingsView';
-import { AdminApprovalView } from './components/AdminApprovalView';
+import { AdminWorkspace } from './components/AdminWorkspace';
 import { RootWordInsightsView } from './components/RootWordInsightsView';
 import { buildSessionQuestions } from './utils/sessionBuilder';
 
@@ -362,7 +362,7 @@ export default function App() {
           )}
 
           {currentTab === 'admin' && userRole === 'admin' && (
-            <AdminApprovalView
+            <AdminWorkspace
               words={words}
               onApproveWord={handleApproveWord}
               onRejectWord={handleRejectWord}
