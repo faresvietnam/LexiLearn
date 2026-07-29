@@ -38,7 +38,7 @@ import { RootWordInsightsView } from './components/RootWordInsightsView';
 import { buildSessionQuestions } from './utils/sessionBuilder';
 
 export default function App() {
-  const {status, roles, signOut} = useAuth();
+  const {status, roles} = useAuth();
   const location = useLocation();
   if (status !== 'authenticated') return <LoginView />;
   const authenticatedRole: UserRole = roles.includes('admin') ? 'admin' : 'learner';
@@ -233,7 +233,7 @@ export default function App() {
             }
           }}
           userRole={userRole}
-          onToggleUserRole={() => void signOut()}
+          onOpenAdmin={() => setCurrentTab('admin_submissions')}
           onOpenStudyScope={() => setShowStudyScopeModal(true)}
           pendingSubmissionsCount={pendingSubmissionsCount}
         />

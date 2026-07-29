@@ -22,7 +22,7 @@ interface NavbarProps {
   currentTab: string;
   onSelectTab: (tab: string) => void;
   userRole: UserRole;
-  onToggleUserRole: () => void;
+  onOpenAdmin: () => void;
   onOpenStudyScope: () => void;
   pendingSubmissionsCount: number;
 }
@@ -39,7 +39,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentTab,
   onSelectTab,
   userRole,
-  onToggleUserRole,
+  onOpenAdmin,
   onOpenStudyScope,
   pendingSubmissionsCount,
 }) => {
@@ -200,34 +200,20 @@ export const Navbar: React.FC<NavbarProps> = ({
             </span>
           </button>
 
-          {/* User Role Switcher */}
-          <button
+          {userRole === 'admin' && <button
             id="btn-toggle-role"
-            onClick={onToggleUserRole}
-            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold border transition ${
-              userRole === 'admin'
-                ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
-                : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50'
-            }`}
+            onClick={() => { onOpenAdmin(); setMobileOpen(false); }}
+            className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold border transition bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
           >
             <div className="flex items-center gap-2">
-              {userRole === 'admin' ? (
-                <>
-                  <ShieldCheck className="w-4 h-4 text-amber-600" />
-                  <span>Admin Mode</span>
-                </>
-              ) : (
-                <>
-                  <User className="w-4 h-4 text-indigo-600" />
-                  <span>Learner Mode</span>
-                </>
-              )}
+              <ShieldCheck className="w-4 h-4 text-amber-600" />
+              <span>Admin Mode</span>
             </div>
-            <span className="text-[10px] opacity-70">Switch</span>
+            <span className="text-[10px] opacity-70">Open</span>
           </button>
+          }
         </div>
       </aside>
     </>
   );
 };
-
