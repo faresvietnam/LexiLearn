@@ -734,11 +734,82 @@ describe('successful learner persistence', () => {
 });
 
 describe('persisted form callbacks', () => {
+  it('clears Global-prefilled fields before switching back to private entry', () => {
+    const onAddWord = vi.fn().mockResolvedValue(false);
+    render(React.createElement(AddWordModal, {
+      decks: [],
+      tags: [],
+      globalWords: [{
+        id: 'global-1',
+        word: 'transport',
+        ipa: '/ˈtrænspɔːrt/',
+      }],
+      linkedGlobalWords: [],
+      onAddWord,
+      onLinkExistingGlobalWord: vi.fn().mockResolvedValue(false),
+      onClose: vi.fn(),
+    }));
+    const globalSelect = screen.getByLabelText('Chọn từ Global có sẵn');
+    const wordInput = screen.getByPlaceholderText('e.g. transportation');
+    const ipaInput = screen.getByPlaceholderText('/ˌtrænspərˈteɪʃn/');
+
+    fireEvent.change(globalSelect, {target: {value: 'global-1'}});
+    expect(wordInput).toHaveValue('transport');
+    expect(ipaInput).toHaveValue('/ˈtrænspɔːrt/');
+
+    fireEvent.change(globalSelect, {target: {value: ''}});
+    fireEvent.change(screen.getByPlaceholderText('e.g. Giao thông vận tải'), {
+      target: {value: 'vận chuyển'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Lưu từ vựng'}));
+
+    expect(wordInput).toHaveValue('');
+    expect(ipaInput).toHaveValue('');
+    expect(onAddWord).not.toHaveBeenCalled();
+  });
+
+  it('blocks private creation when typing an already-linked Global word', async () => {
+    const onAddWord = vi.fn().mockResolvedValue(false);
+    const onLinkExistingGlobalWord = vi.fn().mockResolvedValue(false);
+    render(React.createElement(AddWordModal, {
+      decks: [],
+      tags: [],
+      globalWords: [],
+      linkedGlobalWords: [{
+        id: 'vocabulary-1',
+        word: 'transport',
+        ipa: '/ˈtrænspɔːrt/',
+      }],
+      onAddWord,
+      onLinkExistingGlobalWord,
+      onClose: vi.fn(),
+    }));
+
+    fireEvent.change(screen.getByPlaceholderText('e.g. transportation'), {
+      target: {value: ' Transport '},
+    });
+
+    expect(screen.getByText(
+      'Từ "transport" đã tồn tại trong Global Vocabulary!',
+    )).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Lưu từ vựng'})).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Thêm vào Từ vựng cá nhân của tôi',
+    }));
+
+    await waitFor(() => {
+      expect(onLinkExistingGlobalWord).toHaveBeenCalledWith('vocabulary-1');
+    });
+    expect(onAddWord).not.toHaveBeenCalled();
+  });
+
   it('discloses that private structure and examples last for this session only', () => {
     render(React.createElement(AddWordModal, {
       decks: [],
       tags: [],
       globalWords: [],
+      linkedGlobalWords: [],
       onAddWord: vi.fn().mockResolvedValue(false),
       onLinkExistingGlobalWord: vi.fn().mockResolvedValue(false),
       onClose: vi.fn(),
@@ -759,6 +830,7 @@ describe('persisted form callbacks', () => {
         word: 'transport',
         ipa: '/ˈtrænspɔːrt/',
       }],
+      linkedGlobalWords: [],
       onAddWord: vi.fn().mockResolvedValue(false),
       onLinkExistingGlobalWord,
       onClose: vi.fn(),
@@ -823,6 +895,7 @@ describe('persisted form callbacks', () => {
       decks: [],
       tags: [],
       globalWords: [],
+      linkedGlobalWords: [],
       onAddWord,
       onLinkExistingGlobalWord: vi.fn().mockResolvedValue(false),
       onClose,

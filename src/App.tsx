@@ -504,6 +504,10 @@ export default function App() {
               decks={decks}
               tags={tags}
               globalWords={globalWords}
+              linkedGlobalWords={words
+                .filter(({isGlobal}) => isGlobal)
+                .map(({id, word, ipa}) => ({id, word, ipa}))
+              }
               onAddWord={async (newWord) => {
                 const saved = await handleAddWord(newWord);
                 if (saved) setCurrentTab('vocabulary');

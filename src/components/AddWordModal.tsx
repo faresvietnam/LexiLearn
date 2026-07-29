@@ -6,6 +6,7 @@ interface AddWordModalProps {
   decks: Deck[];
   tags: Tag[];
   globalWords: Array<Pick<Word, 'id' | 'word' | 'ipa'>>;
+  linkedGlobalWords: Array<Pick<Word, 'id' | 'word' | 'ipa'>>;
   onAddWord: (newWord: Word) => Promise<boolean>;
   onLinkExistingGlobalWord: (wordId: string) => Promise<boolean>;
   onClose: () => void;
@@ -15,6 +16,7 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
   decks,
   tags,
   globalWords,
+  linkedGlobalWords,
   onAddWord,
   onLinkExistingGlobalWord,
   onClose,
@@ -35,6 +37,7 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
   // AI loading state
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedGlobalWordId, setSelectedGlobalWordId] = useState('');
   const [duplicateGlobalWord, setDuplicateGlobalWord] = useState<
     Pick<Word, 'id' | 'word' | 'ipa'> | null
   >(null);
@@ -42,13 +45,14 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
   // Check deduplication against existing Global Vocabulary
   const handleWordChange = (val: string) => {
     setWord(val);
+    setSelectedGlobalWordId('');
     const normalized = val.trim().toLowerCase();
     if (!normalized) {
       setDuplicateGlobalWord(null);
       return;
     }
 
-    const existing = globalWords.find(
+    const existing = [...globalWords, ...linkedGlobalWords].find(
       (candidate) => candidate.word.toLowerCase() === normalized
     );
     setDuplicateGlobalWord(existing || null);
@@ -56,10 +60,14 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
 
   const handleGlobalWordSelect = (wordId: string) => {
     const selected = globalWords.find(({id}) => id === wordId) ?? null;
+    setSelectedGlobalWordId(wordId);
     setDuplicateGlobalWord(selected);
     if (selected) {
       setWord(selected.word);
       setIpa(selected.ipa ?? '');
+    } else {
+      setWord('');
+      setIpa('');
     }
   };
 
@@ -251,7 +259,7 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
             </label>
             <select
               id="global-word-select"
-              value={duplicateGlobalWord?.id ?? ''}
+              value={selectedGlobalWordId}
               onChange={(event) => handleGlobalWordSelect(event.target.value)}
               className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
             >
