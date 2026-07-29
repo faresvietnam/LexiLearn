@@ -45,6 +45,7 @@ import {
   saveDeck,
   saveTag,
   saveWordStatus,
+  saveWordStatuses,
 } from './features/persistence/vocabularyRepository';
 
 export default function App() {
@@ -55,6 +56,14 @@ export default function App() {
   const [words, setWords] = useState<Word[]>(() => client ? [] : INITIAL_WORDS);
   const [decks, setDecks] = useState<Deck[]>(() => client ? [] : INITIAL_DECKS);
   const [tags, setTags] = useState<Tag[]>(() => client ? [] : INITIAL_TAGS);
+  const [globalWords, setGlobalWords] = useState<
+    Array<Pick<Word, 'id' | 'word' | 'ipa'>>
+  >(() => client
+    ? []
+    : INITIAL_WORDS
+      .filter(({isGlobal}) => isGlobal)
+      .map(({id, word, ipa}) => ({id, word, ipa}))
+  );
   const [studyScope, setStudyScope] = useState<StudyScope | null>(
     () => client ? null : INITIAL_STUDY_SCOPE,
   );
@@ -92,6 +101,7 @@ export default function App() {
     setWords([]);
     setDecks([]);
     setTags([]);
+    setGlobalWords([]);
     setStudyScope(null);
     setSettings(null);
 
@@ -101,6 +111,7 @@ export default function App() {
         setHydrationError(result.error);
       } else {
         setWords(result.data.words);
+        setGlobalWords(result.data.globalWords);
         setDecks(result.data.decks);
         setTags(result.data.tags);
         setStudyScope(result.data.studyScope);
@@ -226,12 +237,9 @@ export default function App() {
     status: WordStudyStatus,
   ) => {
     if (client && user) {
-      const results = await Promise.all(
-        wordIds.map((wordId) => saveWordStatus(user.id, wordId, status)),
-      );
-      const failure = results.find(({error}) => error);
-      if (failure?.error) {
-        showToast(failure.error);
+      const result = await saveWordStatuses(user.id, wordIds, status);
+      if (result.error) {
+        showToast(result.error);
         return false;
       }
     }
@@ -269,6 +277,7 @@ export default function App() {
       }
       if (!existingWord) {
         setWords((prev) => [result.data as Word, ...prev]);
+        setGlobalWords((prev) => prev.filter(({id}) => id !== wordId));
       }
     }
     if (existingWord) {
@@ -494,7 +503,7 @@ export default function App() {
             <AddWordModal
               decks={decks}
               tags={tags}
-              existingWords={words}
+              globalWords={globalWords}
               onAddWord={async (newWord) => {
                 const saved = await handleAddWord(newWord);
                 if (saved) setCurrentTab('vocabulary');

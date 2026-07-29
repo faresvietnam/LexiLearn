@@ -30,14 +30,18 @@ export const DecksAndTagsView: React.FC<DecksAndTagsViewProps> = ({
     e.preventDefault();
     if (!newDeckName.trim()) return;
     setIsCreatingDeck(true);
-    const saved = await onCreateDeck({
-      id: `deck_${Date.now()}`,
-      name: newDeckName.trim(),
-      description: newDeckDesc.trim(),
-      color: newDeckColor,
-      createdAt: new Date().toISOString().split('T')[0],
-    });
-    setIsCreatingDeck(false);
+    let saved = false;
+    try {
+      saved = await onCreateDeck({
+        id: `deck_${Date.now()}`,
+        name: newDeckName.trim(),
+        description: newDeckDesc.trim(),
+        color: newDeckColor,
+        createdAt: new Date().toISOString().split('T')[0],
+      });
+    } finally {
+      setIsCreatingDeck(false);
+    }
     if (saved) {
       setNewDeckName('');
       setNewDeckDesc('');
@@ -48,12 +52,16 @@ export const DecksAndTagsView: React.FC<DecksAndTagsViewProps> = ({
     e.preventDefault();
     if (!newTagName.trim()) return;
     setIsCreatingTag(true);
-    const saved = await onCreateTag({
-      id: `tag_${Date.now()}`,
-      name: newTagName.trim(),
-      color: newTagColor,
-    });
-    setIsCreatingTag(false);
+    let saved = false;
+    try {
+      saved = await onCreateTag({
+        id: `tag_${Date.now()}`,
+        name: newTagName.trim(),
+        color: newTagColor,
+      });
+    } finally {
+      setIsCreatingTag(false);
+    }
     if (saved) setNewTagName('');
   };
 

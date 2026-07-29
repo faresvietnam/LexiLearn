@@ -20,6 +20,7 @@ export type LearnerState = {
   decks: Deck[];
   tags: Tag[];
   words: Word[];
+  globalWords: Array<Pick<Word, 'id' | 'word' | 'ipa'>>;
 };
 
 const LOAD_ERROR = 'Không thể tải dữ liệu học tập. Vui lòng thử lại.';
@@ -61,7 +62,14 @@ export async function loadLearnerState(
   const client = getSupabaseClient();
   if (!client) return {data: null, error: LOAD_ERROR};
 
-  const [settingsResult, scopeResult, decksResult, tagsResult, wordsResult] =
+  const [
+    settingsResult,
+    scopeResult,
+    decksResult,
+    tagsResult,
+    wordsResult,
+    globalWordsResult,
+  ] =
     await Promise.all([
       client
         .from('user_settings')
@@ -92,6 +100,11 @@ export async function loadLearnerState(
         .select(VOCABULARY_SELECT)
         .eq('user_id', userId)
         .order('added_at', {ascending: false}),
+      client
+        .from('global_words')
+        .select('id, word, ipa')
+        .eq('status', 'active')
+        .order('word'),
     ]);
 
   if (
@@ -100,14 +113,35 @@ export async function loadLearnerState(
     || decksResult.error
     || tagsResult.error
     || wordsResult.error
+    || globalWordsResult.error
     || !settingsResult.data
   ) {
     return {data: null, error: LOAD_ERROR};
   }
 
-  const words = (wordsResult.data as unknown as VocabularyRow[] | null ?? [])
+  const vocabularyRows =
+    wordsResult.data as unknown as VocabularyRow[] | null ?? [];
+  const words = vocabularyRows
     .map(mapVocabularyRow)
     .filter((word): word is Word => Boolean(word));
+  const linkedGlobalWordIds = new Set(
+    vocabularyRows.flatMap(({global_words}) =>
+      global_words?.id ? [global_words.id] : []
+    ),
+  );
+  const globalWords = (
+    globalWordsResult.data as unknown as Array<{
+      id: string;
+      word: string;
+      ipa: string | null;
+    }> | null ?? []
+  )
+    .filter(({id}) => !linkedGlobalWordIds.has(id))
+    .map(({id, word, ipa}) => ({
+      id,
+      word,
+      ...(ipa ? {ipa} : {}),
+    }));
 
   return {
     data: {
@@ -120,6 +154,7 @@ export async function loadLearnerState(
       tags: (tagsResult.data as unknown as TagRow[] | null ?? [])
         .map(mapTagRow),
       words,
+      globalWords,
     },
     error: null,
   };
@@ -195,6 +230,42 @@ export async function saveWordStatus(
     : {data: status, error: null};
 }
 
+function containsExactly(
+  expectedIds: string[],
+  actualIds: string[],
+): boolean {
+  const expected = new Set(expectedIds);
+  const actual = new Set(actualIds);
+  return expected.size === actual.size
+    && [...expected].every((id) => actual.has(id));
+}
+
+export async function saveWordStatuses(
+  userId: string,
+  vocabularyIds: string[],
+  status: WordStudyStatus,
+): Promise<PersistenceResult<string[]>> {
+  const requestedIds = [...new Set(vocabularyIds)];
+  if (requestedIds.length === 0) return {data: [], error: null};
+  const client = getSupabaseClient();
+  if (!client) return {data: null, error: STATUS_ERROR};
+
+  const {data, error} = await client
+    .from('personal_vocabulary')
+    .update({
+      study_status: status,
+      archived_at: status === 'archived' ? new Date().toISOString() : null,
+    })
+    .in('id', requestedIds)
+    .eq('user_id', userId)
+    .select('id');
+  const updatedIds = (data ?? []).map(({id}) => id);
+
+  return error || !containsExactly(requestedIds, updatedIds)
+    ? {data: null, error: STATUS_ERROR}
+    : {data: requestedIds, error: null};
+}
+
 export async function moveWordsToDeck(
   userId: string,
   vocabularyIds: string[],
@@ -212,7 +283,7 @@ export async function moveWordsToDeck(
     .select('id');
   const updatedIds = (data ?? []).map(({id}) => id);
 
-  return error || updatedIds.length !== vocabularyIds.length
+  return error || !containsExactly(vocabularyIds, updatedIds)
     ? {data: null, error: MOVE_ERROR}
     : {data: updatedIds, error: null};
 }
@@ -334,9 +405,24 @@ export async function createPrivateWord(
     },
   } as unknown as VocabularyRow);
 
-  return savedWord
-    ? {data: savedWord, error: null}
-    : {data: null, error: WORD_ERROR};
+  if (!savedWord) return {data: null, error: WORD_ERROR};
+
+  return {
+    data: {
+      ...savedWord,
+      wordStructure: word.wordStructure,
+      wordFamily: word.wordFamily,
+      meanings: savedWord.meanings.map((meaning, index) => ({
+        ...meaning,
+        exampleSentences: (word.meanings[index]?.exampleSentences ?? [])
+          .map((example) => ({
+            ...example,
+            meaningCardId: meaning.id,
+          })),
+      })),
+    },
+    error: null,
+  };
 }
 
 export async function linkGlobalWord(
@@ -367,9 +453,49 @@ export async function linkGlobalWord(
     .eq('id', vocabulary.id)
     .eq('user_id', userId)
     .single()) as {data: VocabularyRow | null; error: unknown | null};
-  const word = data ? mapVocabularyRow(data) : null;
+  if (error || !data || !data.global_words) {
+    return {data: null, error: LINK_ERROR};
+  }
 
-  return error || !word
+  const activeMeaningIds = (data.global_words.global_meanings ?? [])
+    .filter(({status}) => status === 'active')
+    .map(({id}) => id);
+  const existingMeaningIds = new Set(
+    (data.learning_cards ?? []).map(({meaning_source_id}) => meaning_source_id),
+  );
+  const missingMeaningIds = activeMeaningIds.filter(
+    (meaningId) => !existingMeaningIds.has(meaningId),
+  );
+  let learningCards = data.learning_cards ?? [];
+
+  if (missingMeaningIds.length > 0) {
+    const {data: createdCards, error: cardError} = await client
+      .from('learning_cards')
+      .insert(missingMeaningIds.map((meaningId) => ({
+        user_id: userId,
+        personal_vocabulary_id: vocabulary.id,
+        meaning_source_id: meaningId,
+        meaning_source_type: 'global_meaning',
+      })))
+      .select(`
+        id, meaning_source_id, memory_strength, memory_score,
+        review_interval_days, next_review_at, last_reviewed_at
+      `);
+    const createdMeaningIds = (createdCards ?? [])
+      .map(({meaning_source_id}) => meaning_source_id);
+    if (
+      cardError
+      || !createdCards
+      || !containsExactly(missingMeaningIds, createdMeaningIds)
+    ) {
+      return {data: null, error: LINK_ERROR};
+    }
+    learningCards = [...learningCards, ...createdCards];
+  }
+
+  const word = mapVocabularyRow({...data, learning_cards: learningCards});
+
+  return !word
     ? {data: null, error: LINK_ERROR}
     : {data: word, error: null};
 }

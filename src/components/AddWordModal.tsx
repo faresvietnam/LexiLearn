@@ -5,7 +5,7 @@ import { Word, Deck, Tag, WordPart, WordPartType, ExampleSentence } from '../typ
 interface AddWordModalProps {
   decks: Deck[];
   tags: Tag[];
-  existingWords: Word[];
+  globalWords: Array<Pick<Word, 'id' | 'word' | 'ipa'>>;
   onAddWord: (newWord: Word) => Promise<boolean>;
   onLinkExistingGlobalWord: (wordId: string) => Promise<boolean>;
   onClose: () => void;
@@ -14,7 +14,7 @@ interface AddWordModalProps {
 export const AddWordModal: React.FC<AddWordModalProps> = ({
   decks,
   tags,
-  existingWords,
+  globalWords,
   onAddWord,
   onLinkExistingGlobalWord,
   onClose,
@@ -35,7 +35,9 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
   // AI loading state
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [duplicateGlobalWord, setDuplicateGlobalWord] = useState<Word | null>(null);
+  const [duplicateGlobalWord, setDuplicateGlobalWord] = useState<
+    Pick<Word, 'id' | 'word' | 'ipa'> | null
+  >(null);
 
   // Check deduplication against existing Global Vocabulary
   const handleWordChange = (val: string) => {
@@ -46,10 +48,19 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
       return;
     }
 
-    const existing = existingWords.find(
-      (w) => w.word.toLowerCase() === normalized && w.isGlobal
+    const existing = globalWords.find(
+      (candidate) => candidate.word.toLowerCase() === normalized
     );
     setDuplicateGlobalWord(existing || null);
+  };
+
+  const handleGlobalWordSelect = (wordId: string) => {
+    const selected = globalWords.find(({id}) => id === wordId) ?? null;
+    setDuplicateGlobalWord(selected);
+    if (selected) {
+      setWord(selected.word);
+      setIpa(selected.ipa ?? '');
+    }
   };
 
   // Add word part row
@@ -123,8 +134,12 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
   const handleLinkGlobal = async () => {
     if (!duplicateGlobalWord) return;
     setIsSaving(true);
-    const saved = await onLinkExistingGlobalWord(duplicateGlobalWord.id);
-    setIsSaving(false);
+    let saved = false;
+    try {
+      saved = await onLinkExistingGlobalWord(duplicateGlobalWord.id);
+    } finally {
+      setIsSaving(false);
+    }
     if (saved) onClose();
   };
 
@@ -187,8 +202,12 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
     };
 
     setIsSaving(true);
-    const saved = await onAddWord(newWord);
-    setIsSaving(false);
+    let saved = false;
+    try {
+      saved = await onAddWord(newWord);
+    } finally {
+      setIsSaving(false);
+    }
     if (saved) onClose();
   };
 
@@ -223,6 +242,28 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6 text-sm">
+          <div className="space-y-1.5">
+            <label
+              htmlFor="global-word-select"
+              className="text-xs font-bold text-slate-700"
+            >
+              Chọn từ Global có sẵn
+            </label>
+            <select
+              id="global-word-select"
+              value={duplicateGlobalWord?.id ?? ''}
+              onChange={(event) => handleGlobalWordSelect(event.target.value)}
+              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
+            >
+              <option value="">Tự nhập một từ mới</option>
+              {globalWords.map((globalWord) => (
+                <option key={globalWord.id} value={globalWord.id}>
+                  {globalWord.word}{globalWord.ipa ? ` — ${globalWord.ipa}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Word & AI Auto-Fill */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-700">Từ Tiếng Anh *</label>
@@ -405,6 +446,11 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
               ))}
             </div>
           </div>
+
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+            Cấu tạo từ và câu ví dụ chỉ được giữ trong phiên hiện tại.
+            Từ, nghĩa, Deck và Tag được lưu lâu dài.
+          </p>
 
           {/* Actions */}
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">

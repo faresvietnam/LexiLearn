@@ -49,12 +49,16 @@ export const StudyScopeModal: React.FC<StudyScopeModalProps> = ({
 
   const handleSave = async () => {
     setIsSaving(true);
-    const saved = await onSaveScope({
-      activeDeckIds,
-      excludedTagIds,
-      pausedWordIds: studyScope.pausedWordIds,
-    });
-    setIsSaving(false);
+    let saved = false;
+    try {
+      saved = await onSaveScope({
+        activeDeckIds,
+        excludedTagIds,
+        pausedWordIds: studyScope.pausedWordIds,
+      });
+    } finally {
+      setIsSaving(false);
+    }
     if (saved) onClose();
   };
 

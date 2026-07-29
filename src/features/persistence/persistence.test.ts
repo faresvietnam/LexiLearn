@@ -1,10 +1,17 @@
-import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import React from 'react';
-import {fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import {INITIAL_SETTINGS} from '../../data/mockData';
 import {AddWordModal} from '../../components/AddWordModal';
 import {DecksAndTagsView} from '../../components/DecksAndTagsView';
 import {StudyScopeModal} from '../../components/StudyScopeModal';
+import {Word} from '../../types';
 import {
   mapDeckRow,
   mapSettingsRow,
@@ -20,8 +27,19 @@ const {getSupabaseClient, from} = vi.hoisted(() => ({
 
 vi.mock('../../lib/supabase', () => ({getSupabaseClient}));
 
+afterEach(cleanup);
+
 import {saveSettings, saveStudyScope} from './settingsRepository';
-import {saveDeck, saveTag, saveWordStatus} from './vocabularyRepository';
+import {
+  createPrivateWord,
+  linkGlobalWord,
+  loadLearnerState,
+  moveWordsToDeck,
+  saveDeck,
+  saveTag,
+  saveWordStatus,
+  saveWordStatuses,
+} from './vocabularyRepository';
 
 describe('persistence mappers', () => {
   it('maps persisted learner configuration into existing settings and scope shapes', () => {
@@ -295,7 +313,469 @@ describe('persistence repository errors', () => {
   });
 });
 
+describe('successful learner persistence', () => {
+  beforeEach(() => {
+    from.mockReset();
+    getSupabaseClient.mockReset();
+    getSupabaseClient.mockReturnValue({from});
+  });
+
+  it('hydrates unlinked active Global words for discovery', async () => {
+    const terminal = (data: unknown) => ({data, error: null});
+    from.mockImplementation((table: string) => {
+      if (table === 'user_settings') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              single: vi.fn().mockResolvedValue(terminal({
+                user_id: 'user-1',
+                new_words_per_day: 10,
+                review_limit_per_day: 40,
+                hint_behavior: 'auto',
+                audio_autoplay: false,
+                theme: 'system',
+                language: 'vi',
+                reduced_motion: false,
+                char_diff_accessibility: false,
+              })),
+            })),
+          })),
+        };
+      }
+      if (table === 'study_scope') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn().mockResolvedValue(terminal(null)),
+            })),
+          })),
+        };
+      }
+      const rows = table === 'personal_vocabulary'
+        ? [{
+            id: 'vocabulary-1',
+            deck_id: null,
+            study_status: 'active',
+            added_at: '2026-07-30T00:00:00Z',
+            personal_word_tags: [],
+            learning_cards: [],
+            global_words: {
+              id: 'global-linked',
+              word: 'linked',
+              ipa: null,
+              audio_url: null,
+              image_url: null,
+              status: 'active',
+              created_by_admin_id: null,
+              created_at: '2026-07-30T00:00:00Z',
+              word_parts: [],
+              global_meanings: [],
+            },
+            private_words: null,
+          }]
+        : table === 'global_words'
+          ? [
+              {id: 'global-linked', word: 'linked', ipa: null},
+              {id: 'global-new', word: 'discoverable', ipa: '/dɪˈskʌvərəbl/'},
+            ]
+          : [];
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            order: vi.fn().mockResolvedValue(terminal(rows)),
+          })),
+        })),
+      };
+    });
+
+    const result = await loadLearnerState('user-1');
+
+    expect(result.error).toBeNull();
+    expect(result.data?.globalWords).toEqual([
+      {id: 'global-new', word: 'discoverable', ipa: '/dɪˈskʌvərəbl/'},
+    ]);
+  });
+
+  it('returns a private word with persisted IDs and session-only enrichment intact', async () => {
+    const input: Word = {
+      id: 'temporary-word',
+      word: 'moonshot',
+      ipa: '/ˈmuːnʃɒt/',
+      wordStructure: [{
+        id: 'part-local',
+        text: 'moon',
+        type: 'root',
+        meaning: 'mặt trăng',
+        order: 1,
+      }],
+      wordFamily: ['moonshot', 'moonshots'],
+      isGlobal: false,
+      approvalStatus: 'pending',
+      createdBy: 'user-1',
+      createdAt: '2026-07-30',
+      deckId: 'deck-1',
+      tags: [],
+      status: 'active',
+      meanings: [{
+        id: 'meaning-local',
+        wordId: 'temporary-word',
+        meaning: 'mục tiêu đầy tham vọng',
+        partOfSpeech: 'noun',
+        memoryStrength: 'critical',
+        memoryScore: 20,
+        reviewIntervalDays: 1,
+        nextReviewDate: '2026-07-31',
+        firstAttemptErrorRate: 0,
+        forgottenWordParts: [],
+        history: [],
+        exampleSentences: [{
+          id: 'example-local',
+          meaningCardId: 'meaning-local',
+          sentence: 'This is a moonshot project.',
+          expectedAnswer: 'moonshot',
+          baseWord: 'moonshot',
+          wordForm: 'base',
+          partOfSpeech: 'noun',
+          difficulty: 'medium',
+          approvalStatus: 'pending',
+        }],
+      }],
+    };
+    from.mockImplementation((table: string) => {
+      if (table === 'private_words') {
+        return {
+          insert: vi.fn(() => ({
+            select: vi.fn(() => ({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  id: 'private-db',
+                  owner_user_id: 'user-1',
+                  word: 'moonshot',
+                  ipa: '/ˈmuːnʃɒt/',
+                  audio_url: null,
+                  image_url: null,
+                  status: 'pending',
+                  admin_comment: null,
+                  created_at: '2026-07-30T00:00:00Z',
+                },
+                error: null,
+              }),
+            })),
+          })),
+        };
+      }
+      if (table === 'private_meanings') {
+        return {
+          insert: vi.fn(() => ({
+            select: vi.fn().mockResolvedValue({
+              data: [{
+                id: 'meaning-db',
+                meaning_vi: 'mục tiêu đầy tham vọng',
+                part_of_speech: 'noun',
+                display_order: 0,
+              }],
+              error: null,
+            }),
+          })),
+        };
+      }
+      if (table === 'personal_vocabulary') {
+        return {
+          insert: vi.fn(() => ({
+            select: vi.fn(() => ({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  id: 'vocabulary-db',
+                  deck_id: 'deck-1',
+                  study_status: 'active',
+                  added_at: '2026-07-30T00:00:00Z',
+                },
+                error: null,
+              }),
+            })),
+          })),
+        };
+      }
+      if (table === 'learning_cards') {
+        return {
+          insert: vi.fn(() => ({
+            select: vi.fn().mockResolvedValue({
+              data: [{
+                id: 'card-db',
+                meaning_source_id: 'meaning-db',
+                memory_strength: 'critical',
+                memory_score: 0,
+                review_interval_days: 1,
+                next_review_at: '2026-07-30T00:00:00Z',
+                last_reviewed_at: null,
+              }],
+              error: null,
+            }),
+          })),
+        };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const result = await createPrivateWord('user-1', input);
+
+    expect(result.error).toBeNull();
+    expect(result.data).toMatchObject({
+      id: 'vocabulary-db',
+      wordStructure: input.wordStructure,
+      wordFamily: input.wordFamily,
+      meanings: [{
+        id: 'card-db',
+        exampleSentences: [{
+          id: 'example-local',
+          meaningCardId: 'card-db',
+          sentence: 'This is a moonshot project.',
+        }],
+      }],
+    });
+  });
+
+  it('moves all requested learner-owned words in one update', async () => {
+    const select = vi.fn().mockResolvedValue({
+      data: [{id: 'vocabulary-2'}, {id: 'vocabulary-1'}],
+      error: null,
+    });
+    const eq = vi.fn(() => ({select}));
+    const inFilter = vi.fn(() => ({eq}));
+    const update = vi.fn(() => ({in: inFilter}));
+    from.mockReturnValue({update});
+
+    const result = await moveWordsToDeck(
+      'user-1',
+      ['vocabulary-1', 'vocabulary-2'],
+      'deck-2',
+    );
+
+    expect(update).toHaveBeenCalledOnce();
+    expect(update).toHaveBeenCalledWith({deck_id: 'deck-2'});
+    expect(inFilter).toHaveBeenCalledWith(
+      'id',
+      ['vocabulary-1', 'vocabulary-2'],
+    );
+    expect(eq).toHaveBeenCalledWith('user_id', 'user-1');
+    expect(result.error).toBeNull();
+    expect(result.data).toEqual(
+      expect.arrayContaining(['vocabulary-1', 'vocabulary-2']),
+    );
+  });
+
+  it('updates all requested learner-owned statuses in one write', async () => {
+    const select = vi.fn().mockResolvedValue({
+      data: [{id: 'vocabulary-1'}, {id: 'vocabulary-2'}],
+      error: null,
+    });
+    const eq = vi.fn(() => ({select}));
+    const inFilter = vi.fn(() => ({eq}));
+    const update = vi.fn(() => ({in: inFilter}));
+    from.mockReturnValue({update});
+
+    const result = await saveWordStatuses(
+      'user-1',
+      ['vocabulary-1', 'vocabulary-2'],
+      'paused',
+    );
+
+    expect(update).toHaveBeenCalledOnce();
+    expect(inFilter).toHaveBeenCalledWith(
+      'id',
+      ['vocabulary-1', 'vocabulary-2'],
+    );
+    expect(eq).toHaveBeenCalledWith('user_id', 'user-1');
+    expect(result).toEqual({
+      data: ['vocabulary-1', 'vocabulary-2'],
+      error: null,
+    });
+  });
+
+  it('rejects a bulk status response that did not update every requested ID', async () => {
+    const select = vi.fn().mockResolvedValue({
+      data: [{id: 'vocabulary-1'}],
+      error: null,
+    });
+    const eq = vi.fn(() => ({select}));
+    const inFilter = vi.fn(() => ({eq}));
+    from.mockReturnValue({update: vi.fn(() => ({in: inFilter}))});
+
+    const result = await saveWordStatuses(
+      'user-1',
+      ['vocabulary-1', 'vocabulary-2'],
+      'archived',
+    );
+
+    expect(result.data).toBeNull();
+    expect(result.error).toMatch(/Không thể cập nhật trạng thái từ/);
+  });
+
+  it('links a Global word with one persisted card per active meaning', async () => {
+    const insertCards = vi.fn(() => ({
+      select: vi.fn().mockResolvedValue({
+        data: [
+          {
+            id: 'card-db-1',
+            meaning_source_id: 'global-meaning-1',
+            memory_strength: 'critical',
+            memory_score: 0,
+            review_interval_days: 1,
+            next_review_at: '2026-07-30T00:00:00Z',
+            last_reviewed_at: null,
+          },
+          {
+            id: 'card-db-2',
+            meaning_source_id: 'global-meaning-2',
+            memory_strength: 'critical',
+            memory_score: 0,
+            review_interval_days: 1,
+            next_review_at: '2026-07-30T00:00:00Z',
+            last_reviewed_at: null,
+          },
+        ],
+        error: null,
+      }),
+    }));
+    from.mockImplementation((table: string) => {
+      if (table === 'learning_cards') return {insert: insertCards};
+      if (table !== 'personal_vocabulary') {
+        throw new Error(`Unexpected table: ${table}`);
+      }
+      return {
+        upsert: vi.fn(() => ({
+          select: vi.fn(() => ({
+            single: vi.fn().mockResolvedValue({
+              data: {id: 'vocabulary-db'},
+              error: null,
+            }),
+          })),
+        })),
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  id: 'vocabulary-db',
+                  deck_id: 'deck-1',
+                  study_status: 'active',
+                  added_at: '2026-07-30T00:00:00Z',
+                  personal_word_tags: [],
+                  learning_cards: [],
+                  private_words: null,
+                  global_words: {
+                    id: 'global-1',
+                    word: 'transport',
+                    ipa: '/ˈtrænspɔːrt/',
+                    audio_url: null,
+                    image_url: null,
+                    status: 'active',
+                    created_by_admin_id: 'admin-1',
+                    created_at: '2026-07-29T00:00:00Z',
+                    word_parts: [],
+                    global_meanings: [
+                      {
+                        id: 'global-meaning-1',
+                        meaning_vi: 'vận chuyển',
+                        part_of_speech: 'verb',
+                        display_order: 0,
+                        status: 'active',
+                        global_examples: [],
+                      },
+                      {
+                        id: 'global-meaning-2',
+                        meaning_vi: 'sự vận chuyển',
+                        part_of_speech: 'noun',
+                        display_order: 1,
+                        status: 'active',
+                        global_examples: [],
+                      },
+                      {
+                        id: 'global-meaning-archived',
+                        meaning_vi: 'nghĩa cũ',
+                        part_of_speech: 'noun',
+                        display_order: 2,
+                        status: 'archived',
+                        global_examples: [],
+                      },
+                    ],
+                  },
+                },
+                error: null,
+              }),
+            })),
+          })),
+        })),
+      };
+    });
+
+    const result = await linkGlobalWord('user-1', 'global-1', 'deck-1');
+
+    expect(insertCards).toHaveBeenCalledWith([
+      {
+        user_id: 'user-1',
+        personal_vocabulary_id: 'vocabulary-db',
+        meaning_source_id: 'global-meaning-1',
+        meaning_source_type: 'global_meaning',
+      },
+      {
+        user_id: 'user-1',
+        personal_vocabulary_id: 'vocabulary-db',
+        meaning_source_id: 'global-meaning-2',
+        meaning_source_type: 'global_meaning',
+      },
+    ]);
+    expect(result.error).toBeNull();
+    expect(result.data?.meanings.map(({id}) => id)).toEqual([
+      'card-db-1',
+      'card-db-2',
+    ]);
+  });
+});
+
 describe('persisted form callbacks', () => {
+  it('discloses that private structure and examples last for this session only', () => {
+    render(React.createElement(AddWordModal, {
+      decks: [],
+      tags: [],
+      globalWords: [],
+      onAddWord: vi.fn().mockResolvedValue(false),
+      onLinkExistingGlobalWord: vi.fn().mockResolvedValue(false),
+      onClose: vi.fn(),
+    }));
+
+    expect(screen.getByText(
+      /cấu tạo từ và câu ví dụ chỉ được giữ trong phiên hiện tại/i,
+    )).toBeInTheDocument();
+  });
+
+  it('lets the learner discover and explicitly link an unlinked Global word', async () => {
+    const onLinkExistingGlobalWord = vi.fn().mockResolvedValue(false);
+    render(React.createElement(AddWordModal, {
+      decks: [],
+      tags: [],
+      globalWords: [{
+        id: 'global-1',
+        word: 'transport',
+        ipa: '/ˈtrænspɔːrt/',
+      }],
+      onAddWord: vi.fn().mockResolvedValue(false),
+      onLinkExistingGlobalWord,
+      onClose: vi.fn(),
+    }));
+
+    fireEvent.change(screen.getByLabelText('Chọn từ Global có sẵn'), {
+      target: {value: 'global-1'},
+    });
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Thêm vào Từ vựng cá nhân của tôi',
+    }));
+
+    await waitFor(() => {
+      expect(onLinkExistingGlobalWord).toHaveBeenCalledWith('global-1');
+    });
+  });
+
   it('keeps Study Scope open when persistence fails', async () => {
     const onSaveScope = vi.fn().mockResolvedValue(false);
     const onClose = vi.fn();
@@ -342,7 +822,7 @@ describe('persisted form callbacks', () => {
     render(React.createElement(AddWordModal, {
       decks: [],
       tags: [],
-      existingWords: [],
+      globalWords: [],
       onAddWord,
       onLinkExistingGlobalWord: vi.fn().mockResolvedValue(false),
       onClose,
