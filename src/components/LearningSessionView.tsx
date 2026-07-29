@@ -1,0 +1,783 @@
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Volume2,
+  HelpCircle,
+  X,
+  Check,
+  RotateCcw,
+  ArrowRight,
+  Sparkles,
+  AlertCircle,
+  Keyboard,
+  Eye,
+  CornerDownLeft,
+} from 'lucide-react';
+import { MeaningCard, Question, UserSettings, SessionStats, WordPart } from '../types';
+import { computeCharDiff, DiffResult, normalizeText } from '../utils/charDiff';
+import { evaluateSrsAttempt } from '../utils/srs';
+
+interface LearningSessionViewProps {
+  questions: Question[];
+  settings: UserSettings;
+  isExtraReview: boolean;
+  onMeaningCardUpdated: (
+    wordId: string,
+    meaningCardId: string,
+    updatedCard: MeaningCard
+  ) => void;
+  onFinishSession: (stats: SessionStats) => void;
+  onExitSession: () => void;
+}
+
+export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
+  questions,
+  settings,
+  isExtraReview,
+  onMeaningCardUpdated,
+  onFinishSession,
+  onExitSession,
+}) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const currentQuestion = questions[currentIndex];
+
+  // User input states
+  const [selectedMcOption, setSelectedMcOption] = useState<string | null>(null);
+  const [selectedParts, setSelectedParts] = useState<WordPart[]>([]);
+  const [typingValue, setTypingValue] = useState<string>('');
+  const [partTypingValues, setPartTypingValues] = useState<{ [partId: string]: string }>({});
+
+  // Question resolution states
+  const [isChecked, setIsChecked] = useState<boolean>(false);
+  const [isCorrect, setIsCorrect] = useState<boolean>(false);
+  const [attemptsCount, setAttemptsCount] = useState<number>(0);
+  const [hintLevel, setHintLevel] = useState<number>(0);
+  const [showHintModal, setShowHintModal] = useState<boolean>(false);
+  const [showPauseMenu, setShowPauseMenu] = useState<boolean>(false);
+  const [diffResult, setDiffResult] = useState<DiffResult | null>(null);
+  const [accumulatedErrorTypes, setAccumulatedErrorTypes] = useState<string[]>([]);
+  const [showAnswerReview, setShowAnswerReview] = useState<boolean>(false);
+
+  // Question timing & stats
+  const sessionStartTimeRef = useRef<number>(Date.now());
+  const questionStartTimeRef = useRef<number>(Date.now());
+  const retriesTotalRef = useRef<number>(0);
+  const firstAttemptSuccessesRef = useRef<number>(0);
+  const totalAttemptedQuestionsRef = useRef<number>(0);
+
+  // Focus ref for input
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    questionStartTimeRef.current = Date.now();
+    resetQuestionState();
+  }, [currentIndex]);
+
+  const resetQuestionState = () => {
+    setSelectedMcOption(null);
+    setSelectedParts([]);
+    setTypingValue('');
+    setPartTypingValues({});
+    setIsChecked(false);
+    setIsCorrect(false);
+    setAttemptsCount(0);
+    setHintLevel(0);
+    setShowHintModal(false);
+    setDiffResult(null);
+    setAccumulatedErrorTypes([]);
+    setShowAnswerReview(false);
+    setTimeout(() => inputRef.current?.focus(), 100);
+  };
+
+  // Play audio pronunciation using Web Speech API synthesis or mock audio
+  const handlePlayAudio = () => {
+    if (!currentQuestion) return;
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(currentQuestion.word.word);
+      utterance.lang = 'en-US';
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  // Check Answer Handler
+  const handleCheckAnswer = () => {
+    if (!currentQuestion) return;
+
+    const newAttempts = attemptsCount + 1;
+    setAttemptsCount(newAttempts);
+
+    let correct = false;
+    let expected = currentQuestion.expectedAnswer;
+    let userVal = '';
+
+    if (currentQuestion.type === 'en_to_vn_mc' || currentQuestion.type === 'vn_to_en_mc') {
+      const selectedOpt = currentQuestion.mcOptions?.find((o) => o.id === selectedMcOption);
+      correct = selectedOpt?.isCorrect || false;
+    } else if (currentQuestion.type === 'word_part_selection') {
+      userVal = selectedParts.map((p) => p.text).join('');
+      correct = userVal.toLowerCase() === expected.toLowerCase();
+    } else if (currentQuestion.type === 'word_part_typing') {
+      const parts = currentQuestion.wordParts || [];
+      const typedFull = parts.map((p) => partTypingValues[p.id] || '').join('');
+      userVal = typedFull;
+      correct = normalizeText(typedFull) === normalizeText(expected);
+    } else {
+      userVal = typingValue;
+      correct = typingValue.trim().toLowerCase() === expected.toLowerCase();
+    }
+
+    let currentDiff: DiffResult | null = null;
+
+    // Compute diff for typing questions
+    if (
+      currentQuestion.type === 'full_word_typing' ||
+      currentQuestion.type === 'word_part_typing' ||
+      currentQuestion.type === 'sentence_completion'
+    ) {
+      currentDiff = computeCharDiff(userVal, expected);
+      setDiffResult(currentDiff);
+    }
+
+    setIsChecked(true);
+    setIsCorrect(correct);
+
+    if (correct) {
+      // First attempt recording
+      const isFirstTry = newAttempts === 1;
+      if (isFirstTry) {
+        firstAttemptSuccessesRef.current += 1;
+      }
+      totalAttemptedQuestionsRef.current += 1;
+
+      // Evaluate SRS
+      const responseTimeMs = Date.now() - questionStartTimeRef.current;
+      const result = evaluateSrsAttempt(
+        currentQuestion.targetMeaningCard,
+        currentQuestion.stage,
+        isFirstTry,
+        newAttempts,
+        hintLevel,
+        responseTimeMs,
+        accumulatedErrorTypes
+      );
+      onMeaningCardUpdated(
+        currentQuestion.word.id,
+        currentQuestion.targetMeaningCard.id,
+        result.updatedCard
+      );
+
+      // Transition to Answer Review Overlay
+      setShowAnswerReview(true);
+
+      // Autoplay audio if enabled
+      if (settings.audioAutoplay) {
+        handlePlayAudio();
+      }
+    } else {
+      // Wrong answer behavior
+      retriesTotalRef.current += 1;
+      if (currentDiff) {
+        setAccumulatedErrorTypes((prev) => [...prev, ...currentDiff.errorTypes]);
+      }
+
+      // Auto increase hint level on repeated attempts
+      if (newAttempts >= 2 && hintLevel < 1) {
+        setHintLevel(1);
+      } else if (newAttempts >= 3 && hintLevel < 2) {
+        setHintLevel(2);
+      }
+    }
+  };
+
+  // Continue to Next Question
+  const handleContinueNext = () => {
+    setShowAnswerReview(false);
+    if (currentIndex + 1 < questions.length) {
+      setCurrentIndex((prev) => prev + 1);
+    } else {
+      // Finish Session
+      const accuracy =
+        totalAttemptedQuestionsRef.current > 0
+          ? Math.round(
+              (firstAttemptSuccessesRef.current / totalAttemptedQuestionsRef.current) * 100
+            )
+          : 100;
+
+      onFinishSession({
+        reviewsCompleted: questions.length,
+        newWordsLearned: questions.filter((q) => q.word.approvalStatus === 'pending').length,
+        firstAttemptAccuracy: accuracy,
+        studyTimeSeconds: Math.round((Date.now() - sessionStartTimeRef.current) / 1000),
+        retriesTotal: retriesTotalRef.current,
+        extraReviewMode: isExtraReview,
+      });
+    }
+  };
+
+  // Keyboard Navigation Listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Escape for Pause Menu
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowPauseMenu((prev) => !prev);
+        return;
+      }
+
+      if (showPauseMenu) return;
+
+      // Enter key: Check or Continue
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (showAnswerReview) {
+          handleContinueNext();
+        } else if (!isChecked) {
+          handleCheckAnswer();
+        } else if (!isCorrect) {
+          // Retry typing attempt
+          setIsChecked(false);
+          setDiffResult(null);
+          inputRef.current?.focus();
+        }
+        return;
+      }
+
+      // 'H' key for Hint
+      if ((e.key === 'h' || e.key === 'H') && !isChecked) {
+        e.preventDefault();
+        setShowHintModal((prev) => !prev);
+        setHintLevel((prev) => Math.min(5, prev + 1));
+        return;
+      }
+
+      // 'P' key for Audio
+      if (e.key === 'p' || e.key === 'P') {
+        e.preventDefault();
+        handlePlayAudio();
+        return;
+      }
+
+      // Number keys 1-9 for MC selection
+      if (!isChecked && currentQuestion?.mcOptions && ['1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(e.key)) {
+        const optionIndex = parseInt(e.key) - 1;
+        if (currentQuestion.mcOptions[optionIndex]) {
+          setSelectedMcOption(currentQuestion.mcOptions[optionIndex].id);
+        }
+      }
+
+      // Backspace for Word Part deselection
+      if (!isChecked && currentQuestion?.type === 'word_part_selection' && e.key === 'Backspace') {
+        setSelectedParts((prev) => prev.slice(0, prev.length - 1));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    isChecked,
+    isCorrect,
+    showAnswerReview,
+    showPauseMenu,
+    showHintModal,
+    hintLevel,
+    currentQuestion,
+    selectedMcOption,
+    selectedParts,
+    typingValue,
+    partTypingValues,
+  ]);
+
+  if (!currentQuestion) {
+    return (
+      <div className="max-w-xl mx-auto my-20 p-8 text-center bg-slate-900 rounded-2xl border border-slate-800 text-slate-100 space-y-4">
+        <Sparkles className="w-12 h-12 text-emerald-400 mx-auto" />
+        <h2 className="text-2xl font-bold">Không có câu hỏi trong Session!</h2>
+        <p className="text-slate-400 text-sm">Vui lòng kiểm tra lại Study Scope hoặc cài đặt ôn tập.</p>
+        <button
+          onClick={onExitSession}
+          className="px-6 py-2.5 bg-emerald-500 text-slate-950 font-bold rounded-xl"
+        >
+          Quay lại Dashboard
+        </button>
+      </div>
+    );
+  }
+
+  const progressPercent = Math.round(((currentIndex + 1) / questions.length) * 100);
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col font-sans select-none">
+      {/* Top Session Minimalist Header */}
+      <header className="h-16 border-b border-slate-200 px-6 flex items-center justify-between bg-white/80 backdrop-blur-md shadow-xs">
+        <div className="flex items-center gap-4">
+          <button
+            id="btn-pause-session"
+            onClick={() => setShowPauseMenu(true)}
+            className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200 transition"
+            title="Pause Session (Esc)"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <div className="text-sm font-bold text-slate-700">
+            Câu {currentIndex + 1} / {questions.length}
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="flex-1 max-w-md mx-6">
+          <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-200/60">
+            <div
+              className="h-full bg-indigo-600 transition-all duration-300 rounded-full"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Controls: Audio & Hint */}
+        <div className="flex items-center gap-2">
+          <button
+            id="btn-session-audio"
+            onClick={handlePlayAudio}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition"
+          >
+            <Volume2 className="w-4 h-4 text-indigo-600" />
+            <span>Phát [P]</span>
+          </button>
+
+          <button
+            id="btn-session-hint"
+            onClick={() => {
+              setShowHintModal(true);
+              setHintLevel((prev) => Math.min(5, prev + 1));
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold transition"
+          >
+            <HelpCircle className="w-4 h-4 text-amber-600" />
+            <span>Gợi ý [H]</span>
+          </button>
+        </div>
+      </header>
+
+      {/* Main Learning Canvas Center */}
+      <main className="flex-1 flex flex-col items-center justify-center p-6 max-w-3xl mx-auto w-full space-y-6">
+        {/* Stage Indicator Pill */}
+        <div className="flex items-center gap-2">
+          <span className="px-3.5 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+            Stage {currentQuestion.stage}: {currentQuestion.type.replace(/_/g, ' ')}
+          </span>
+          {currentQuestion.word.approvalStatus !== 'approved' && (
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+              Private Word ({currentQuestion.word.approvalStatus})
+            </span>
+          )}
+        </div>
+
+        {/* Question Prompt */}
+        <div className="text-center space-y-2">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
+            {currentQuestion.prompt}
+          </h2>
+
+          {/* Context Display */}
+          {currentQuestion.type === 'sentence_completion' && currentQuestion.exampleSentence && (
+            <div className="p-4 rounded-2xl bg-white border border-slate-200 text-lg text-indigo-900 font-medium shadow-xs">
+              "{currentQuestion.exampleSentence.sentence}"
+            </div>
+          )}
+
+          {currentQuestion.type === 'full_word_typing' && (
+            <div className="text-slate-500 text-sm font-mono">
+              Part of speech: <span className="text-indigo-600 font-bold">{currentQuestion.targetMeaningCard.partOfSpeech}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Dynamic Question Component Render */}
+        <div className="w-full space-y-4">
+          {/* MULTIPLE CHOICE TYPES */}
+          {(currentQuestion.type === 'en_to_vn_mc' || currentQuestion.type === 'vn_to_en_mc') && (
+            <div className="grid grid-cols-1 gap-3">
+              {currentQuestion.mcOptions?.map((opt) => {
+                const isSelected = selectedMcOption === opt.id;
+                let btnStyle = 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800 shadow-xs';
+
+                if (isChecked) {
+                  if (opt.isCorrect) {
+                    btnStyle = 'bg-emerald-50 border-emerald-500 text-emerald-900 font-bold';
+                  } else if (isSelected && !opt.isCorrect) {
+                    btnStyle = 'bg-rose-50 border-rose-500 text-rose-900 font-bold';
+                  }
+                } else if (isSelected) {
+                  btnStyle = 'bg-indigo-50 border-indigo-500 text-indigo-900 font-bold shadow-sm';
+                }
+
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={() => {
+                      if (isChecked && !isCorrect) {
+                        // Allow selecting another option after a wrong check
+                        setSelectedMcOption(opt.id);
+                        setIsChecked(false);
+                        setDiffResult(null);
+                      } else if (!isChecked) {
+                        setSelectedMcOption(opt.id);
+                      }
+                    }}
+                    className={`p-4 rounded-2xl border text-left flex items-center justify-between transition-all ${btnStyle}`}
+                  >
+                    <span className="text-base font-medium">{opt.label}</span>
+                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-xs text-slate-500 font-mono border border-slate-200 font-bold">
+                      [{opt.keyShortcut}]
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* WORD-PART SELECTION TYPE */}
+          {currentQuestion.type === 'word_part_selection' && (
+            <div className="space-y-6">
+              {/* Selected Slots */}
+              <div className="min-h-[60px] p-4 rounded-2xl bg-white border border-slate-200 flex items-center justify-center gap-2 flex-wrap shadow-xs">
+                {selectedParts.length === 0 ? (
+                  <span className="text-slate-400 text-sm">Chọn các thành phần phía dưới...</span>
+                ) : (
+                  selectedParts.map((p, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        if (isChecked && !isCorrect) {
+                          setIsChecked(false);
+                        }
+                        setSelectedParts((prev) => prev.filter((_, i) => i !== idx));
+                      }}
+                      className="px-4 py-2 rounded-xl bg-indigo-50 hover:bg-rose-50 text-indigo-700 hover:text-rose-700 border border-indigo-200 hover:border-rose-300 font-bold text-lg transition"
+                      title="Bấm để xóa phần này"
+                    >
+                      {p.text}
+                    </button>
+                  ))
+                )}
+              </div>
+
+              {/* Pool of Available Parts */}
+              <div className="flex items-center justify-center gap-3 flex-wrap">
+                {currentQuestion.wordParts?.map((part) => (
+                  <button
+                    key={part.id}
+                    onClick={() => {
+                      if (isChecked && !isCorrect) {
+                        setIsChecked(false);
+                      }
+                      setSelectedParts((prev) => [...prev, part]);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 font-mono font-bold text-slate-700 transition"
+                  >
+                    {part.text} <span className="text-xs text-slate-400">({part.type})</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* WORD-PART TYPING TYPE */}
+          {currentQuestion.type === 'word_part_typing' && (
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              {currentQuestion.wordParts?.map((part) => (
+                <div key={part.id} className="flex flex-col items-center gap-1">
+                  <span className="text-xs text-slate-500 uppercase font-bold">{part.type}</span>
+                  <input
+                    type="text"
+                    value={partTypingValues[part.id] || ''}
+                    onChange={(e) => {
+                      if (isChecked && !isCorrect) {
+                        setIsChecked(false);
+                      }
+                      setPartTypingValues({ ...partTypingValues, [part.id]: e.target.value });
+                    }}
+                    placeholder={part.type}
+                    className="w-32 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-center font-mono font-bold text-lg text-slate-900 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* FULL-WORD TYPING & SENTENCE COMPLETION */}
+          {(currentQuestion.type === 'full_word_typing' || currentQuestion.type === 'sentence_completion') && (
+            <div className="space-y-4">
+              <input
+                ref={inputRef}
+                type="text"
+                value={typingValue}
+                onChange={(e) => {
+                  if (isChecked && !isCorrect) {
+                    setIsChecked(false);
+                  }
+                  setTypingValue(e.target.value);
+                }}
+                placeholder="Gõ từ tiếng Anh tại đây..."
+                autoFocus
+                className="w-full px-5 py-4 rounded-2xl bg-white border border-slate-300 text-center text-2xl font-bold font-mono text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 shadow-sm transition"
+              />
+
+              {/* Character Diff Feedback display on incorrect attempt */}
+              {isChecked && !isCorrect && diffResult && (
+                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-center space-y-2">
+                  <div className="text-xs font-bold uppercase text-rose-700 flex items-center justify-center gap-1">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>Lỗi nhập liệu - Character Diff</span>
+                  </div>
+
+                  <div className="flex justify-center items-center gap-1 font-mono text-xl tracking-wider">
+                    {diffResult.tokens.map((tok, i) => {
+                      let color = 'text-emerald-600 font-bold';
+                      if (tok.status === 'missing') {
+                        color = 'text-rose-600 bg-rose-100 px-1 rounded underline decoration-wavy';
+                      } else if (tok.status === 'extra') {
+                        color = 'text-rose-500 line-through opacity-70';
+                      } else if (tok.status === 'replaced' || tok.status === 'transposed') {
+                        color = 'text-rose-700 bg-rose-100 px-1 rounded font-extrabold';
+                      }
+
+                      return (
+                        <span key={i} className={color} title={tok.status}>
+                          {tok.char}
+                        </span>
+                      );
+                    })}
+                  </div>
+
+                  <p className="text-xs text-rose-700 font-medium">
+                    Lỗi phát hiện: {diffResult.errorTypes.join(', ') || 'Chưa đúng chính tả'}. Hãy sửa và Enter để thử lại!
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Primary Action Button: Check ↵ or Retry */}
+        {!isChecked ? (
+          <button
+            id="btn-check-answer"
+            onClick={handleCheckAnswer}
+            className="w-full max-w-sm flex items-center justify-center gap-2 py-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-lg shadow-md shadow-indigo-100 transition transform active:scale-[0.98]"
+          >
+            <span>Check</span>
+            <CornerDownLeft className="w-5 h-5" />
+          </button>
+        ) : !isCorrect ? (
+          <div className="w-full max-w-sm space-y-3 text-center">
+            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-sm font-semibold flex items-center justify-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>Đáp án chưa đúng. Bạn có thể chọn lại đáp án bên trên!</span>
+            </div>
+            <button
+              id="btn-retry-answer"
+              onClick={() => {
+                setIsChecked(false);
+                setDiffResult(null);
+                setTimeout(() => inputRef.current?.focus(), 50);
+              }}
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-base shadow-md shadow-indigo-100 transition"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Thử lại / Chọn đáp án khác</span>
+            </button>
+          </div>
+        ) : null}
+      </main>
+
+      {/* Answer Review Overlay Screen (Section 3.4 & 10) */}
+      {showAnswerReview && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6 animate-fade-in">
+          <div className="max-w-2xl w-full bg-white border border-slate-200 rounded-3xl p-8 space-y-6 shadow-2xl">
+            {/* Answer Result Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                  <Check className="w-6 h-6 stroke-[3]" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-emerald-700">Chính xác!</h3>
+                  <p className="text-xs text-slate-500">Lịch sử SRS cho thẻ này đã được cập nhật</p>
+                </div>
+              </div>
+
+              <button
+                onClick={handlePlayAudio}
+                className="p-3 rounded-full bg-slate-100 hover:bg-slate-200 text-indigo-600 border border-slate-200 transition"
+              >
+                <Volume2 className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Target Word & IPA */}
+            <div className="space-y-1">
+              <div className="flex items-baseline gap-3">
+                <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">
+                  {currentQuestion.word.word}
+                </h2>
+                <span className="text-lg font-mono text-indigo-600 font-bold">
+                  {currentQuestion.word.ipa || `/${currentQuestion.word.word}/`}
+                </span>
+              </div>
+            </div>
+
+            {/* Tested Meaning Highlight */}
+            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-1">
+              <div className="text-xs font-bold uppercase text-emerald-800 tracking-wider">
+                Nghĩa vừa được kiểm tra
+              </div>
+              <p className="text-lg font-bold text-slate-900">
+                {currentQuestion.targetMeaningCard.meaning}
+              </p>
+            </div>
+
+            {/* All OTHER Meanings Display (Requirement Section 3.4) */}
+            {currentQuestion.word.meanings.length > 1 && (
+              <div className="space-y-2">
+                <div className="text-xs font-bold uppercase text-slate-500 tracking-wider">
+                  Các nghĩa khác của từ "{currentQuestion.word.word}":
+                </div>
+                <div className="space-y-1.5">
+                  {currentQuestion.word.meanings
+                    .filter((m) => m.id !== currentQuestion.targetMeaningCard.id)
+                    .map((otherM, i) => (
+                      <div
+                        key={i}
+                        className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-sm flex items-center justify-between"
+                      >
+                        <span className="text-slate-800 font-medium">{otherM.meaning}</span>
+                        <span className="text-xs text-indigo-600 font-mono font-bold">
+                          ({otherM.partOfSpeech})
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Word Structure Breakdown */}
+            {currentQuestion.word.wordStructure.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-xs font-bold uppercase text-slate-500 tracking-wider">
+                  Cấu tạo từ (Morphology):
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {currentQuestion.word.wordStructure.map((p) => (
+                    <div
+                      key={p.id}
+                      className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono"
+                    >
+                      <span className="text-indigo-600 font-bold">{p.text}</span>{' '}
+                      <span className="text-slate-500">({p.type})</span>
+                      {p.meaning && <span className="text-slate-700 ml-1.5">- {p.meaning}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Continue Button */}
+            <button
+              id="btn-continue-overlay"
+              onClick={handleContinueNext}
+              className="w-full py-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-lg shadow-md shadow-indigo-100 flex items-center justify-center gap-2 transition"
+            >
+              <span>Tiếp tục (Continue ↵)</span>
+              <CornerDownLeft className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Adaptive Hint Modal (Section 9) */}
+      {showHintModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="max-w-md w-full bg-white border border-amber-200 rounded-3xl p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-amber-800 flex items-center gap-2">
+                <HelpCircle className="w-5 h-5 text-amber-600" />
+                <span>Gợi ý - Level {hintLevel}</span>
+              </h3>
+              <button
+                onClick={() => setShowHintModal(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-sm text-slate-800">
+              {hintLevel >= 1 && (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <strong>Số ký tự:</strong> {currentQuestion.expectedAnswer.length} chữ cái
+                </div>
+              )}
+              {hintLevel >= 2 && (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <strong>Chữ cái đầu:</strong> "{currentQuestion.expectedAnswer[0].toUpperCase()}"
+                </div>
+              )}
+              {hintLevel >= 3 && currentQuestion.word.wordStructure.length > 0 && (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <strong>Giải thích cấu tạo:</strong>
+                  <ul className="list-disc list-inside mt-1 space-y-0.5 text-xs text-slate-700">
+                    {currentQuestion.word.wordStructure.map((p, i) => (
+                      <li key={i}>
+                        {p.type}: <strong>{p.text}</strong> ({p.meaning})
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {hintLevel >= 5 && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800">
+                  <strong>Đáp án đầy đủ:</strong> {currentQuestion.expectedAnswer}
+                  <div className="text-[11px] text-slate-500 mt-1">
+                    (Khi mở xem đáp án đầy đủ, kết quả được tính là Completion, không tính Independent Recall)
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => setShowHintModal(false)}
+              className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-sm transition"
+            >
+              Đã hiểu, tiếp tục thử lại
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Pause Menu Modal */}
+      {showPauseMenu && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="max-w-sm w-full bg-white border border-slate-200 rounded-3xl p-6 space-y-4 text-center shadow-2xl">
+            <h3 className="text-xl font-bold text-slate-900">Pause Session</h3>
+            <p className="text-sm text-slate-500">Tiến trình học của bạn đang được lưu tạm thời.</p>
+            <div className="space-y-2">
+              <button
+                onClick={() => setShowPauseMenu(false)}
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition"
+              >
+                Tiếp tục học
+              </button>
+              <button
+                onClick={onExitSession}
+                className="w-full py-3 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl border border-slate-200 font-semibold transition"
+              >
+                Thoát về Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
