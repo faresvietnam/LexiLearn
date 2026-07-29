@@ -15,6 +15,7 @@ import {
 import { MeaningCard, Question, UserSettings, SessionStats, WordPart } from '../types';
 import { computeCharDiff, DiffResult, normalizeText } from '../utils/charDiff';
 import { evaluateSrsAttempt } from '../utils/srs';
+import { CharacterDiffComparison } from './CharacterDiffComparison';
 
 interface LearningSessionViewProps {
   questions: Question[];
@@ -531,24 +532,10 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
                     <span>Lỗi nhập liệu - Character Diff</span>
                   </div>
 
-                  <div className="flex justify-center items-center gap-1 font-mono text-xl tracking-wider">
-                    {diffResult.tokens.map((tok, i) => {
-                      let color = 'text-emerald-600 font-bold';
-                      if (tok.status === 'missing') {
-                        color = 'text-rose-600 bg-rose-100 px-1 rounded underline decoration-wavy';
-                      } else if (tok.status === 'extra') {
-                        color = 'text-rose-500 line-through opacity-70';
-                      } else if (tok.status === 'replaced' || tok.status === 'transposed') {
-                        color = 'text-rose-700 bg-rose-100 px-1 rounded font-extrabold';
-                      }
-
-                      return (
-                        <span key={i} className={color} title={tok.status}>
-                          {tok.char}
-                        </span>
-                      );
-                    })}
-                  </div>
+                  <CharacterDiffComparison
+                    userInput={diffResult.normalizedUser}
+                    expectedInput={diffResult.normalizedExpected}
+                  />
 
                   <p className="text-xs text-rose-700 font-medium">
                     Lỗi phát hiện: {diffResult.errorTypes.join(', ') || 'Chưa đúng chính tả'}. Hãy sửa và Enter để thử lại!

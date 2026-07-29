@@ -218,4 +218,46 @@ describe('LearningSessionView session completion', () => {
       errorTypes: [],
     });
   });
+
+  it('shows the two Git-style comparison rows after an incorrect typed answer', () => {
+    render(
+      <LearningSessionView
+        questions={[question]}
+        settings={settings}
+        isExtraReview={false}
+        onMeaningCardUpdated={() => undefined}
+        onFinishSession={() => undefined}
+        onExitSession={() => undefined}
+      />
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Gõ từ tiếng Anh tại đây...'), {
+      target: { value: 'remmber' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Check/i }));
+
+    expect(screen.getByText('- Bạn nhập:')).toBeInTheDocument();
+    expect(screen.getByText('+ Đáp án:')).toBeInTheDocument();
+  });
+
+  it('does not show the comparison rows after a correct typed answer', () => {
+    render(
+      <LearningSessionView
+        questions={[question]}
+        settings={settings}
+        isExtraReview={false}
+        onMeaningCardUpdated={() => undefined}
+        onFinishSession={() => undefined}
+        onExitSession={() => undefined}
+      />
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Gõ từ tiếng Anh tại đây...'), {
+      target: { value: 'remember' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Check/i }));
+
+    expect(screen.queryByText('- Bạn nhập:')).not.toBeInTheDocument();
+    expect(screen.queryByText('+ Đáp án:')).not.toBeInTheDocument();
+  });
 });
