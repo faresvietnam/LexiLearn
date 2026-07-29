@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import {Navigate, useLocation} from 'react-router-dom';
 import {LoginView} from './features/auth/LoginView';
 import {useAuth} from './features/auth/AuthProvider';
 import {
@@ -39,10 +38,8 @@ import { buildSessionQuestions } from './utils/sessionBuilder';
 
 export default function App() {
   const {status, roles, user, signOut} = useAuth();
-  const location = useLocation();
   if (status !== 'authenticated') return <LoginView />;
   const authenticatedRole: UserRole = roles.includes('admin') ? 'admin' : 'learner';
-  if (location.pathname === '/admin' && authenticatedRole !== 'admin') return <Navigate to="/" replace />;
   // Main Application State
   const [words, setWords] = useState<Word[]>(INITIAL_WORDS);
   const [decks, setDecks] = useState<Deck[]>(INITIAL_DECKS);
@@ -233,7 +230,6 @@ export default function App() {
             }
           }}
           userRole={userRole}
-          onOpenAdmin={() => setCurrentTab('admin_submissions')}
           onOpenStudyScope={() => setShowStudyScopeModal(true)}
           pendingSubmissionsCount={pendingSubmissionsCount}
           userProfile={{
@@ -365,7 +361,7 @@ export default function App() {
             />
           )}
 
-          {currentTab === 'admin_submissions' && userRole === 'admin' && (
+          {currentTab === 'admin' && userRole === 'admin' && (
             <AdminApprovalView
               words={words}
               onApproveWord={handleApproveWord}

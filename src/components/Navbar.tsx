@@ -22,7 +22,6 @@ interface NavbarProps {
   currentTab: string;
   onSelectTab: (tab: string) => void;
   userRole: UserRole;
-  onOpenAdmin: () => void;
   onOpenStudyScope: () => void;
   pendingSubmissionsCount: number;
   userProfile: {
@@ -45,7 +44,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentTab,
   onSelectTab,
   userRole,
-  onOpenAdmin,
   onOpenStudyScope,
   pendingSubmissionsCount,
   userProfile,
@@ -67,10 +65,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   if (userRole === 'admin') {
     navItems.push({
-      id: 'admin_submissions',
-      label: 'Duyệt bài',
+      id: 'admin',
+      label: 'Admin',
       icon: ShieldCheck,
-      badge: pendingSubmissionsCount > 0 ? pendingSubmissionsCount : undefined,
+      badge: pendingSubmissionsCount || undefined,
     });
   }
 
@@ -239,19 +237,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               Config
             </span>
           </button>
-
-          {userRole === 'admin' && <button
-            id="btn-toggle-role"
-            onClick={() => { onOpenAdmin(); setMobileOpen(false); }}
-            className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold border transition bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
-          >
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-amber-600" />
-              <span>Admin Mode</span>
-            </div>
-            <span className="text-[10px] opacity-70">Open</span>
-          </button>
-          }
         </div>
       </aside>
     </>
