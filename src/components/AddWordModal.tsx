@@ -6,8 +6,8 @@ interface AddWordModalProps {
   decks: Deck[];
   tags: Tag[];
   existingWords: Word[];
-  onAddWord: (newWord: Word) => void;
-  onLinkExistingGlobalWord: (wordId: string) => void;
+  onAddWord: (newWord: Word) => Promise<boolean>;
+  onLinkExistingGlobalWord: (wordId: string) => Promise<boolean>;
   onClose: () => void;
 }
 
@@ -34,6 +34,7 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
 
   // AI loading state
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [duplicateGlobalWord, setDuplicateGlobalWord] = useState<Word | null>(null);
 
   // Check deduplication against existing Global Vocabulary
@@ -119,13 +120,20 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleLinkGlobal = async () => {
+    if (!duplicateGlobalWord) return;
+    setIsSaving(true);
+    const saved = await onLinkExistingGlobalWord(duplicateGlobalWord.id);
+    setIsSaving(false);
+    if (saved) onClose();
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!word.trim() || !vietnameseMeaning.trim()) return;
 
     if (duplicateGlobalWord) {
-      onLinkExistingGlobalWord(duplicateGlobalWord.id);
-      onClose();
+      await handleLinkGlobal();
       return;
     }
 
@@ -178,8 +186,10 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
       ],
     };
 
-    onAddWord(newWord);
-    onClose();
+    setIsSaving(true);
+    const saved = await onAddWord(newWord);
+    setIsSaving(false);
+    if (saved) onClose();
   };
 
   return (
@@ -203,10 +213,8 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
               Bạn không cần tạo mới. Bấm "Thêm vào Từ vựng cá nhân" để đưa vào danh sách học của bạn.
             </p>
             <button
-              onClick={() => {
-                onLinkExistingGlobalWord(duplicateGlobalWord.id);
-                onClose();
-              }}
+              onClick={() => void handleLinkGlobal()}
+              disabled={isSaving}
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs"
             >
               Thêm vào Từ vựng cá nhân của tôi
@@ -409,10 +417,10 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={!!duplicateGlobalWord}
+              disabled={!!duplicateGlobalWord || isSaving}
               className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-md shadow-indigo-100 disabled:opacity-50"
             >
-              Lưu từ vựng
+              {isSaving ? 'Đang lưu...' : 'Lưu từ vựng'}
             </button>
           </div>
         </form>

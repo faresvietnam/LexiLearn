@@ -6,8 +6,8 @@ interface DecksAndTagsViewProps {
   decks: Deck[];
   tags: Tag[];
   words: Word[];
-  onCreateDeck: (deck: Deck) => void;
-  onCreateTag: (tag: Tag) => void;
+  onCreateDeck: (deck: Deck) => Promise<boolean>;
+  onCreateTag: (tag: Tag) => Promise<boolean>;
 }
 
 export const DecksAndTagsView: React.FC<DecksAndTagsViewProps> = ({
@@ -23,30 +23,38 @@ export const DecksAndTagsView: React.FC<DecksAndTagsViewProps> = ({
 
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#10B981');
+  const [isCreatingDeck, setIsCreatingDeck] = useState(false);
+  const [isCreatingTag, setIsCreatingTag] = useState(false);
 
-  const handleCreateDeck = (e: React.FormEvent) => {
+  const handleCreateDeck = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDeckName.trim()) return;
-    onCreateDeck({
+    setIsCreatingDeck(true);
+    const saved = await onCreateDeck({
       id: `deck_${Date.now()}`,
       name: newDeckName.trim(),
       description: newDeckDesc.trim(),
       color: newDeckColor,
       createdAt: new Date().toISOString().split('T')[0],
     });
-    setNewDeckName('');
-    setNewDeckDesc('');
+    setIsCreatingDeck(false);
+    if (saved) {
+      setNewDeckName('');
+      setNewDeckDesc('');
+    }
   };
 
-  const handleCreateTag = (e: React.FormEvent) => {
+  const handleCreateTag = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTagName.trim()) return;
-    onCreateTag({
+    setIsCreatingTag(true);
+    const saved = await onCreateTag({
       id: `tag_${Date.now()}`,
       name: newTagName.trim(),
       color: newTagColor,
     });
-    setNewTagName('');
+    setIsCreatingTag(false);
+    if (saved) setNewTagName('');
   };
 
   return (
@@ -91,8 +99,8 @@ export const DecksAndTagsView: React.FC<DecksAndTagsViewProps> = ({
               onChange={(e) => setNewDeckDesc(e.target.value)}
               className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:border-indigo-500"
             />
-            <button type="submit" className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-md shadow-indigo-100 transition">
-              Tạo Deck
+            <button type="submit" disabled={isCreatingDeck} className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-md shadow-indigo-100 transition disabled:opacity-60">
+              {isCreatingDeck ? 'Đang tạo...' : 'Tạo Deck'}
             </button>
           </form>
 
@@ -146,8 +154,8 @@ export const DecksAndTagsView: React.FC<DecksAndTagsViewProps> = ({
                 onChange={(e) => setNewTagColor(e.target.value)}
                 className="w-10 h-9 p-1 bg-white border border-slate-200 rounded-lg cursor-pointer"
               />
-              <button type="submit" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-md shadow-indigo-100 transition">
-                Tạo Tag
+              <button type="submit" disabled={isCreatingTag} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-md shadow-indigo-100 transition disabled:opacity-60">
+                {isCreatingTag ? 'Đang tạo...' : 'Tạo Tag'}
               </button>
             </div>
           </form>

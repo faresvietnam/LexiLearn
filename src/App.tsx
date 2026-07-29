@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {LoginView} from './features/auth/LoginView';
 import {useAuth} from './features/auth/AuthProvider';
 import {
@@ -35,17 +35,35 @@ import { SettingsView } from './components/SettingsView';
 import { AdminWorkspace } from './components/AdminWorkspace';
 import { RootWordInsightsView } from './components/RootWordInsightsView';
 import { buildSessionQuestions } from './utils/sessionBuilder';
+import {getSupabaseClient} from './lib/supabase';
+import {saveSettings, saveStudyScope} from './features/persistence/settingsRepository';
+import {
+  createPrivateWord,
+  linkGlobalWord,
+  loadLearnerState,
+  moveWordsToDeck,
+  saveDeck,
+  saveTag,
+  saveWordStatus,
+} from './features/persistence/vocabularyRepository';
 
 export default function App() {
   const {status, roles, user, signOut} = useAuth();
-  if (status !== 'authenticated') return <LoginView />;
   const authenticatedRole: UserRole = roles.includes('admin') ? 'admin' : 'learner';
+  const client = getSupabaseClient();
   // Main Application State
-  const [words, setWords] = useState<Word[]>(INITIAL_WORDS);
-  const [decks, setDecks] = useState<Deck[]>(INITIAL_DECKS);
-  const [tags, setTags] = useState<Tag[]>(INITIAL_TAGS);
-  const [studyScope, setStudyScope] = useState<StudyScope>(INITIAL_STUDY_SCOPE);
-  const [settings, setSettings] = useState<UserSettings>(INITIAL_SETTINGS);
+  const [words, setWords] = useState<Word[]>(() => client ? [] : INITIAL_WORDS);
+  const [decks, setDecks] = useState<Deck[]>(() => client ? [] : INITIAL_DECKS);
+  const [tags, setTags] = useState<Tag[]>(() => client ? [] : INITIAL_TAGS);
+  const [studyScope, setStudyScope] = useState<StudyScope | null>(
+    () => client ? null : INITIAL_STUDY_SCOPE,
+  );
+  const [settings, setSettings] = useState<UserSettings | null>(
+    () => client ? null : INITIAL_SETTINGS,
+  );
+  const [isHydrating, setIsHydrating] = useState(Boolean(client));
+  const [hydrationError, setHydrationError] = useState<string | null>(null);
+  const [hydrationVersion, setHydrationVersion] = useState(0);
   const userRole = authenticatedRole;
 
   // Navigation State
@@ -66,10 +84,70 @@ export default function App() {
   // Notification Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (status !== 'authenticated' || !client || !user) return;
+    let alive = true;
+    setIsHydrating(true);
+    setHydrationError(null);
+    setWords([]);
+    setDecks([]);
+    setTags([]);
+    setStudyScope(null);
+    setSettings(null);
+
+    void loadLearnerState(user.id).then((result) => {
+      if (!alive) return;
+      if (result.error) {
+        setHydrationError(result.error);
+      } else {
+        setWords(result.data.words);
+        setDecks(result.data.decks);
+        setTags(result.data.tags);
+        setStudyScope(result.data.studyScope);
+        setSettings(result.data.settings);
+      }
+      setIsHydrating(false);
+    });
+
+    return () => {
+      alive = false;
+    };
+  }, [client, hydrationVersion, status, user?.id]);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
+
+  if (status !== 'authenticated') return <LoginView />;
+
+  if (client && (isHydrating || !settings || !studyScope)) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-6">
+        <div className="max-w-md rounded-2xl bg-white border border-slate-200 p-6 text-center space-y-4 shadow-sm">
+          {hydrationError ? (
+            <>
+              <p role="alert" className="text-sm text-rose-700">
+                {hydrationError}
+              </p>
+              <button
+                onClick={() => setHydrationVersion((version) => version + 1)}
+                className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold"
+              >
+                Thử tải lại
+              </button>
+            </>
+          ) : (
+            <p role="status" className="text-sm text-slate-600">
+              Đang tải dữ liệu học tập...
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (!settings || !studyScope) return null;
 
   // Toggle User Role (Learner vs Admin)
 
@@ -125,37 +203,158 @@ export default function App() {
   };
 
   // Vocabulary handlers
-  const handleUpdateWordStatus = (wordId: string, status: WordStudyStatus) => {
+  const handleUpdateWordStatus = async (
+    wordId: string,
+    status: WordStudyStatus,
+  ) => {
+    if (client && user) {
+      const result = await saveWordStatus(user.id, wordId, status);
+      if (result.error) {
+        showToast(result.error);
+        return false;
+      }
+    }
     setWords((prev) =>
       prev.map((w) => (w.id === wordId ? { ...w, status } : w))
     );
     showToast(`Đã cập nhật trạng thái từ sang: ${status}`);
+    return true;
   };
 
-  const handleBulkUpdateStatus = (wordIds: string[], status: WordStudyStatus) => {
+  const handleBulkUpdateStatus = async (
+    wordIds: string[],
+    status: WordStudyStatus,
+  ) => {
+    if (client && user) {
+      const results = await Promise.all(
+        wordIds.map((wordId) => saveWordStatus(user.id, wordId, status)),
+      );
+      const failure = results.find(({error}) => error);
+      if (failure?.error) {
+        showToast(failure.error);
+        return false;
+      }
+    }
     setWords((prev) =>
       prev.map((w) => (wordIds.includes(w.id) ? { ...w, status } : w))
     );
     showToast(`Đã cập nhật ${wordIds.length} từ sang: ${status}`);
+    return true;
   };
 
-  const handleAddWord = (newWord: Word) => {
-    setWords((prev) => [newWord, ...prev]);
-    showToast(`Đã thêm từ "${newWord.word}" vào danh sách học cá nhân!`);
+  const handleAddWord = async (newWord: Word) => {
+    let savedWord = newWord;
+    if (client && user) {
+      const result = await createPrivateWord(user.id, newWord);
+      if (result.error) {
+        showToast(result.error);
+        return false;
+      }
+      savedWord = result.data;
+    }
+    setWords((prev) => [savedWord, ...prev]);
+    showToast(`Đã thêm từ "${savedWord.word}" vào danh sách học cá nhân!`);
+    return true;
   };
 
-  const handleLinkExistingGlobalWord = (wordId: string) => {
-    setWords((prev) =>
-      prev.map((w) =>
-        w.id === wordId
-          ? {
-              ...w,
-              status: 'active',
-            }
-          : w
-      )
-    );
+  const handleLinkExistingGlobalWord = async (wordId: string) => {
+    const existingWord = words.find(({id}) => id === wordId);
+    if (client && user) {
+      const result = existingWord
+        ? await saveWordStatus(user.id, wordId, 'active')
+        : await linkGlobalWord(user.id, wordId, decks[0]?.id ?? null);
+      if (result.error) {
+        showToast(result.error);
+        return false;
+      }
+      if (!existingWord) {
+        setWords((prev) => [result.data as Word, ...prev]);
+      }
+    }
+    if (existingWord) {
+      setWords((prev) =>
+        prev.map((word) =>
+          word.id === wordId ? {...word, status: 'active'} : word
+        )
+      );
+    }
     showToast('Đã thêm từ Global Vocabulary vào danh sách học của bạn!');
+    return true;
+  };
+
+  const handleMoveWords = async (wordIds: string[], deckId: string) => {
+    if (client && user) {
+      const result = await moveWordsToDeck(user.id, wordIds, deckId);
+      if (result.error) {
+        showToast(result.error);
+        return false;
+      }
+    }
+    setWords((prev) =>
+      prev.map((word) => wordIds.includes(word.id)
+        ? {...word, deckId}
+        : word)
+    );
+    showToast(`Đã chuyển ${wordIds.length} từ sang Deck mới.`);
+    return true;
+  };
+
+  const handleCreateDeck = async (deck: Deck) => {
+    let savedDeck = deck;
+    if (client && user) {
+      const result = await saveDeck(user.id, deck);
+      if (result.error) {
+        showToast(result.error);
+        return false;
+      }
+      savedDeck = result.data;
+    }
+    setDecks((prev) => [...prev, savedDeck]);
+    showToast(`Đã tạo Deck "${savedDeck.name}".`);
+    return true;
+  };
+
+  const handleCreateTag = async (tag: Tag) => {
+    let savedTag = tag;
+    if (client && user) {
+      const result = await saveTag(user.id, tag);
+      if (result.error) {
+        showToast(result.error);
+        return false;
+      }
+      savedTag = result.data;
+    }
+    setTags((prev) => [...prev, savedTag]);
+    showToast(`Đã tạo Tag "${savedTag.name}".`);
+    return true;
+  };
+
+  const handleUpdateSettings = async (nextSettings: UserSettings) => {
+    if (client && user) {
+      const result = await saveSettings(user.id, nextSettings);
+      if (result.error) {
+        showToast(result.error);
+        return false;
+      }
+    }
+    setSettings(nextSettings);
+    showToast('Đã cập nhật cài đặt!');
+    return true;
+  };
+
+  const handleSaveStudyScope = async (nextScope: StudyScope) => {
+    if (client && user) {
+      const result = await saveStudyScope(user.id, nextScope);
+      if (result.error) {
+        showToast(result.error);
+        return false;
+      }
+      setStudyScope(result.data);
+    } else {
+      setStudyScope(nextScope);
+    }
+    showToast('Đã lưu Study Scope mới làm mặc định!');
+    return true;
   };
 
   const handleConfirmCsvImport = (importedWords: Word[]) => {
@@ -212,7 +411,7 @@ export default function App() {
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans antialiased selection:bg-indigo-500 selection:text-white">
       {/* Toast Notification Banner */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 px-5 py-3 rounded-2xl bg-slate-900 text-white font-medium text-sm shadow-xl border border-slate-800 animate-bounce flex items-center gap-2">
+        <div role="status" aria-live="polite" className="fixed bottom-6 right-6 z-50 px-5 py-3 rounded-2xl bg-slate-900 text-white font-medium text-sm shadow-xl border border-slate-800 animate-bounce flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
           <span>{toastMessage}</span>
         </div>
@@ -296,13 +495,15 @@ export default function App() {
               decks={decks}
               tags={tags}
               existingWords={words}
-              onAddWord={(newWord) => {
-                handleAddWord(newWord);
-                setCurrentTab('vocabulary');
+              onAddWord={async (newWord) => {
+                const saved = await handleAddWord(newWord);
+                if (saved) setCurrentTab('vocabulary');
+                return saved;
               }}
-              onLinkExistingGlobalWord={(id) => {
-                handleLinkExistingGlobalWord(id);
-                setCurrentTab('vocabulary');
+              onLinkExistingGlobalWord={async (id) => {
+                const saved = await handleLinkExistingGlobalWord(id);
+                if (saved) setCurrentTab('vocabulary');
+                return saved;
               }}
               onClose={() => setCurrentTab('vocabulary')}
             />
@@ -329,10 +530,7 @@ export default function App() {
               onOpenWordDetail={(w) => setSelectedWordDetail(w)}
               onUpdateWordStatus={handleUpdateWordStatus}
               onBulkUpdateStatus={handleBulkUpdateStatus}
-              onBulkMoveDeck={(ids, deckId) => {
-                setWords((prev) => prev.map((w) => (ids.includes(w.id) ? { ...w, deckId } : w)));
-                showToast(`Đã chuyển ${ids.length} từ sang Deck mới.`);
-              }}
+              onBulkMoveDeck={handleMoveWords}
             />
           )}
 
@@ -341,8 +539,8 @@ export default function App() {
               decks={decks}
               tags={tags}
               words={words}
-              onCreateDeck={(d) => setDecks([...decks, d])}
-              onCreateTag={(t) => setTags([...tags, t])}
+              onCreateDeck={handleCreateDeck}
+              onCreateTag={handleCreateTag}
             />
           )}
 
@@ -353,10 +551,7 @@ export default function App() {
               settings={settings}
               studyScope={studyScope}
               words={words}
-              onUpdateSettings={(s) => {
-                setSettings(s);
-                showToast('Đã cập nhật cài đặt!');
-              }}
+              onUpdateSettings={handleUpdateSettings}
               onExportData={handleExportData}
             />
           )}
@@ -379,10 +574,7 @@ export default function App() {
           decks={decks}
           tags={tags}
           words={words}
-          onSaveScope={(newScope) => {
-            setStudyScope(newScope);
-            showToast('Đã lưu Study Scope mới làm mặc định!');
-          }}
+          onSaveScope={handleSaveStudyScope}
           onClose={() => setShowStudyScopeModal(false)}
         />
       )}

@@ -7,7 +7,7 @@ interface StudyScopeModalProps {
   decks: Deck[];
   tags: Tag[];
   words: Word[];
-  onSaveScope: (newScope: StudyScope) => void;
+  onSaveScope: (newScope: StudyScope) => Promise<boolean>;
   onClose: () => void;
 }
 
@@ -21,6 +21,7 @@ export const StudyScopeModal: React.FC<StudyScopeModalProps> = ({
 }) => {
   const [activeDeckIds, setActiveDeckIds] = useState<string[]>(studyScope.activeDeckIds);
   const [excludedTagIds, setExcludedTagIds] = useState<string[]>(studyScope.excludedTagIds);
+  const [isSaving, setIsSaving] = useState(false);
 
   const toggleDeck = (deckId: string) => {
     if (activeDeckIds.includes(deckId)) {
@@ -46,13 +47,15 @@ export const StudyScopeModal: React.FC<StudyScopeModalProps> = ({
     return true;
   }).length;
 
-  const handleSave = () => {
-    onSaveScope({
+  const handleSave = async () => {
+    setIsSaving(true);
+    const saved = await onSaveScope({
       activeDeckIds,
       excludedTagIds,
       pausedWordIds: studyScope.pausedWordIds,
     });
-    onClose();
+    setIsSaving(false);
+    if (saved) onClose();
   };
 
   return (
@@ -140,9 +143,10 @@ export const StudyScopeModal: React.FC<StudyScopeModalProps> = ({
           </button>
           <button
             onClick={handleSave}
-            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md shadow-indigo-100 transition"
+            disabled={isSaving}
+            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md shadow-indigo-100 transition disabled:opacity-60"
           >
-            Save & Apply Scope
+            {isSaving ? 'Đang lưu...' : 'Save & Apply Scope'}
           </button>
         </div>
       </div>

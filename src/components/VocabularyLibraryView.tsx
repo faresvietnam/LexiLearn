@@ -27,9 +27,9 @@ interface VocabularyLibraryViewProps {
   initialMemoryFilter?: MemoryStrength | null;
   onOpenAddWordModal: () => void;
   onOpenWordDetail: (word: Word) => void;
-  onUpdateWordStatus: (wordId: string, status: WordStudyStatus) => void;
-  onBulkUpdateStatus: (wordIds: string[], status: WordStudyStatus) => void;
-  onBulkMoveDeck: (wordIds: string[], deckId: string) => void;
+  onUpdateWordStatus: (wordId: string, status: WordStudyStatus) => Promise<boolean>;
+  onBulkUpdateStatus: (wordIds: string[], status: WordStudyStatus) => Promise<boolean>;
+  onBulkMoveDeck: (wordIds: string[], deckId: string) => Promise<boolean>;
 }
 
 export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
@@ -199,21 +199,21 @@ export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
             </span>
             <div className="h-4 w-px bg-indigo-200" />
             <button
-              onClick={() => onBulkUpdateStatus(selectedWordIds, 'active')}
+              onClick={() => void onBulkUpdateStatus(selectedWordIds, 'active')}
               className="flex items-center gap-1 font-semibold text-slate-700 hover:text-indigo-600"
             >
               <Play className="w-3.5 h-3.5" />
               <span>Resume</span>
             </button>
             <button
-              onClick={() => onBulkUpdateStatus(selectedWordIds, 'paused')}
+              onClick={() => void onBulkUpdateStatus(selectedWordIds, 'paused')}
               className="flex items-center gap-1 font-semibold text-slate-700 hover:text-amber-600"
             >
               <Pause className="w-3.5 h-3.5" />
               <span>Pause</span>
             </button>
             <button
-              onClick={() => onBulkUpdateStatus(selectedWordIds, 'archived')}
+              onClick={() => void onBulkUpdateStatus(selectedWordIds, 'archived')}
               className="flex items-center gap-1 font-semibold text-slate-700 hover:text-slate-900"
             >
               <Archive className="w-3.5 h-3.5" />
@@ -333,7 +333,7 @@ export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() =>
-                              onUpdateWordStatus(
+                              void onUpdateWordStatus(
                                 word.id,
                                 word.status === 'paused' ? 'active' : 'paused'
                               )

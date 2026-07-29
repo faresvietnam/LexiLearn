@@ -6,7 +6,7 @@ interface SettingsViewProps {
   settings: UserSettings;
   studyScope: StudyScope;
   words: Word[];
-  onUpdateSettings: (newSettings: UserSettings) => void;
+  onUpdateSettings: (newSettings: UserSettings) => Promise<boolean>;
   onExportData: () => void;
 }
 
@@ -22,17 +22,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [audioAutoplay, setAudioAutoplay] = useState(settings.audioAutoplay);
   const [reducedMotion, setReducedMotion] = useState(settings.reducedMotion);
   const [charDiffAcc, setCharDiffAcc] = useState(settings.charDiffAccessibility);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdateSettings({
-      ...settings,
-      newWordsPerDay: newWordsLimit,
-      reviewLimitPerDay: reviewLimit,
-      audioAutoplay,
-      reducedMotion,
-      charDiffAccessibility: charDiffAcc,
-    });
+    setIsSaving(true);
+    try {
+      await onUpdateSettings({
+        ...settings,
+        newWordsPerDay: newWordsLimit,
+        reviewLimitPerDay: reviewLimit,
+        audioAutoplay,
+        reducedMotion,
+        charDiffAccessibility: charDiffAcc,
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -167,9 +173,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
         <button
           type="submit"
-          className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-base rounded-xl transition shadow-md shadow-indigo-100"
+          disabled={isSaving}
+          className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-base rounded-xl transition shadow-md shadow-indigo-100 disabled:opacity-60"
         >
-          Lưu cài đặt
+          {isSaving ? 'Đang lưu...' : 'Lưu cài đặt'}
         </button>
       </form>
     </div>
