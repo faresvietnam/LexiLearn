@@ -1,4 +1,7 @@
 import React, { useState } from 'react';
+import {Navigate, useLocation} from 'react-router-dom';
+import {LoginView} from './features/auth/LoginView';
+import {useAuth} from './features/auth/AuthProvider';
 import {
   Word,
   Deck,
@@ -35,13 +38,18 @@ import { RootWordInsightsView } from './components/RootWordInsightsView';
 import { buildSessionQuestions } from './utils/sessionBuilder';
 
 export default function App() {
+  const {status, roles, signOut} = useAuth();
+  const location = useLocation();
+  if (status !== 'authenticated') return <LoginView />;
+  const authenticatedRole: UserRole = roles.includes('admin') ? 'admin' : 'learner';
+  if (location.pathname === '/admin' && authenticatedRole !== 'admin') return <Navigate to="/" replace />;
   // Main Application State
   const [words, setWords] = useState<Word[]>(INITIAL_WORDS);
   const [decks, setDecks] = useState<Deck[]>(INITIAL_DECKS);
   const [tags, setTags] = useState<Tag[]>(INITIAL_TAGS);
   const [studyScope, setStudyScope] = useState<StudyScope>(INITIAL_STUDY_SCOPE);
   const [settings, setSettings] = useState<UserSettings>(INITIAL_SETTINGS);
-  const [userRole, setUserRole] = useState<UserRole>('learner');
+  const userRole = authenticatedRole;
 
   // Navigation State
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
@@ -67,11 +75,6 @@ export default function App() {
   };
 
   // Toggle User Role (Learner vs Admin)
-  const handleToggleUserRole = () => {
-    const nextRole = userRole === 'learner' ? 'admin' : 'learner';
-    setUserRole(nextRole);
-    showToast(`Đã chuyển sang chế độ: ${nextRole === 'admin' ? 'Admin' : 'Learner'}`);
-  };
 
   // Start Learning Session Builder
   const handleStartLearning = (isExtraReview: boolean = false) => {
@@ -230,7 +233,7 @@ export default function App() {
             }
           }}
           userRole={userRole}
-          onToggleUserRole={handleToggleUserRole}
+          onToggleUserRole={() => void signOut()}
           onOpenStudyScope={() => setShowStudyScopeModal(true)}
           pendingSubmissionsCount={pendingSubmissionsCount}
         />
