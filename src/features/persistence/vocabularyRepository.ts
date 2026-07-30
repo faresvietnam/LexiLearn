@@ -39,7 +39,7 @@ const VOCABULARY_SELECT = `
     review_interval_days, next_review_at, last_reviewed_at
   ),
   global_words(
-    id, word, ipa, audio_url, image_url, image_object_key, status,
+    id, word, ipa, audio_url, image_url, status,
     created_by_admin_id, created_at,
     word_parts(id, text, type, meaning, position),
     global_meanings(

@@ -15,6 +15,11 @@ type PresignDependencies = {
   signUpload: (input: {
     objectKey: string;
     contentType: string;
+    size: number;
+    expiresIn: number;
+  }) => Promise<string>;
+  signDelete: (input: {
+    objectKey: string;
     expiresIn: number;
   }) => Promise<string>;
   publicBaseUrl: string;
@@ -40,7 +45,7 @@ function publicObjectUrl(baseUrl: string, objectKey: string) {
 
 export function createPresignHandler(dependencies: PresignDependencies) {
   return async (request: Request): Promise<Response> => {
-    if (request.method !== 'POST') {
+    if (request.method !== 'POST' && request.method !== 'DELETE') {
       return json(405, {error: 'Method not allowed.'});
     }
 
@@ -55,6 +60,28 @@ export function createPresignHandler(dependencies: PresignDependencies) {
       body = await request.json() as Record<string, unknown>;
     } catch {
       return json(400, {error: 'Invalid JSON body.'});
+    }
+
+    const objectKey = typeof body.objectKey === 'string'
+      ? body.objectKey
+      : '';
+    const ownerPrefix = `users/${userId}/images/`;
+    if (request.method === 'DELETE') {
+      if (
+        !objectKey.startsWith(ownerPrefix)
+        || !/^users\/[^/]+\/images\/[0-9a-f-]{36}\.(jpg|png|webp)$/.test(objectKey)
+      ) {
+        return json(403, {error: 'You cannot delete this image.'});
+      }
+      const deleteUrl = await dependencies.signDelete({
+        objectKey,
+        expiresIn: EXPIRES_IN_SECONDS,
+      });
+      return json(200, {
+        deleteUrl,
+        objectKey,
+        expiresIn: EXPIRES_IN_SECONDS,
+      });
     }
 
     const fileName = typeof body.fileName === 'string'
@@ -79,18 +106,22 @@ export function createPresignHandler(dependencies: PresignDependencies) {
       });
     }
 
-    const objectKey =
+    const generatedObjectKey =
       `users/${userId}/images/${dependencies.randomUUID()}.${extension}`;
     const uploadUrl = await dependencies.signUpload({
-      objectKey,
+      objectKey: generatedObjectKey,
       contentType,
+      size,
       expiresIn: EXPIRES_IN_SECONDS,
     });
 
     return json(200, {
       uploadUrl,
-      objectKey,
-      publicUrl: publicObjectUrl(dependencies.publicBaseUrl, objectKey),
+      objectKey: generatedObjectKey,
+      publicUrl: publicObjectUrl(
+        dependencies.publicBaseUrl,
+        generatedObjectKey,
+      ),
       expiresIn: EXPIRES_IN_SECONDS,
     });
   };
@@ -138,11 +169,21 @@ function runtimeDependencies(): PresignDependencies {
       const {data, error} = await supabase.auth.getUser(token);
       return error ? null : data.user?.id ?? null;
     },
-    signUpload: async ({objectKey, contentType, expiresIn}) => {
+    signUpload: async ({objectKey, contentType, size, expiresIn}) => {
       const url = `${endpoint}/${objectKey}?X-Amz-Expires=${expiresIn}`;
       const signed = await signer.sign(new Request(url, {
         method: 'PUT',
-        headers: {'Content-Type': contentType},
+        headers: {
+          'Content-Length': String(size),
+          'Content-Type': contentType,
+        },
+      }), {aws: {signQuery: true}});
+      return signed.url;
+    },
+    signDelete: async ({objectKey, expiresIn}) => {
+      const url = `${endpoint}/${objectKey}?X-Amz-Expires=${expiresIn}`;
+      const signed = await signer.sign(new Request(url, {
+        method: 'DELETE',
       }), {aws: {signQuery: true}});
       return signed.url;
     },

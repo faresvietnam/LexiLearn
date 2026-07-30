@@ -7,6 +7,7 @@ const {getSupabaseClient} = vi.hoisted(() => ({
 vi.mock('../../lib/supabase', () => ({getSupabaseClient}));
 
 import {uploadWordImage} from './r2ImageUpload';
+import {deleteWordImage} from './r2ImageUpload';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -64,6 +65,11 @@ describe('uploadWordImage', () => {
         headers: expect.objectContaining({
           Authorization: 'Bearer user-access-token',
         }),
+        body: JSON.stringify({
+          fileName: 'word.png',
+          contentType: 'image/png',
+          size: 5,
+        }),
       }),
     );
     expect(fetch).toHaveBeenNthCalledWith(
@@ -71,7 +77,10 @@ describe('uploadWordImage', () => {
       'https://r2.example/signed-put',
       {
         method: 'PUT',
-        headers: {'Content-Type': 'image/png'},
+        headers: {
+          'Content-Length': '5',
+          'Content-Type': 'image/png',
+        },
         body: file,
       },
     );
@@ -99,5 +108,36 @@ describe('uploadWordImage', () => {
     await expect(uploadWordImage(
       new File(['image'], 'word.webp', {type: 'image/webp'}),
     )).rejects.toThrow(/tải ảnh/i);
+  });
+
+  it('deletes an uploaded object through the authenticated cleanup endpoint', async () => {
+    getSupabaseClient.mockReturnValue({
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: {session: {access_token: 'user-access-token'}},
+          error: null,
+        }),
+      },
+    });
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        deleteUrl: 'https://r2.example/signed-delete',
+        objectKey: 'users/user-1/images/image-1.png',
+        expiresIn: 300,
+      }), {status: 200, headers: {'Content-Type': 'application/json'}}))
+      .mockResolvedValueOnce(new Response(null, {status: 204}));
+    vi.stubGlobal('fetch', fetch);
+
+    await expect(deleteWordImage(
+      'users/user-1/images/image-1.png',
+    )).resolves.toBeUndefined();
+    expect(fetch).toHaveBeenNthCalledWith(
+      1,
+      '/api/images/presign',
+      expect.objectContaining({method: 'DELETE'}),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(2, 'https://r2.example/signed-delete', {
+      method: 'DELETE',
+    });
   });
 });

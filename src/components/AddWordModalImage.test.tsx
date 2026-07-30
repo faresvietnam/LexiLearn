@@ -8,17 +8,22 @@ import {
 } from '@testing-library/react';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
-const {uploadWordImage} = vi.hoisted(() => ({
+const {deleteWordImage, uploadWordImage} = vi.hoisted(() => ({
+  deleteWordImage: vi.fn().mockResolvedValue(undefined),
   uploadWordImage: vi.fn(),
 }));
 
-vi.mock('../features/images/r2ImageUpload', () => ({uploadWordImage}));
+vi.mock('../features/images/r2ImageUpload', () => ({
+  deleteWordImage,
+  uploadWordImage,
+}));
 
 import {AddWordModal} from './AddWordModal';
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  deleteWordImage.mockResolvedValue(undefined);
 });
 
 function renderModal(onAddWord = vi.fn().mockResolvedValue(true)) {
@@ -97,5 +102,24 @@ describe('AddWordModal R2 image upload', () => {
       imageObjectKey: 'users/user-1/images/image-1.webp',
       imageUrl: 'https://images.example/users/user-1/images/image-1.webp',
     });
+  });
+
+  it('cleans up a successful upload when saving the word fails', async () => {
+    uploadWordImage.mockResolvedValue({
+      objectKey: 'users/user-1/images/image-1.png',
+      publicUrl: 'https://images.example/users/user-1/images/image-1.png',
+    });
+    const onAddWord = renderModal(vi.fn().mockResolvedValue(false));
+    fillRequiredFields();
+    fireEvent.change(screen.getByLabelText('Ảnh minh họa'), {
+      target: {files: [new File(['image'], 'word.png', {type: 'image/png'})]},
+    });
+
+    await screen.findByText('Đã tải ảnh lên.');
+    fireEvent.click(screen.getByRole('button', {name: 'Lưu từ vựng'}));
+
+    await waitFor(() => expect(deleteWordImage).toHaveBeenCalledWith(
+      'users/user-1/images/image-1.png',
+    ));
   });
 });

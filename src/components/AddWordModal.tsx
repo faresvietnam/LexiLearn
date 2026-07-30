@@ -5,7 +5,10 @@ import {
   analyzeWordWithGemini,
   GeminiRequestError,
 } from '../features/gemini/geminiClient';
-import {uploadWordImage} from '../features/images/r2ImageUpload';
+import {
+  deleteWordImage,
+  uploadWordImage,
+} from '../features/images/r2ImageUpload';
 import type {UploadedImage} from '../features/images/r2ImageUpload';
 
 interface AddWordModalProps {
@@ -165,7 +168,10 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
     } finally {
       setIsSaving(false);
     }
-    if (saved) onClose();
+    if (saved) {
+      await cleanupUploadedImage();
+      onClose();
+    }
   };
 
   const handleImageChange = async (
@@ -177,6 +183,9 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
     setIsImageUploading(true);
     try {
       const metadata = await uploadWordImage(file);
+      if (uploadedImage) {
+        void deleteWordImage(uploadedImage.objectKey);
+      }
       setUploadedImage(metadata);
     } catch (error) {
       setImageError(
@@ -187,6 +196,17 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
     } finally {
       setIsImageUploading(false);
     }
+  };
+
+  const cleanupUploadedImage = async () => {
+    if (!uploadedImage) return;
+    await deleteWordImage(uploadedImage.objectKey).catch(() => undefined);
+    setUploadedImage(null);
+  };
+
+  const handleClose = async () => {
+    await cleanupUploadedImage();
+    onClose();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -260,7 +280,11 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
     } finally {
       setIsSaving(false);
     }
-    if (saved) onClose();
+    if (saved) {
+      onClose();
+    } else {
+      await cleanupUploadedImage();
+    }
   };
 
   return (
@@ -542,7 +566,8 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => void handleClose()}
+              disabled={isImageUploading}
               className="px-5 py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold rounded-xl transition"
             >
               Hủy

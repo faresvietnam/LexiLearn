@@ -41,7 +41,12 @@ export async function uploadWordImage(file: File): Promise<UploadedImage> {
   const metadata = await presignResponse.json() as PresignResponse;
   const uploadResponse = await fetch(metadata.uploadUrl, {
     method: 'PUT',
-    headers: {'Content-Type': file.type},
+    // The Function signs this exact length; the browser sends the File's
+    // matching Content-Length for the presigned request.
+    headers: {
+      'Content-Length': String(file.size),
+      'Content-Type': file.type,
+    },
     body: file,
   });
 
@@ -53,4 +58,26 @@ export async function uploadWordImage(file: File): Promise<UploadedImage> {
     objectKey: metadata.objectKey,
     publicUrl: metadata.publicUrl,
   };
+}
+
+export async function deleteWordImage(objectKey: string): Promise<void> {
+  const client = getSupabaseClient();
+  const {data} = client
+    ? await client.auth.getSession()
+    : {data: {session: null}};
+  const accessToken = data.session?.access_token;
+  if (!accessToken) return;
+
+  const deleteResponse = await fetch('/api/images/presign', {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({objectKey}),
+  });
+  if (!deleteResponse.ok) return;
+
+  const metadata = await deleteResponse.json() as {deleteUrl: string};
+  await fetch(metadata.deleteUrl, {method: 'DELETE'});
 }

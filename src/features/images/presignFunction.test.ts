@@ -6,9 +6,10 @@ const USER_ID = '11111111-1111-4111-8111-111111111111';
 function request(
   body: Record<string, unknown>,
   authorization = 'Bearer valid-token',
+  method = 'POST',
 ) {
   return new Request('https://lexilearn.example/api/images/presign', {
-    method: 'POST',
+    method,
     headers: {
       Authorization: authorization,
       'Content-Type': 'application/json',
@@ -21,6 +22,7 @@ function dependencies() {
   return {
     verifyAccessToken: vi.fn().mockResolvedValue(USER_ID),
     signUpload: vi.fn().mockResolvedValue('https://r2.example/signed-put'),
+    signDelete: vi.fn().mockResolvedValue('https://r2.example/signed-delete'),
     publicBaseUrl: 'https://images.lexilearn.example',
     randomUUID: () => '22222222-2222-4222-8222-222222222222',
   };
@@ -85,6 +87,7 @@ describe('R2 image presign function', () => {
       objectKey:
         `users/${USER_ID}/images/22222222-2222-4222-8222-222222222222.png`,
       contentType: 'image/png',
+      size: 2_048,
       expiresIn: 300,
     });
     await expect(response.json()).resolves.toEqual({
@@ -95,5 +98,34 @@ describe('R2 image presign function', () => {
         `https://images.lexilearn.example/users/${USER_ID}/images/22222222-2222-4222-8222-222222222222.png`,
       expiresIn: 300,
     });
+  });
+
+  it('only signs deletion for an image owned by the authenticated user', async () => {
+    const deps = dependencies();
+    const objectKey = `users/${USER_ID}/images/22222222-2222-4222-8222-222222222222.webp`;
+    const response = await createPresignHandler(deps)(
+      request({objectKey}, 'Bearer valid-token', 'DELETE'),
+    );
+
+    expect(response.status).toBe(200);
+    expect(deps.signDelete).toHaveBeenCalledWith({objectKey, expiresIn: 300});
+    await expect(response.json()).resolves.toMatchObject({
+      deleteUrl: 'https://r2.example/signed-delete',
+      objectKey,
+      expiresIn: 300,
+    });
+  });
+
+  it('rejects deletion of another user image', async () => {
+    const deps = dependencies();
+    const response = await createPresignHandler(deps)(
+      request({
+        objectKey:
+          'users/33333333-3333-4333-8333-333333333333/images/22222222-2222-4222-8222-222222222222.png',
+      }, 'Bearer valid-token', 'DELETE'),
+    );
+
+    expect(response.status).toBe(403);
+    expect(deps.signDelete).not.toHaveBeenCalled();
   });
 });

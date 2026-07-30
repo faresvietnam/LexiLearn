@@ -1,18 +1,29 @@
 alter table public.private_words
-  add column image_object_key text;
+  add column if not exists image_object_key text;
 
-alter table public.private_words
-  add constraint private_words_image_object_key_scope_check
-  check (
-    image_object_key is null
-    or (
-      image_url is not null
-      and image_object_key like
-        'users/' || owner_user_id::text || '/images/%'
-      and image_object_key ~
-        '^users/[0-9a-f-]{36}/images/[0-9a-f-]{36}\.(jpg|png|webp)$'
-    )
-  );
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_catalog.pg_constraint
+    where conrelid = 'public.private_words'::regclass
+      and conname = 'private_words_image_object_key_scope_check'
+  ) then
+    alter table public.private_words
+      add constraint private_words_image_object_key_scope_check
+      check (
+        image_object_key is null
+        or (
+          image_url is not null
+          and image_object_key like
+            'users/' || owner_user_id::text || '/images/%'
+          and image_object_key ~
+            '^users/[0-9a-f-]{36}/images/[0-9a-f-]{36}\.(jpg|png|webp)$'
+        )
+      );
+  end if;
+end
+$$;
 
 create or replace function private.admin_private_word_update_is_safe(
   p_id uuid,
