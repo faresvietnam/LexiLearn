@@ -34,12 +34,14 @@ as $$
 begin
   begin
     execute statement;
+    raise sqlstate 'PT001';
   exception
     when insufficient_privilege then
       return;
+    when sqlstate 'PT001' then
+      insert into phase_2_test_failures (failure) values (failure_message);
+      return;
   end;
-
-  insert into phase_2_test_failures (failure) values (failure_message);
 end;
 $$;
 
@@ -56,14 +58,37 @@ begin
   begin
     execute statement;
     get diagnostics affected_rows = row_count;
+    if affected_rows <> 0 then
+      raise sqlstate 'PT002';
+    end if;
   exception
     when insufficient_privilege then
       return;
+    when sqlstate 'PT002' then
+      insert into phase_2_test_failures (failure) values (failure_message);
+      return;
   end;
+end;
+$$;
 
-  if affected_rows <> 0 then
-    insert into phase_2_test_failures (failure) values (failure_message);
-  end if;
+create or replace function pg_temp.phase_2_expect_foreign_key_rejected(
+  statement text,
+  failure_message text
+)
+returns void
+language plpgsql
+as $$
+begin
+  begin
+    execute statement;
+    raise sqlstate 'PT003';
+  exception
+    when foreign_key_violation then
+      return;
+    when sqlstate 'PT003' then
+      insert into phase_2_test_failures (failure) values (failure_message);
+      return;
+  end;
 end;
 $$;
 
@@ -204,6 +229,104 @@ select pg_temp.phase_2_assert(
     ) as privilege_names(privilege_name)
   ),
   'authenticated users must not have non-DML table privileges'
+);
+
+select pg_temp.phase_2_assert(
+  not has_table_privilege('authenticated', 'public.users', 'UPDATE')
+  and has_column_privilege(
+    'authenticated',
+    'public.users',
+    'display_name',
+    'UPDATE'
+  )
+  and has_column_privilege(
+    'authenticated',
+    'public.users',
+    'avatar_url',
+    'UPDATE'
+  )
+  and has_column_privilege(
+    'authenticated',
+    'public.users',
+    'timezone',
+    'UPDATE'
+  )
+  and has_column_privilege(
+    'authenticated',
+    'public.users',
+    'study_day_starts_at',
+    'UPDATE'
+  ),
+  'profiles must expose only the intended editable columns'
+);
+
+select pg_temp.phase_2_assert(
+  not has_column_privilege(
+    'authenticated',
+    'public.users',
+    'id',
+    'UPDATE'
+  )
+  and not has_column_privilege(
+    'authenticated',
+    'public.users',
+    'email',
+    'UPDATE'
+  )
+  and not has_column_privilege(
+    'authenticated',
+    'public.users',
+    'created_at',
+    'UPDATE'
+  )
+  and not has_column_privilege(
+    'authenticated',
+    'public.users',
+    'updated_at',
+    'UPDATE'
+  ),
+  'profile identity and audit columns must not be user-editable'
+);
+
+select pg_temp.phase_2_assert(
+  not exists (
+    select 1
+    from information_schema.role_table_grants
+    where table_schema = 'public'
+      and grantee in ('anon', 'authenticated')
+      and (
+        grantee = 'anon'
+        or privilege_type in ('TRUNCATE', 'REFERENCES', 'TRIGGER')
+        or (
+          table_name = 'users'
+          and privilege_type not in ('SELECT')
+        )
+        or (
+          table_name = 'user_roles'
+          and privilege_type not in ('SELECT')
+        )
+        or (
+          table_name = 'user_settings'
+          and privilege_type not in ('SELECT', 'UPDATE')
+        )
+        or (
+          table_name = 'app_settings'
+          and privilege_type not in ('SELECT', 'UPDATE')
+        )
+        or (
+          table_name = 'ai_auto_fill_usage'
+          and privilege_type not in ('SELECT')
+        )
+      )
+      and table_name in (
+        'users',
+        'user_roles',
+        'user_settings',
+        'app_settings',
+        'ai_auto_fill_usage'
+      )
+  ),
+  'identity tables must expose only their intended authenticated operations'
 );
 
 -- Stable test identities and records are transaction-scoped and rolled back.
@@ -408,6 +531,62 @@ select set_config(
   true
 );
 
+update public.users
+set display_name = 'Learner A',
+    avatar_url = 'https://example.invalid/learner-a.png',
+    timezone = 'UTC',
+    study_day_starts_at = time '05:00'
+where id = '00000000-0000-4000-8000-000000000101';
+
+select pg_temp.phase_2_assert(
+  (
+    select
+      display_name = 'Learner A'
+      and avatar_url = 'https://example.invalid/learner-a.png'
+      and timezone = 'UTC'
+      and study_day_starts_at = time '05:00'
+    from public.users
+    where id = '00000000-0000-4000-8000-000000000101'
+  ),
+  'learners must retain updates to allowed profile fields'
+);
+
+select pg_temp.phase_2_expect_rejected(
+  $statement$
+    update public.users
+    set email = 'forged@example.invalid'
+    where id = '00000000-0000-4000-8000-000000000101'
+  $statement$,
+  'learners must not update profile email'
+);
+
+select pg_temp.phase_2_expect_rejected(
+  $statement$
+    update public.users
+    set id = '00000000-0000-4000-8000-000000000199'
+    where id = '00000000-0000-4000-8000-000000000101'
+  $statement$,
+  'learners must not update profile identity'
+);
+
+select pg_temp.phase_2_expect_rejected(
+  $statement$
+    update public.users
+    set created_at = now() - interval '1 year'
+    where id = '00000000-0000-4000-8000-000000000101'
+  $statement$,
+  'learners must not update profile creation time'
+);
+
+select pg_temp.phase_2_expect_rejected(
+  $statement$
+    update public.users
+    set updated_at = now() - interval '1 year'
+    where id = '00000000-0000-4000-8000-000000000101'
+  $statement$,
+  'learners must not directly update profile audit time'
+);
+
 select pg_temp.phase_2_assert(
   (
     select count(*) = 1
@@ -476,6 +655,19 @@ values (
   'learner a private'
 );
 
+insert into public.private_words (
+  id,
+  owner_user_id,
+  word,
+  normalized_word
+)
+values (
+  '00000000-0000-4000-8000-000000000323',
+  '00000000-0000-4000-8000-000000000101',
+  'Learner A approved private',
+  'learner a approved private'
+);
+
 insert into public.private_meanings (
   id,
   private_word_id,
@@ -486,6 +678,19 @@ values (
   '00000000-0000-4000-8000-000000000331',
   '00000000-0000-4000-8000-000000000321',
   'riêng A',
+  'adjective'
+);
+
+insert into public.private_meanings (
+  id,
+  private_word_id,
+  meaning_vi,
+  part_of_speech
+)
+values (
+  '00000000-0000-4000-8000-000000000333',
+  '00000000-0000-4000-8000-000000000323',
+  'riêng A được duyệt',
   'adjective'
 );
 
@@ -676,6 +881,28 @@ select pg_temp.phase_2_assert(
   'learners must retain safe edits to their own private words'
 );
 
+update public.private_meanings
+set meaning_vi = 'riêng A đã sửa'
+where id = '00000000-0000-4000-8000-000000000331';
+
+select pg_temp.phase_2_assert(
+  (
+    select meaning_vi = 'riêng A đã sửa'
+    from public.private_meanings
+    where id = '00000000-0000-4000-8000-000000000331'
+  ),
+  'learners must retain safe edits to meanings of pending private words'
+);
+
+select pg_temp.phase_2_expect_no_rows_affected(
+  $statement$
+    update public.private_words
+    set created_at = now() - interval '1 year'
+    where id = '00000000-0000-4000-8000-000000000321'
+  $statement$,
+  'learners must not alter private-word creation time'
+);
+
 select pg_temp.phase_2_expect_no_rows_affected(
   $statement$
     update public.private_words
@@ -846,6 +1073,24 @@ select pg_temp.phase_2_expect_rejected(
   'personal vocabulary must reject another owner''s deck'
 );
 
+select pg_temp.phase_2_expect_no_rows_affected(
+  $statement$
+    update public.personal_vocabulary
+    set private_word_id = '00000000-0000-4000-8000-000000000322'
+    where id = '00000000-0000-4000-8000-000000000341'
+  $statement$,
+  'personal vocabulary updates must reject another owner''s private word'
+);
+
+select pg_temp.phase_2_expect_no_rows_affected(
+  $statement$
+    update public.personal_vocabulary
+    set deck_id = '00000000-0000-4000-8000-000000000302'
+    where id = '00000000-0000-4000-8000-000000000341'
+  $statement$,
+  'personal vocabulary updates must reject another owner''s deck'
+);
+
 select pg_temp.phase_2_expect_rejected(
   $statement$
     insert into public.personal_word_tags (
@@ -858,6 +1103,17 @@ select pg_temp.phase_2_expect_rejected(
     )
   $statement$,
   'personal vocabulary tags must reject another owner''s tag'
+);
+
+select pg_temp.phase_2_expect_no_rows_affected(
+  $statement$
+    update public.personal_word_tags
+    set tag_id = '00000000-0000-4000-8000-000000000312'
+    where personal_vocabulary_id =
+      '00000000-0000-4000-8000-000000000341'
+      and tag_id = '00000000-0000-4000-8000-000000000311'
+  $statement$,
+  'personal vocabulary tag updates must reject another owner''s tag'
 );
 
 select pg_temp.phase_2_expect_rejected(
@@ -878,6 +1134,43 @@ select pg_temp.phase_2_expect_rejected(
   'learning cards must reject another owner''s vocabulary'
 );
 
+select pg_temp.phase_2_expect_no_rows_affected(
+  $statement$
+    update public.learning_cards
+    set personal_vocabulary_id =
+          '00000000-0000-4000-8000-000000000342',
+        meaning_source_id = '00000000-0000-4000-8000-000000000332'
+    where id = '00000000-0000-4000-8000-000000000351'
+  $statement$,
+  'learning card updates must reject another owner''s vocabulary'
+);
+
+select pg_temp.phase_2_expect_rejected(
+  $statement$
+    insert into public.study_attempts (
+      user_id,
+      learning_card_id,
+      session_id,
+      question_type,
+      attempt_number,
+      is_correct,
+      first_attempt,
+      response_time_ms
+    )
+    values (
+      '00000000-0000-4000-8000-000000000101',
+      '00000000-0000-4000-8000-000000000351',
+      '00000000-0000-4000-8000-000000000365',
+      'fill_blank',
+      2,
+      false,
+      false,
+      900
+    )
+  $statement$,
+  'study attempts must reject another owner''s session'
+);
+
 select pg_temp.phase_2_expect_rejected(
   $statement$
     insert into public.study_attempts (
@@ -893,33 +1186,103 @@ select pg_temp.phase_2_expect_rejected(
     values (
       '00000000-0000-4000-8000-000000000101',
       '00000000-0000-4000-8000-000000000352',
-      '00000000-0000-4000-8000-000000000365',
+      '00000000-0000-4000-8000-000000000364',
       'fill_blank',
-      2,
+      3,
       false,
       false,
-      900
+      950
     )
   $statement$,
-  'study attempts must reject another owner''s session or card'
+  'study attempts must reject another owner''s learning card'
 );
 
 select pg_temp.phase_2_expect_rejected(
   $statement$
-    insert into public.study_scope (
-      user_id,
-      active_deck_ids,
-      excluded_tag_ids,
-      paused_word_ids
-    )
+    insert into public.study_scope (user_id, active_deck_ids)
     values (
       '00000000-0000-4000-8000-000000000101',
-      array['00000000-0000-4000-8000-000000000302']::uuid[],
-      array['00000000-0000-4000-8000-000000000312']::uuid[],
+      array['00000000-0000-4000-8000-000000000302']::uuid[]
+    )
+  $statement$,
+  'study scope inserts must reject another owner''s deck'
+);
+
+select pg_temp.phase_2_expect_rejected(
+  $statement$
+    insert into public.study_scope (user_id, excluded_tag_ids)
+    values (
+      '00000000-0000-4000-8000-000000000101',
+      array['00000000-0000-4000-8000-000000000312']::uuid[]
+    )
+  $statement$,
+  'study scope inserts must reject another owner''s tag'
+);
+
+select pg_temp.phase_2_expect_rejected(
+  $statement$
+    insert into public.study_scope (user_id, paused_word_ids)
+    values (
+      '00000000-0000-4000-8000-000000000101',
       array['00000000-0000-4000-8000-000000000342']::uuid[]
     )
   $statement$,
-  'study scope must reject another owner''s deck, tag, or vocabulary'
+  'study scope inserts must reject another owner''s vocabulary'
+);
+
+insert into public.study_scope (
+  user_id,
+  active_deck_ids,
+  excluded_tag_ids,
+  paused_word_ids
+)
+values (
+  '00000000-0000-4000-8000-000000000101',
+  array['00000000-0000-4000-8000-000000000301']::uuid[],
+  array['00000000-0000-4000-8000-000000000311']::uuid[],
+  array['00000000-0000-4000-8000-000000000341']::uuid[]
+);
+
+select pg_temp.phase_2_expect_no_rows_affected(
+  $statement$
+    update public.study_scope
+    set active_deck_ids =
+      array['00000000-0000-4000-8000-000000000302']::uuid[],
+        excluded_tag_ids =
+          array['00000000-0000-4000-8000-000000000311']::uuid[],
+        paused_word_ids =
+          array['00000000-0000-4000-8000-000000000341']::uuid[]
+    where user_id = '00000000-0000-4000-8000-000000000101'
+  $statement$,
+  'study scope updates must reject another owner''s deck'
+);
+
+select pg_temp.phase_2_expect_no_rows_affected(
+  $statement$
+    update public.study_scope
+    set active_deck_ids =
+          array['00000000-0000-4000-8000-000000000301']::uuid[],
+        excluded_tag_ids =
+      array['00000000-0000-4000-8000-000000000312']::uuid[],
+        paused_word_ids =
+          array['00000000-0000-4000-8000-000000000341']::uuid[]
+    where user_id = '00000000-0000-4000-8000-000000000101'
+  $statement$,
+  'study scope updates must reject another owner''s tag'
+);
+
+select pg_temp.phase_2_expect_no_rows_affected(
+  $statement$
+    update public.study_scope
+    set active_deck_ids =
+          array['00000000-0000-4000-8000-000000000301']::uuid[],
+        excluded_tag_ids =
+          array['00000000-0000-4000-8000-000000000311']::uuid[],
+        paused_word_ids =
+      array['00000000-0000-4000-8000-000000000342']::uuid[]
+    where user_id = '00000000-0000-4000-8000-000000000101'
+  $statement$,
+  'study scope updates must reject another owner''s vocabulary'
 );
 
 reset role;
@@ -955,6 +1318,10 @@ update public.private_words
 set status = 'rejected', admin_comment = 'Needs revision'
 where id = '00000000-0000-4000-8000-000000000321';
 
+update public.private_words
+set status = 'approved', admin_comment = 'Approved'
+where id = '00000000-0000-4000-8000-000000000323';
+
 select pg_temp.phase_2_assert(
   (
     select status = 'rejected' and admin_comment = 'Needs revision'
@@ -962,6 +1329,210 @@ select pg_temp.phase_2_assert(
     where id = '00000000-0000-4000-8000-000000000321'
   ),
   'admins must be able to moderate private-word submissions'
+);
+
+select pg_temp.phase_2_assert(
+  (
+    select status = 'approved' and admin_comment = 'Approved'
+    from public.private_words
+    where id = '00000000-0000-4000-8000-000000000323'
+  ),
+  'admins must be able to approve private-word submissions'
+);
+
+reset role;
+
+-- Rejected and approved learner content is immutable, including its meanings.
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-4000-8000-000000000101',
+  true
+);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-000000000101","role":"authenticated"}',
+  true
+);
+
+select pg_temp.phase_2_expect_no_rows_affected(
+  $statement$
+    update public.private_words
+    set word = 'Rejected learner edit'
+    where id = '00000000-0000-4000-8000-000000000321'
+  $statement$,
+  'learners must not edit rejected private words'
+);
+
+select pg_temp.phase_2_expect_no_rows_affected(
+  $statement$
+    update public.private_words
+    set word = 'Approved learner edit'
+    where id = '00000000-0000-4000-8000-000000000323'
+  $statement$,
+  'learners must not edit approved private words'
+);
+
+select pg_temp.phase_2_expect_no_rows_affected(
+  $statement$
+    update public.private_meanings
+    set meaning_vi = 'rejected learner meaning edit'
+    where id = '00000000-0000-4000-8000-000000000331'
+  $statement$,
+  'learners must not edit meanings of rejected private words'
+);
+
+select pg_temp.phase_2_expect_no_rows_affected(
+  $statement$
+    update public.private_meanings
+    set meaning_vi = 'approved learner meaning edit'
+    where id = '00000000-0000-4000-8000-000000000333'
+  $statement$,
+  'learners must not edit meanings of approved private words'
+);
+
+select pg_temp.phase_2_expect_rejected(
+  $statement$
+    insert into public.private_meanings (
+      private_word_id,
+      meaning_vi,
+      part_of_speech,
+      display_order
+    )
+    values (
+      '00000000-0000-4000-8000-000000000321',
+      'new rejected meaning',
+      'noun',
+      9
+    )
+  $statement$,
+  'learners must not add meanings to rejected private words'
+);
+
+select pg_temp.phase_2_expect_rejected(
+  $statement$
+    insert into public.private_meanings (
+      private_word_id,
+      meaning_vi,
+      part_of_speech,
+      display_order
+    )
+    values (
+      '00000000-0000-4000-8000-000000000323',
+      'new approved meaning',
+      'noun',
+      9
+    )
+  $statement$,
+  'learners must not add meanings to approved private words'
+);
+
+select pg_temp.phase_2_expect_no_rows_affected(
+  $statement$
+    delete from public.private_meanings
+    where id = '00000000-0000-4000-8000-000000000331'
+  $statement$,
+  'learners must not delete meanings of rejected private words'
+);
+
+select pg_temp.phase_2_expect_no_rows_affected(
+  $statement$
+    delete from public.private_meanings
+    where id = '00000000-0000-4000-8000-000000000333'
+  $statement$,
+  'learners must not delete meanings of approved private words'
+);
+
+select pg_temp.phase_2_expect_no_rows_affected(
+  $statement$
+    delete from public.private_words
+    where id = '00000000-0000-4000-8000-000000000321'
+  $statement$,
+  'learners must not delete rejected private words'
+);
+
+select pg_temp.phase_2_expect_no_rows_affected(
+  $statement$
+    delete from public.private_words
+    where id = '00000000-0000-4000-8000-000000000323'
+  $statement$,
+  'learners must not delete approved private words'
+);
+
+reset role;
+
+-- An immutable attempt must keep its learning-card reference. Deleting a card
+-- with attempt history must be rejected rather than applying ON DELETE SET NULL.
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-4000-8000-000000000101',
+  true
+);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-000000000101","role":"authenticated"}',
+  true
+);
+
+select pg_temp.phase_2_expect_foreign_key_rejected(
+  $statement$
+    delete from public.learning_cards
+    where id = '00000000-0000-4000-8000-000000000351'
+  $statement$,
+  'learning cards referenced by attempts must not be deleted'
+);
+
+select pg_temp.phase_2_assert(
+  (
+    select learning_card_id = '00000000-0000-4000-8000-000000000351'
+    from public.study_attempts
+    where id = '00000000-0000-4000-8000-000000000371'
+  ),
+  'deleting a learning card must not null an immutable attempt reference'
+);
+
+reset role;
+
+-- Admin moderation can change moderation fields only, never ownership or the
+-- learner-authored word/meaning content.
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  '00000000-0000-4000-8000-000000000103',
+  true
+);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-000000000103","role":"authenticated"}',
+  true
+);
+
+select pg_temp.phase_2_expect_no_rows_affected(
+  $statement$
+    update public.private_words
+    set word = 'Admin content rewrite'
+    where id = '00000000-0000-4000-8000-000000000321'
+  $statement$,
+  'admins must not alter learner-authored private-word content'
+);
+
+select pg_temp.phase_2_expect_no_rows_affected(
+  $statement$
+    update public.private_words
+    set owner_user_id = '00000000-0000-4000-8000-000000000102'
+    where id = '00000000-0000-4000-8000-000000000323'
+  $statement$,
+  'admins must not change private-word ownership'
+);
+
+select pg_temp.phase_2_expect_no_rows_affected(
+  $statement$
+    update public.private_meanings
+    set meaning_vi = 'Admin meaning rewrite'
+    where id = '00000000-0000-4000-8000-000000000331'
+  $statement$,
+  'admins must not alter learner-authored private meanings'
 );
 
 reset role;

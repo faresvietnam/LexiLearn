@@ -37,8 +37,7 @@ using (user_id = (select auth.uid()) or (select private.is_admin()));
 alter policy "admins update app settings" on public.app_settings
 using ((select private.is_admin())) with check ((select private.is_admin()));
 
-revoke all on function public.is_admin() from public, anon, authenticated;
-drop function public.is_admin();
+drop function if exists public.is_admin();
 revoke all on function private.is_admin() from public, anon, authenticated;
 grant usage on schema private to authenticated;
 grant execute on function private.is_admin() to authenticated;
