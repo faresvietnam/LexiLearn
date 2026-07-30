@@ -15,6 +15,7 @@ export interface AutomaticRatingInput {
 const RECOGNITION_QUESTION_TYPES: readonly QuestionType[] = [
   'en_to_vn_mc',
   'vn_to_en_mc',
+  'image_question',
   'word_part_selection',
 ];
 
@@ -25,6 +26,7 @@ function expectedResponseTimeMs(
   switch (questionType) {
     case 'en_to_vn_mc':
     case 'vn_to_en_mc':
+    case 'image_question':
       return 7_000;
     case 'word_part_selection':
       return 12_000;
@@ -34,8 +36,6 @@ function expectedResponseTimeMs(
       return Math.max(15_000, expectedAnswerLength * 1_000);
     case 'full_word_typing':
       return Math.max(12_000, expectedAnswerLength * 900);
-    case 'image_question':
-      throw new Error('image_question has no automatic rating baseline.');
   }
 }
 

@@ -33,6 +33,7 @@ describe('deriveAutomaticRating', () => {
   it.each([
     ['en_to_vn_mc', 4_200],
     ['vn_to_en_mc', 10_500],
+    ['image_question', 4_200],
     ['word_part_selection', 7_200],
   ] as const)('keeps recognition questions at Good at every non-slow speed', (questionType, responseTimeMs) => {
     expect(deriveAutomaticRating({
@@ -42,8 +43,12 @@ describe('deriveAutomaticRating', () => {
     })).toBe('Good');
   });
 
-  it('maps a slow no-hint answer to Hard before applying question classification', () => {
-    expect(deriveAutomaticRating({ ...baseInput, responseTimeMs: 18_001 })).toBe('Hard');
+  it('maps a slow image-recognition answer to Hard using its seven-second baseline', () => {
+    expect(deriveAutomaticRating({
+      ...baseInput,
+      questionType: 'image_question',
+      responseTimeMs: 10_501,
+    })).toBe('Hard');
   });
 
   it.each([
