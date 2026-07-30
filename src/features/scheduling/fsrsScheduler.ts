@@ -100,9 +100,11 @@ export function scheduleCard(
 ): ScheduledLearningCard {
   const card = learningCardRowToFsrsCard(row, reviewedAt);
   const scheduled = scheduler.next(card, reviewedAt, ratingMap[rating]).card;
+  // Persist the predicted recall at the next due timestamp, not immediately
+  // after review (which is always 1.0 by definition).
   const retrievability = scheduler.get_retrievability(
     scheduled,
-    reviewedAt,
+    scheduled.due,
     false,
   );
 

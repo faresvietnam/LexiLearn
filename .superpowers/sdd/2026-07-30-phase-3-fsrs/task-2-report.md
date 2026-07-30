@@ -77,3 +77,13 @@ rerun both advisor classes after apply.
 There is also pre-existing migration-history drift to preserve rather than
 rewrite: the remote `remove_legacy_private_word_helper` version is
 `20260730040943`, while the checked-in filename is `20260730035000`.
+
+## Round 1 review fix
+
+The first review found that retrievability was evaluated at `reviewedAt`,
+where FSRS is always 1.0 immediately after a review. The adapter now evaluates
+the prediction at `scheduled.due`. Regression coverage asserts the concrete
+values for the pinned scheduler: new Good is approximately `0.9468475`, review
+Good is approximately `0.90005735`, and short-term Again remains `1.0` at its
+ten-minute due step. The predicted value and derived `memory_score` are both
+persisted from that due-time calculation.

@@ -85,6 +85,18 @@ describe('FSRS scheduler adapter', () => {
     expect(scheduled.retrievability).toBeLessThanOrEqual(1);
   });
 
+  it('predicts recall at the scheduled due time instead of always persisting 100%', () => {
+    const again = scheduleCard(newCardRow, 'Again', reviewedAt);
+    const good = scheduleCard(newCardRow, 'Good', reviewedAt);
+    const reviewGood = scheduleCard(reviewCardRow, 'Good', reviewedAt);
+
+    expect(again.retrievability).toBe(1);
+    expect(good.retrievability).toBeCloseTo(0.9468475, 6);
+    expect(reviewGood.retrievability).toBeCloseTo(0.90005735, 6);
+    expect(good.persistence.fsrs_retrievability).toBe(good.retrievability);
+    expect(good.persistence.memory_score).toBe(95);
+  });
+
   it('puts a forgotten review card on the ten-minute relearning step', () => {
     const scheduled = scheduleCard(reviewCardRow, 'Again', reviewedAt);
 
