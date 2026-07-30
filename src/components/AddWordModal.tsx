@@ -5,6 +5,8 @@ import {
   analyzeWordWithGemini,
   GeminiRequestError,
 } from '../features/gemini/geminiClient';
+import {uploadWordImage} from '../features/images/r2ImageUpload';
+import type {UploadedImage} from '../features/images/r2ImageUpload';
 
 interface AddWordModalProps {
   decks: Deck[];
@@ -43,6 +45,9 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
   // AI loading state
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [uploadedImage, setUploadedImage] = useState<UploadedImage | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [isImageUploading, setIsImageUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [selectedGlobalWordId, setSelectedGlobalWordId] = useState('');
   const [duplicateGlobalWord, setDuplicateGlobalWord] = useState<
@@ -163,6 +168,27 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
     if (saved) onClose();
   };
 
+  const handleImageChange = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setImageError(null);
+    setIsImageUploading(true);
+    try {
+      const metadata = await uploadWordImage(file);
+      setUploadedImage(metadata);
+    } catch (error) {
+      setImageError(
+        error instanceof Error
+          ? error.message
+          : 'Không thể tải ảnh lên R2. Vui lòng thử lại.',
+      );
+    } finally {
+      setIsImageUploading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!word.trim() || !vietnameseMeaning.trim()) return;
@@ -203,6 +229,12 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
       deckId: selectedDeckId,
       tags: selectedTagIds,
       status: 'active',
+      ...(uploadedImage
+        ? {
+            imageUrl: uploadedImage.publicUrl,
+            imageObjectKey: uploadedImage.objectKey,
+          }
+        : {}),
       meanings: [
         {
           id: meaningCardId,
@@ -371,6 +403,35 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
             </div>
           </div>
 
+          {/* Optional R2 image */}
+          <div className="space-y-1.5">
+            <label
+              htmlFor="word-image"
+              className="text-xs font-bold text-slate-700"
+            >
+              Ảnh minh họa
+            </label>
+            <input
+              id="word-image"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(event) => void handleImageChange(event)}
+              disabled={isImageUploading}
+              className="block w-full text-xs text-slate-600"
+            />
+            {isImageUploading && (
+              <p className="text-xs text-slate-500">Đang tải ảnh...</p>
+            )}
+            {uploadedImage && !isImageUploading && (
+              <p className="text-xs text-emerald-700">Đã tải ảnh lên.</p>
+            )}
+            {imageError && (
+              <p role="alert" className="text-xs text-rose-700">
+                {imageError}
+              </p>
+            )}
+          </div>
+
           {/* Morphology Breakdown Editor (Word Parts) */}
           <div className="space-y-3 pt-3 border-t border-slate-100">
             <div className="flex items-center justify-between">
@@ -488,7 +549,7 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={!!duplicateGlobalWord || isSaving}
+              disabled={!!duplicateGlobalWord || isSaving || isImageUploading}
               className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-md shadow-indigo-100 disabled:opacity-50"
             >
               {isSaving ? 'Đang lưu...' : 'Lưu từ vựng'}

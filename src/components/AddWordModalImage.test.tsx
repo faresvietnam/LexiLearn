@@ -1,0 +1,101 @@
+import React from 'react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
+import {afterEach, describe, expect, it, vi} from 'vitest';
+
+const {uploadWordImage} = vi.hoisted(() => ({
+  uploadWordImage: vi.fn(),
+}));
+
+vi.mock('../features/images/r2ImageUpload', () => ({uploadWordImage}));
+
+import {AddWordModal} from './AddWordModal';
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
+
+function renderModal(onAddWord = vi.fn().mockResolvedValue(true)) {
+  render(
+    <AddWordModal
+      decks={[]}
+      tags={[]}
+      globalWords={[]}
+      linkedGlobalWords={[]}
+      onAddWord={onAddWord}
+      onLinkExistingGlobalWord={vi.fn().mockResolvedValue(false)}
+      onClose={vi.fn()}
+    />,
+  );
+  return onAddWord;
+}
+
+function fillRequiredFields() {
+  fireEvent.change(screen.getByPlaceholderText('e.g. transportation'), {
+    target: {value: 'moonshot'},
+  });
+  fireEvent.change(screen.getByPlaceholderText('e.g. Giao thông vận tải'), {
+    target: {value: 'mục tiêu tham vọng'},
+  });
+}
+
+describe('AddWordModal R2 image upload', () => {
+  it('keeps entered word fields intact and omits metadata after upload failure', async () => {
+    uploadWordImage.mockRejectedValue(new Error('Không thể tải ảnh lên R2.'));
+    const onAddWord = renderModal();
+    fillRequiredFields();
+
+    fireEvent.change(screen.getByLabelText('Ảnh minh họa'), {
+      target: {
+        files: [
+          new File(['image'], 'word.png', {type: 'image/png'}),
+        ],
+      },
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /không thể tải ảnh/i,
+    );
+    expect(screen.getByPlaceholderText('e.g. transportation'))
+      .toHaveValue('moonshot');
+    expect(screen.getByPlaceholderText('e.g. Giao thông vận tải'))
+      .toHaveValue('mục tiêu tham vọng');
+
+    fireEvent.click(screen.getByRole('button', {name: 'Lưu từ vựng'}));
+    await waitFor(() => expect(onAddWord).toHaveBeenCalledOnce());
+    expect(onAddWord.mock.calls[0][0]).not.toHaveProperty('imageUrl');
+    expect(onAddWord.mock.calls[0][0]).not.toHaveProperty('imageObjectKey');
+  });
+
+  it('adds R2 object metadata only after the upload succeeds', async () => {
+    uploadWordImage.mockResolvedValue({
+      objectKey: 'users/user-1/images/image-1.webp',
+      publicUrl: 'https://images.example/users/user-1/images/image-1.webp',
+    });
+    const onAddWord = renderModal();
+    fillRequiredFields();
+
+    fireEvent.change(screen.getByLabelText('Ảnh minh họa'), {
+      target: {
+        files: [
+          new File(['image'], 'word.webp', {type: 'image/webp'}),
+        ],
+      },
+    });
+
+    expect(await screen.findByText('Đã tải ảnh lên.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', {name: 'Lưu từ vựng'}));
+
+    await waitFor(() => expect(onAddWord).toHaveBeenCalledOnce());
+    expect(onAddWord.mock.calls[0][0]).toMatchObject({
+      imageObjectKey: 'users/user-1/images/image-1.webp',
+      imageUrl: 'https://images.example/users/user-1/images/image-1.webp',
+    });
+  });
+});

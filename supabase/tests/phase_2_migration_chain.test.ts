@@ -27,6 +27,7 @@ describe('database migration chain', () => {
       '20260730035000_remove_legacy_private_word_helper.sql',
       '20260730064946_add_fsrs_learning_card_state.sql',
       '20260730075754_add_personal_gemini_key.sql',
+      '20260730081921_add_r2_image_metadata.sql',
     ]);
   });
 

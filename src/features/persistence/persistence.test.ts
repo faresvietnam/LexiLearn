@@ -454,6 +454,8 @@ describe('successful learner persistence', () => {
       id: 'temporary-word',
       word: 'moonshot',
       ipa: '/ˈmuːnʃɒt/',
+      imageUrl: 'https://images.example/users/user-1/images/image-1.webp',
+      imageObjectKey: 'users/user-1/images/image-1.webp',
       wordStructure: [{
         id: 'part-local',
         text: 'moon',
@@ -494,27 +496,30 @@ describe('successful learner persistence', () => {
         }],
       }],
     };
+    const insertPrivateWord = vi.fn(() => ({
+      select: vi.fn(() => ({
+        single: vi.fn().mockResolvedValue({
+          data: {
+            id: 'private-db',
+            owner_user_id: 'user-1',
+            word: 'moonshot',
+            ipa: '/ˈmuːnʃɒt/',
+            audio_url: null,
+            image_url:
+              'https://images.example/users/user-1/images/image-1.webp',
+            image_object_key: 'users/user-1/images/image-1.webp',
+            status: 'pending',
+            admin_comment: null,
+            created_at: '2026-07-30T00:00:00Z',
+          },
+          error: null,
+        }),
+      })),
+    }));
     from.mockImplementation((table: string) => {
       if (table === 'private_words') {
         return {
-          insert: vi.fn(() => ({
-            select: vi.fn(() => ({
-              single: vi.fn().mockResolvedValue({
-                data: {
-                  id: 'private-db',
-                  owner_user_id: 'user-1',
-                  word: 'moonshot',
-                  ipa: '/ˈmuːnʃɒt/',
-                  audio_url: null,
-                  image_url: null,
-                  status: 'pending',
-                  admin_comment: null,
-                  created_at: '2026-07-30T00:00:00Z',
-                },
-                error: null,
-              }),
-            })),
-          })),
+          insert: insertPrivateWord,
         };
       }
       if (table === 'private_meanings') {
@@ -572,9 +577,16 @@ describe('successful learner persistence', () => {
 
     const result = await createPrivateWord('user-1', input);
 
+    expect(insertPrivateWord).toHaveBeenCalledWith(expect.objectContaining({
+      image_url:
+        'https://images.example/users/user-1/images/image-1.webp',
+      image_object_key: 'users/user-1/images/image-1.webp',
+    }));
     expect(result.error).toBeNull();
     expect(result.data).toMatchObject({
       id: 'vocabulary-db',
+      imageUrl: 'https://images.example/users/user-1/images/image-1.webp',
+      imageObjectKey: 'users/user-1/images/image-1.webp',
       wordStructure: input.wordStructure,
       wordFamily: input.wordFamily,
       meanings: [{

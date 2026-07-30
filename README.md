@@ -42,3 +42,50 @@ dùng có thể xem key bằng công cụ phát triển hoặc mã chạy trong 
 Đây không tương đương với bảo vệ secret phía máy chủ. Chỉ sử dụng key cá
 nhân đã giới hạn cho Gemini API, tránh máy dùng chung, và xóa key trong Cài
 đặt khi không còn sử dụng.
+
+## Ảnh từ vựng trên Cloudflare R2
+
+Ảnh JPEG, PNG hoặc WebP tối đa 5 MB được upload thẳng từ trình duyệt lên
+Cloudflare R2. Vercel Function `/api/images/presign` chỉ xác thực Supabase
+access token và cấp URL PUT có hiệu lực 5 phút; file không đi qua Vercel.
+Supabase chỉ lưu `image_object_key` và `image_url`.
+
+Đặt các biến sau trong Vercel Project Settings và trong `.env.local` khi
+chạy local. Không thêm tiền tố `VITE_` cho R2 credentials vì các giá trị đó
+phải chỉ tồn tại phía server:
+
+```dotenv
+SUPABASE_URL="https://your-project-ref.supabase.co"
+SUPABASE_PUBLISHABLE_KEY="sb_publishable_your-key"
+R2_ACCOUNT_ID="your-cloudflare-account-id"
+R2_ACCESS_KEY_ID="your-r2-access-key-id"
+R2_SECRET_ACCESS_KEY="your-r2-secret-access-key"
+R2_BUCKET_NAME="lexilearn-images"
+R2_PUBLIC_BASE_URL="https://images.example.com"
+```
+
+R2 API token chỉ cần quyền Object Read & Write trên bucket ảnh đã chọn.
+Bucket cần public/custom delivery domain tương ứng với
+`R2_PUBLIC_BASE_URL`. Trong R2 → bucket → Settings → CORS, cho phép origin
+production và local gọi PUT với đúng `Content-Type`:
+
+```json
+[
+  {
+    "AllowedOrigins": [
+      "https://your-vercel-domain.vercel.app",
+      "http://127.0.0.1:3000",
+      "http://localhost:3000"
+    ],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["Content-Type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+Flow này phù hợp Vercel Hobby cho ứng dụng cá nhân: chỉ có một Function
+ngắn hạn, request/response của Function chỉ chứa JSON metadata nhỏ và không
+proxy file qua giới hạn payload 4.5 MB. R2 secret không được trả về browser
+hoặc ghi log.

@@ -68,6 +68,7 @@ export interface Word {
   ipa?: string;
   audioUrl?: string;
   imageUrl?: string;
+  imageObjectKey?: string;
   wordStructure: WordPart[];
   wordFamily: string[];
   

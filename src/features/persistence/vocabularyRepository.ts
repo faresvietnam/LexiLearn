@@ -39,7 +39,7 @@ const VOCABULARY_SELECT = `
     review_interval_days, next_review_at, last_reviewed_at
   ),
   global_words(
-    id, word, ipa, audio_url, image_url, status,
+    id, word, ipa, audio_url, image_url, image_object_key, status,
     created_by_admin_id, created_at,
     word_parts(id, text, type, meaning, position),
     global_meanings(
@@ -50,7 +50,7 @@ const VOCABULARY_SELECT = `
     )
   ),
   private_words(
-    id, owner_user_id, word, ipa, audio_url, image_url,
+    id, owner_user_id, word, ipa, audio_url, image_url, image_object_key,
     status, admin_comment, created_at,
     private_meanings(id, meaning_vi, part_of_speech, display_order)
   )
@@ -318,11 +318,12 @@ export async function createPrivateWord(
       ipa: word.ipa ?? null,
       audio_url: word.audioUrl ?? null,
       image_url: word.imageUrl ?? null,
+      image_object_key: word.imageObjectKey ?? null,
       status: word.approvalStatus === 'rejected' ? 'rejected' : 'pending',
       admin_comment: word.rejectionReason ?? null,
     })
     .select(`
-      id, owner_user_id, word, ipa, audio_url, image_url,
+      id, owner_user_id, word, ipa, audio_url, image_url, image_object_key,
       status, admin_comment, created_at
     `)
     .single();

@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
+import imagePresignFunction from "./api/images/presign";
 
 const app = express();
 const PORT = 3000;
@@ -10,6 +11,22 @@ app.use(express.json({ limit: "10mb" }));
 // Health check
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// Keep the Vercel Function reachable through the existing local dev command.
+app.post("/api/images/presign", async (req, res) => {
+  const response = await imagePresignFunction.fetch(new Request(
+    "http://localhost:3000/api/images/presign",
+    {
+      method: "POST",
+      headers: {
+        authorization: req.header("authorization") ?? "",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(req.body),
+    },
+  ));
+  res.status(response.status).send(await response.text());
 });
 
 async function startServer() {

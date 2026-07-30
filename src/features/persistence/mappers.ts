@@ -88,6 +88,7 @@ type GlobalWordRow = {
   ipa: string | null;
   audio_url: string | null;
   image_url: string | null;
+  image_object_key?: string | null;
   status: string;
   created_by_admin_id: string | null;
   created_at: string;
@@ -108,6 +109,7 @@ type PrivateWordRow = {
   ipa: string | null;
   audio_url: string | null;
   image_url: string | null;
+  image_object_key?: string | null;
   status: 'pending' | 'rejected' | 'approved' | 'archived';
   admin_comment: string | null;
   created_at: string;
@@ -239,6 +241,9 @@ export function mapVocabularyRow(row: VocabularyRow): Word | null {
     ...(source.ipa ? {ipa: source.ipa} : {}),
     ...(source.audio_url ? {audioUrl: source.audio_url} : {}),
     ...(source.image_url ? {imageUrl: source.image_url} : {}),
+    ...(source.image_object_key
+      ? {imageObjectKey: source.image_object_key}
+      : {}),
     wordStructure: isGlobal
       ? [...(globalWord?.word_parts ?? [])]
           .sort((a, b) => a.position - b.position)
