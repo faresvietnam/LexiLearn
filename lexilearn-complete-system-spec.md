@@ -135,11 +135,7 @@ The initial production Admin is:
 thanghong195@gmail.com
 ```
 
-This account has both Learner and Admin capabilities. Admin capability is additive: it must not remove any Learner capability. The production Admin interface is served at:
-
-```text
-/admin
-```
+This account has both Learner and Admin capabilities. Admin capability is additive: it must not remove any Learner capability. The production Admin interface is an in-app `Admin` tab in the shared navigation. The tab is present only when the authenticated role list includes `admin`; there is no standalone Admin client route. This visibility rule is navigation behavior only—backend authorization and RLS remain authoritative.
 
 Only an existing Admin may grant or revoke Admin capability after initial provisioning.
 
@@ -1905,7 +1901,7 @@ All sensitive mutations also validate authorization in backend code.
 /review-attempts
 /imports
 /edit-suggestions
-/admin
+admin operations
 ```
 
 Important mutations require:
@@ -1996,7 +1992,7 @@ Implementation spec and completed plan: [`docs/superpowers/specs/2026-07-29-phas
 ### Phase 2 — Persistence and Authentication
 
 - Add Google OAuth and authenticated learner/admin roles.
-- Provision `thanghong195@gmail.com` with both Learner and Admin roles and add the protected `/admin` route.
+- Provision `thanghong195@gmail.com` with both Learner and Admin roles and expose the in-app `Admin` tab only when the authenticated role list includes `admin`.
 - Create migrations for Global Words, Private Words, personal vocabulary, Meaning Cards, SRS state, Decks, Tags, Study Scope, sessions, and attempts.
 - Add user timezone, 04:00 study-day boundary, user settings, Admin-configurable Gemini quota, and quota-usage records.
 - Add RLS and matching server-side authorization.
@@ -2082,7 +2078,7 @@ Implementation spec and completed plan: [`docs/superpowers/specs/2026-07-29-phas
 - Backend authorization and RLS
 - Durable Study Scope, settings, Decks, Tags, imports, submissions, sessions, and attempts
 - Persisted Scheduler results and resumable sessions
-- Protected `/admin`, Admin provisioning, and Admin-configurable Gemini Auto-Fill quota
+- Admin-only in-app tab, Admin provisioning, and Admin-configurable Gemini Auto-Fill quota
 - Transactional Admin Approve, Reject, and Merge
 - Global-content edit restrictions with personal metadata still editable
 - Robust CSV validation and non-overwriting conflict handling

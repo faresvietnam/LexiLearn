@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import type {User} from '@supabase/supabase-js';
 import {LoginView} from './features/auth/LoginView';
 import {useAuth} from './features/auth/AuthProvider';
 import {
@@ -56,7 +57,29 @@ import {
 } from './features/persistence/vocabularyRepository';
 
 export default function App() {
-  const {status, roles, user, signOut} = useAuth();
+  const auth = useAuth();
+  if (auth.status !== 'authenticated') return <LoginView />;
+
+  return (
+    <React.Fragment key={auth.user?.id ?? 'authenticated'}>
+      <AuthenticatedApp
+        roles={auth.roles}
+        user={auth.user}
+        signOut={auth.signOut}
+      />
+    </React.Fragment>
+  );
+}
+
+function AuthenticatedApp({
+  roles,
+  user,
+  signOut,
+}: {
+  roles: string[];
+  user: User | null;
+  signOut: () => Promise<void>;
+}) {
   const authenticatedRole: UserRole = roles.includes('admin') ? 'admin' : 'learner';
   const client = getSupabaseClient();
   // Main Application State
@@ -104,7 +127,7 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (status !== 'authenticated' || !client || !user) return;
+    if (!client || !user) return;
     let alive = true;
     setIsHydrating(true);
     setHydrationError(null);
@@ -133,14 +156,12 @@ export default function App() {
     return () => {
       alive = false;
     };
-  }, [client, hydrationVersion, status, user?.id]);
+  }, [client, hydrationVersion, user?.id]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
-
-  if (status !== 'authenticated') return <LoginView />;
 
   if (client && (isHydrating || !settings || !studyScope)) {
     return (

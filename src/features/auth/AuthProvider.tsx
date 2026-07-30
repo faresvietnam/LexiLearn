@@ -25,18 +25,32 @@ export function AuthProvider({children}: {children: ReactNode}) {
   useEffect(() => {
     if (!client) return;
     let alive = true;
-    const load = async (nextUser: User | null) => {
-      if (!alive) return;
+    let requestGeneration = 0;
+    let activeUserId: string | null = null;
+    const load = async (nextUser: User | null, generation: number) => {
+      if (!alive || generation !== requestGeneration) return;
+      const nextUserId = nextUser?.id ?? null;
+      const identityChanged = nextUserId !== activeUserId;
+      activeUserId = nextUserId;
       setUser(nextUser);
+      setRoles([]);
+      setError(null);
       if (!nextUser) { setRoles([]); setStatus('anonymous'); return; }
+      if (identityChanged) setStatus('loading');
       const {data, error: roleError} = await client.from('user_roles').select('role').eq('user_id', nextUser.id);
-      if (!alive) return;
+      if (!alive || generation !== requestGeneration) return;
       if (roleError) { setError('Không thể tải quyền tài khoản.'); setRoles([]); }
       else setRoles((data ?? []).map((row) => row.role));
       setStatus('authenticated');
     };
-    client.auth.getUser().then(({data}) => load(data.user));
-    const {data: subscription} = client.auth.onAuthStateChange((_event, session) => { void load(session?.user ?? null); });
+    const initialGeneration = ++requestGeneration;
+    client.auth.getUser().then(({data}) => {
+      void load(data.user, initialGeneration);
+    });
+    const {data: subscription} = client.auth.onAuthStateChange((_event, session) => {
+      const generation = ++requestGeneration;
+      void load(session?.user ?? null, generation);
+    });
     return () => { alive = false; subscription.subscription.unsubscribe(); };
   }, [client]);
 

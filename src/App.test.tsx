@@ -24,6 +24,7 @@ const {
   recordStudyAttempt,
   signOut,
   supabaseClient,
+  authState,
 } = vi.hoisted(() => ({
   completeStudySession: vi.fn(),
   createStudySession: vi.fn(),
@@ -32,6 +33,9 @@ const {
   recordStudyAttempt: vi.fn(),
   signOut: vi.fn(),
   supabaseClient: {},
+  authState: {
+    userId: 'user-1',
+  },
 }));
 
 vi.mock('./features/auth/AuthProvider', () => ({
@@ -39,7 +43,7 @@ vi.mock('./features/auth/AuthProvider', () => ({
     status: 'authenticated',
     roles: ['learner'],
     user: {
-      id: 'user-1',
+      id: authState.userId,
       email: 'learner@example.com',
       user_metadata: {},
     },
@@ -80,6 +84,7 @@ function deferredSessionResult() {
 }
 
 beforeEach(() => {
+  authState.userId = 'user-1';
   createStudySession.mockReset();
   completeStudySession.mockReset();
   pauseStudySession.mockReset();
@@ -169,5 +174,28 @@ describe('App session creation concurrency', () => {
     await waitFor(() => {
       expect(createStudySession).toHaveBeenCalledTimes(2);
     });
+  });
+});
+
+describe('App authenticated identity state', () => {
+  it('does not carry an active learning session into a different user identity', async () => {
+    createStudySession.mockResolvedValue({data: 'session-1', error: null});
+    const {rerender} = render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole('button', {name: 'Continue Learning'}),
+    );
+    expect(await screen.findByText(/Câu 1 \//)).toBeInTheDocument();
+
+    authState.userId = 'user-2';
+    rerender(<App />);
+
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Sẵn sàng học bài hôm nay!',
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Câu 1 \//)).not.toBeInTheDocument();
+    expect(loadLearnerState).toHaveBeenLastCalledWith('user-2');
   });
 });

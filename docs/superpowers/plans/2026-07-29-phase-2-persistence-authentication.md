@@ -25,11 +25,11 @@
 - `supabase/migrations/*_phase_2_schema.sql`: complete schema, trigger, secure helpers, RLS policies, grants, indexes, and seed setting.
 - `src/lib/supabase.ts`: guarded browser client and missing-configuration result.
 - `src/lib/studyDate.ts`: timezone/04:00 date boundary helpers matching the database contract.
-- `src/features/auth/*`: session context, Google sign-in/sign-out actions, auth gate, login view, and admin route guard.
+- `src/features/auth/*`: session context, Google sign-in/sign-out actions, auth gate, login view, and race-safe role loading.
 - `src/features/persistence/*`: row/domain mappers and repositories for profile, settings, scope, vocabulary metadata, and session events.
 - `src/App.tsx`: orchestration only; receives hydrated state and passes persistence callbacks.
 - `src/main.tsx`: application router/provider bootstrap.
-- `src/**/*.test.ts?(x)`: TDD coverage for mappers, auth UI state, admin route guard, and persistence callbacks.
+- `src/**/*.test.ts?(x)`: TDD coverage for mappers, auth UI state, Admin-tab visibility, identity changes, and persistence callbacks.
 - `.env.example`, `README.md`: public environment variables and Google/Supabase setup instructions.
 
 ### Task 0: Commit the verified Phase 1 baseline
@@ -132,27 +132,27 @@ git commit -m "feat: add lexilearn schema and rls"
 ### Task 3: Implement Auth UI and pause for Google OAuth configuration
 
 **Files:**
-- Create: `src/features/auth/AuthProvider.tsx`, `src/features/auth/AuthGate.tsx`, `src/features/auth/LoginView.tsx`, `src/features/auth/RequireAdmin.tsx`, `src/features/auth/auth.test.tsx`
+- Create: `src/features/auth/AuthProvider.tsx`, `src/features/auth/AuthGate.tsx`, `src/features/auth/LoginView.tsx`, `src/features/auth/auth.test.tsx`
 - Modify: `src/main.tsx`, `src/App.tsx`, `src/components/Navbar.tsx`, `README.md`
 
 **Interfaces:**
 - `AuthProvider` exposes `{ status: 'config-error' | 'loading' | 'authenticated' | 'anonymous', user, roles, signInWithGoogle(), signOut() }`.
-- `RequireAdmin` renders children only for a loaded session whose roles include `admin`; otherwise it navigates to `/`.
+- `App` and `Navbar` expose the in-app `Admin` tab only when the loaded role list includes `admin`; backend RLS remains authoritative.
 - `LoginView` invokes `signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } })`.
 
-- [ ] **Step 1: Write failing auth and route tests**
+- [ ] **Step 1: Write failing auth and navigation tests**
 
-Mock the client boundary. Assert config-error shows an actionable setup screen; anonymous users see Login View; a Google button invokes the expected provider/redirect; an authenticated learner visiting `/admin` lands on `/`; an authenticated admin sees the existing admin content at `/admin`; sign-out clears authenticated UI state.
+Mock the client boundary. Assert config-error shows an actionable setup screen; anonymous users see Login View; a Google button invokes the expected provider/redirect; learners do not receive the `Admin` tab; admins do receive it; stale role requests cannot overwrite newer auth transitions; and sign-out clears authenticated UI state.
 
 - [ ] **Step 2: Verify RED**
 
 Run: `npm test -- --run src/features/auth/auth.test.tsx`
 
-Expected: FAIL because provider, routes, and auth views do not exist.
+Expected: FAIL because the provider, navigation integration, and auth views do not exist.
 
-- [ ] **Step 3: Implement guarded auth and routes**
+- [ ] **Step 3: Implement guarded auth and Admin-tab navigation**
 
-Subscribe to `onAuthStateChange`, fetch `user_roles` for the current user, and unsubscribe on unmount. Wrap the app in `BrowserRouter` and `AuthProvider`. Keep current tabs for learner UI but map `/admin` to a protected existing `AdminApprovalView`. Add sign-in/sign-out controls without restoring the prototype role-switcher. Render no learner data before auth is resolved.
+Subscribe to `onAuthStateChange`, fetch `user_roles` for the current user, invalidate stale role requests, and unsubscribe on unmount. Wrap the app in `BrowserRouter` and `AuthProvider`. Keep the existing tab navigation and append the in-app `Admin` tab only when `roles.includes('admin')`; do not add a standalone Admin client route. Reset identity-scoped application state when the authenticated user changes. Add sign-in/sign-out controls without restoring the prototype role-switcher. Render no learner data before auth is resolved.
 
 - [ ] **Step 4: OAuth credential checkpoint — stop for user action**
 
@@ -179,7 +179,7 @@ Do not request the Client Secret in chat or put it in files. Resume only after u
 
 - [ ] **Step 5: Perform live Google login verification, then commit**
 
-With public Vite environment variables configured locally, start the Vite development server and complete one Google login. Verify profile trigger rows/roles in Supabase and that admin is protected correctly.
+With public Vite environment variables configured locally, start the Vite development server and complete one Google login. Verify profile trigger rows/roles in Supabase, learner exclusion from the `Admin` tab, admin visibility of that tab, and backend enforcement of Admin operations.
 
 Run:
 

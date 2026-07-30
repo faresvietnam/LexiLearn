@@ -9,7 +9,7 @@ Replace Phase 1's local-only identity and durable learner state with Supabase Au
 Phase 2 is delivered as vertical slices, each committed independently:
 
 1. Establish the Supabase client, environment contract, migrations, database functions, and RLS.
-2. Add Google OAuth, authenticated session handling, learner/admin authorization, and the protected `/admin` route.
+2. Add Google OAuth, authenticated session handling, learner/admin authorization, and the admin-only in-app `Admin` tab.
 3. Persist profile settings, Study Scope, Decks, Tags, personal vocabulary membership and word-study status.
 4. Persist session lifecycle and attempts without replacing Phase 1's rule-based SRS or adding FSRS scheduling.
 
@@ -23,7 +23,8 @@ The existing Phase 1 changes are committed as the baseline before Phase 2 implem
 - A database trigger creates `public.users` on the first `auth.users` row, using Google metadata for display name/avatar when present.
 - The trigger grants every new user `learner`. It grants both `learner` and `admin` when `auth.users.email = 'thanghong195@gmail.com'` (case-insensitive).
 - The client reads roles from `user_roles` but never treats UI state as authorization. RLS and database helper functions enforce access.
-- `/admin` is a client route protected by the authenticated admin role. Non-admin users are redirected to the dashboard.
+- The shared navigation includes the in-app `Admin` tab only when `roles.includes('admin')`. Learners never receive that tab, and there is no standalone Admin client route.
+- Auth transitions invalidate older role requests, and changing identities synchronously replaces the authenticated application subtree so learner data and active sessions cannot cross accounts.
 
 ## OAuth configuration checkpoint
 
@@ -74,10 +75,10 @@ Do not implement Phase 3 flows in this phase: Gemini Vercel Function, durable qu
 ## Error handling and testing
 
 - Missing Supabase environment variables render a clear configuration screen in development instead of crashing.
-- Auth loading, sign-in failure, sign-out, unauthorized admin route, and persistence failures surface recoverable messages.
+- Auth loading, sign-in failure, sign-out, role-loading, and persistence failures surface recoverable messages.
 - SQL migration tests validate role bootstrap and RLS access with learner/admin identities.
 - Unit tests cover row-to-domain mappers and study-day boundary helpers.
-- React tests cover auth gate, protected admin redirect, and persistence callbacks.
+- React tests cover auth-state races, learner exclusion from the Admin tab, identity-scoped application state, and persistence callbacks.
 
 ## Security constraints
 
