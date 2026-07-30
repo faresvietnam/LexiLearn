@@ -54,6 +54,7 @@ describe('persistence mappers', () => {
       language: 'en',
       reduced_motion: true,
       char_diff_accessibility: true,
+      gemini_api_key: 'owner-key',
     })).toEqual({
       newWordsPerDay: 12,
       reviewLimitPerDay: 60,
@@ -63,6 +64,7 @@ describe('persistence mappers', () => {
       language: 'en',
       reducedMotion: true,
       charDiffAccessibility: true,
+      geminiApiKey: 'owner-key',
     });
 
     expect(mapStudyScopeRow({
@@ -387,6 +389,7 @@ describe('successful learner persistence', () => {
                 language: 'vi',
                 reduced_motion: false,
                 char_diff_accessibility: false,
+                gemini_api_key: null,
               })),
             })),
           })),

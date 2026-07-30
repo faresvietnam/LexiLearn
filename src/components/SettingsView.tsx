@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings as SettingsIcon, Sliders, Monitor, User, Download, Keyboard, Volume2 } from 'lucide-react';
+import { Settings as SettingsIcon, Sliders, Download, Keyboard, KeyRound, Volume2 } from 'lucide-react';
 import { UserSettings, StudyScope, Word } from '../types';
 
 interface SettingsViewProps {
@@ -7,6 +7,7 @@ interface SettingsViewProps {
   studyScope: StudyScope;
   words: Word[];
   onUpdateSettings: (newSettings: UserSettings) => Promise<boolean>;
+  onSaveGeminiApiKey: (apiKey: string | null) => Promise<boolean>;
   onExportData: () => void;
 }
 
@@ -15,6 +16,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   studyScope,
   words,
   onUpdateSettings,
+  onSaveGeminiApiKey,
   onExportData,
 }) => {
   const [newWordsLimit, setNewWordsLimit] = useState(settings.newWordsPerDay);
@@ -23,6 +25,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [reducedMotion, setReducedMotion] = useState(settings.reducedMotion);
   const [charDiffAcc, setCharDiffAcc] = useState(settings.charDiffAccessibility);
   const [isSaving, setIsSaving] = useState(false);
+  const [geminiApiKey, setGeminiApiKey] = useState(
+    settings.geminiApiKey ?? '',
+  );
+  const [isGeminiSaving, setIsGeminiSaving] = useState(false);
+
+  const handleSaveGeminiApiKey = async () => {
+    const normalizedKey = geminiApiKey.trim();
+    if (!normalizedKey) return;
+    setIsGeminiSaving(true);
+    try {
+      const saved = await onSaveGeminiApiKey(normalizedKey);
+      if (saved) setGeminiApiKey(normalizedKey);
+    } finally {
+      setIsGeminiSaving(false);
+    }
+  };
+
+  const handleRemoveGeminiApiKey = async () => {
+    setIsGeminiSaving(true);
+    try {
+      const removed = await onSaveGeminiApiKey(null);
+      if (removed) setGeminiApiKey('');
+    } finally {
+      setIsGeminiSaving(false);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,6 +151,60 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 className="w-5 h-5 accent-indigo-600 rounded cursor-pointer"
               />
             </label>
+          </div>
+        </div>
+
+        {/* PERSONAL GEMINI KEY */}
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <KeyRound className="w-5 h-5 text-indigo-600" />
+            <span>Gemini Auto-Fill cá nhân</span>
+          </h2>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-1">
+            <p>
+              Supabase mã hóa khi lưu trữ và chỉ tài khoản của bạn được đọc
+              key này.
+            </p>
+            <p>
+              Khi Auto-Fill, trình duyệt đọc key và gửi trực tiếp tới Gemini.
+              Vì vậy key có thể được xem trong bộ nhớ hoặc công cụ mạng của
+              trình duyệt; đây không phải bảo vệ bí mật phía máy chủ.
+            </p>
+          </div>
+          <div className="space-y-1">
+            <label
+              htmlFor="gemini-api-key"
+              className="text-xs font-bold text-slate-700"
+            >
+              Gemini API key
+            </label>
+            <input
+              id="gemini-api-key"
+              type="password"
+              autoComplete="off"
+              value={geminiApiKey}
+              onChange={(event) => setGeminiApiKey(event.target.value)}
+              placeholder="Dán Gemini API key của bạn"
+              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono focus:outline-none focus:bg-white focus:border-indigo-500 transition"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={isGeminiSaving || !geminiApiKey.trim()}
+              onClick={() => void handleSaveGeminiApiKey()}
+              className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs disabled:opacity-60"
+            >
+              Lưu Gemini API key
+            </button>
+            <button
+              type="button"
+              disabled={isGeminiSaving || !settings.geminiApiKey}
+              onClick={() => void handleRemoveGeminiApiKey()}
+              className="px-4 py-2 bg-rose-50 text-rose-700 border border-rose-200 font-bold rounded-xl text-xs disabled:opacity-60"
+            >
+              Xóa Gemini API key
+            </button>
           </div>
         </div>
 

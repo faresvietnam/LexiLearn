@@ -22,6 +22,7 @@ export type SettingsRow = {
   language: UserSettings['language'];
   reduced_motion: boolean;
   char_diff_accessibility: boolean;
+  gemini_api_key: string | null;
 };
 
 export type StudyScopeRow = {
@@ -134,6 +135,7 @@ export function mapSettingsRow(row: SettingsRow): UserSettings {
     language: row.language,
     reducedMotion: row.reduced_motion,
     charDiffAccessibility: row.char_diff_accessibility,
+    geminiApiKey: row.gemini_api_key,
   };
 }
 

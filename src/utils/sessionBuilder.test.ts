@@ -11,6 +11,7 @@ const settings: UserSettings = {
   language: 'vi',
   reducedMotion: false,
   charDiffAccessibility: false,
+  geminiApiKey: null,
 };
 
 const scope: StudyScope = {

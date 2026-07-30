@@ -1,21 +1,23 @@
 import {describe, expect, it, vi} from 'vitest';
 
-const {getSupabaseClient, mockQuery} = vi.hoisted(() => {
+const {getSupabaseClient, mockQuery, select} = vi.hoisted(() => {
   const getSupabaseClient = vi.fn();
   const query = {
     order: vi.fn(),
   };
+  const select = vi.fn(() => query);
 
   const mockQuery = (result: unknown) => {
+    select.mockClear();
     query.order.mockResolvedValue({data: result, error: null});
     getSupabaseClient.mockReturnValue({
       from: vi.fn(() => ({
-        select: vi.fn(() => query),
+        select,
       })),
     });
   };
 
-  return {getSupabaseClient, mockQuery};
+  return {getSupabaseClient, mockQuery, select};
 });
 
 vi.mock('../../lib/supabase', () => ({getSupabaseClient}));
@@ -46,5 +48,11 @@ describe('loadAdminUsers', () => {
       ],
       error: null,
     });
+    expect(select).toHaveBeenCalledWith(
+      'id, email, display_name, created_at, user_roles(role)',
+    );
+    expect(select.mock.calls.flat().join(' ')).not.toMatch(
+      /gemini|user_settings/i,
+    );
   });
 });

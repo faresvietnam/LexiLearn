@@ -2,5 +2,5 @@
   "name": "English Vocabulary Learning App",
   "description": "Spaced Repetition System (SRS) English vocabulary application with adaptive learning, morphology decomposition, keyboard-first interactions, and admin approval workflows.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": ["MAJOR_CAPABILITY_BROWSER_GEMINI_API"]
 }

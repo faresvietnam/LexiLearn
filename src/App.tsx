@@ -38,7 +38,11 @@ import { AdminWorkspace } from './components/AdminWorkspace';
 import { RootWordInsightsView } from './components/RootWordInsightsView';
 import { buildSessionQuestions } from './utils/sessionBuilder';
 import {getSupabaseClient} from './lib/supabase';
-import {saveSettings, saveStudyScope} from './features/persistence/settingsRepository';
+import {
+  saveGeminiApiKey,
+  saveSettings,
+  saveStudyScope,
+} from './features/persistence/settingsRepository';
 import {
   completeStudySession,
   createStudySession,
@@ -506,6 +510,26 @@ function AuthenticatedApp({
     return true;
   };
 
+  const handleSaveGeminiApiKey = async (apiKey: string | null) => {
+    const normalizedKey = apiKey?.trim() || null;
+    if (client && user) {
+      const result = await saveGeminiApiKey(user.id, normalizedKey);
+      if (result.error) {
+        showToast(result.error);
+        return false;
+      }
+    }
+    setSettings((current) => current
+      ? {...current, geminiApiKey: normalizedKey}
+      : current
+    );
+    showToast(normalizedKey
+      ? 'Đã lưu Gemini API key cá nhân.'
+      : 'Đã xóa Gemini API key cá nhân.'
+    );
+    return true;
+  };
+
   const handleSaveStudyScope = async (nextScope: StudyScope) => {
     if (client && user) {
       const result = await saveStudyScope(user.id, nextScope);
@@ -669,6 +693,7 @@ function AuthenticatedApp({
                 .filter(({isGlobal}) => isGlobal)
                 .map(({id, word, ipa}) => ({id, word, ipa}))
               }
+              geminiApiKey={settings.geminiApiKey}
               onAddWord={async (newWord) => {
                 const saved = await handleAddWord(newWord);
                 if (saved) setCurrentTab('vocabulary');
@@ -726,6 +751,7 @@ function AuthenticatedApp({
               studyScope={studyScope}
               words={words}
               onUpdateSettings={handleUpdateSettings}
+              onSaveGeminiApiKey={handleSaveGeminiApiKey}
               onExportData={handleExportData}
             />
           )}

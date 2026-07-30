@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
 import { X, Sparkles, Plus, Trash2, Globe, AlertCircle, Check } from 'lucide-react';
 import { Word, Deck, Tag, WordPart, WordPartType, ExampleSentence } from '../types';
+import {
+  analyzeWordWithGemini,
+  GeminiRequestError,
+} from '../features/gemini/geminiClient';
 
 interface AddWordModalProps {
   decks: Deck[];
   tags: Tag[];
   globalWords: Array<Pick<Word, 'id' | 'word' | 'ipa'>>;
   linkedGlobalWords: Array<Pick<Word, 'id' | 'word' | 'ipa'>>;
+  geminiApiKey?: string | null;
   onAddWord: (newWord: Word) => Promise<boolean>;
   onLinkExistingGlobalWord: (wordId: string) => Promise<boolean>;
   onClose: () => void;
@@ -17,6 +22,7 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
   tags,
   globalWords,
   linkedGlobalWords,
+  geminiApiKey = null,
   onAddWord,
   onLinkExistingGlobalWord,
   onClose,
@@ -36,6 +42,7 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
 
   // AI loading state
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [selectedGlobalWordId, setSelectedGlobalWordId] = useState('');
   const [duplicateGlobalWord, setDuplicateGlobalWord] = useState<
@@ -95,21 +102,24 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
     );
   };
 
-  // AI Auto-Fill calling Gemini endpoint
+  // The authenticated browser calls Gemini directly with the user's key.
   const handleAiAutoFill = async () => {
     if (!word.trim()) return;
+    if (!geminiApiKey) {
+      setAiError(
+        'Chưa có Gemini API key. Hãy lưu key trong Cài đặt hoặc nhập thủ công.',
+      );
+      return;
+    }
+    setAiError(null);
     setIsAiLoading(true);
 
     try {
-      const res = await fetch('/api/ai/analyze-word', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ word: word.trim() }),
+      const data = await analyzeWordWithGemini({
+        apiKey: geminiApiKey,
+        word,
       });
 
-      if (!res.ok) throw new Error('AI request failed');
-
-      const data = await res.json();
       if (data.ipa) setIpa(data.ipa);
       if (data.partOfSpeech) setPartOfSpeech(data.partOfSpeech.toLowerCase());
       if (data.vietnameseMeaning) setVietnameseMeaning(data.vietnameseMeaning);
@@ -132,8 +142,10 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
           setExampleSentences(exArray);
         }
       }
-    } catch (err) {
-      console.error('Error auto-filling with AI:', err);
+    } catch (error) {
+      setAiError(error instanceof GeminiRequestError
+        ? error.message
+        : 'Không thể phân tích bằng Gemini. Vui lòng nhập thủ công.');
     } finally {
       setIsAiLoading(false);
     }
@@ -294,6 +306,11 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
                 <span>{isAiLoading ? 'Analyzing...' : 'AI Auto-Fill'}</span>
               </button>
             </div>
+            {aiError && (
+              <p role="alert" className="text-xs text-rose-700">
+                {aiError}
+              </p>
+            )}
           </div>
 
           {/* Vietnamese Meaning & Part of Speech */}

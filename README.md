@@ -29,3 +29,16 @@ Yêu cầu Node.js 22 trở lên.
 Các biến có tiền tố `VITE_` được đưa vào bundle trình duyệt. Chỉ dùng
 Supabase publishable key ở đây; không đặt secret key trong `.env.local`,
 source code hoặc cấu hình frontend.
+
+## Gemini Auto-Fill cá nhân
+
+Mỗi người dùng có thể lưu Gemini API key của riêng mình trong trang Cài
+đặt. `user_settings` dùng RLS chỉ-chủ-sở-hữu và dự án Supabase được mã hóa
+khi lưu trữ. Ứng dụng không dùng Gemini service key hay proxy phía máy chủ.
+
+Auto-Fill gửi yêu cầu trực tiếp từ trình duyệt tới Gemini. Vì vậy key phải
+tồn tại trong bộ nhớ trình duyệt và xuất hiện trong request header; người
+dùng có thể xem key bằng công cụ phát triển hoặc mã chạy trong cùng origin.
+Đây không tương đương với bảo vệ secret phía máy chủ. Chỉ sử dụng key cá
+nhân đã giới hạn cho Gemini API, tránh máy dùng chung, và xóa key trong Cài
+đặt khi không còn sử dụng.

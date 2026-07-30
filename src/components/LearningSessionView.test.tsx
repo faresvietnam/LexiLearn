@@ -66,6 +66,7 @@ const settings: UserSettings = {
   language: 'vi',
   reducedMotion: false,
   charDiffAccessibility: true,
+  geminiApiKey: null,
 };
 
 const newCardRow: LearningCardFsrsRow = {

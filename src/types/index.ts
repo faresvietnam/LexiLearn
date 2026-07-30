@@ -114,6 +114,7 @@ export interface UserSettings {
   language: 'vi' | 'en';
   reducedMotion: boolean;
   charDiffAccessibility: boolean;
+  geminiApiKey: string | null;
 }
 
 export type QuestionStage =
