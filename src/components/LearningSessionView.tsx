@@ -23,6 +23,12 @@ import {
 } from '../types';
 import { computeCharDiff, DiffResult, normalizeText } from '../utils/charDiff';
 import { evaluateSrsAttempt } from '../utils/srs';
+import {
+  deriveAutomaticRating,
+  type AutomaticRating,
+} from '../features/scheduling/automaticRating';
+import type {ScheduledLearningCard} from '../features/scheduling/fsrsScheduler';
+import {formatRelativeDueTime} from '../features/scheduling/relativeDueTime';
 import { CharacterDiffComparison } from './CharacterDiffComparison';
 
 interface LearningSessionViewProps {
@@ -35,6 +41,11 @@ interface LearningSessionViewProps {
     updatedCard: MeaningCard
   ) => void;
   onAttempt: (attempt: StudyAttemptInput) => void | Promise<void>;
+  onReviewCompleted?: (
+    learningCardId: string,
+    rating: AutomaticRating,
+    reviewedAt: Date,
+  ) => Promise<ScheduledLearningCard | null>;
   onFinishSession: (stats: SessionStats) => void;
   onExitSession: () => void;
 }
@@ -45,6 +56,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
   isExtraReview,
   onMeaningCardUpdated,
   onAttempt,
+  onReviewCompleted,
   onFinishSession,
   onExitSession,
 }) => {
@@ -67,6 +79,8 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
   const [diffResult, setDiffResult] = useState<DiffResult | null>(null);
   const [accumulatedErrorTypes, setAccumulatedErrorTypes] = useState<string[]>([]);
   const [showAnswerReview, setShowAnswerReview] = useState<boolean>(false);
+  const [reviewSchedule, setReviewSchedule] =
+    useState<ScheduledLearningCard | null>(null);
 
   // Question timing & stats
   const sessionStartTimeRef = useRef<number>(Date.now());
@@ -74,6 +88,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
   const retriesTotalRef = useRef<number>(0);
   const firstAttemptSuccessesRef = useRef<number>(0);
   const totalAttemptedQuestionsRef = useRef<number>(0);
+  const reviewRequestIdRef = useRef(0);
 
   // Focus ref for input
   const inputRef = useRef<HTMLInputElement>(null);
@@ -112,6 +127,8 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
     setDiffResult(null);
     setAccumulatedErrorTypes([]);
     setShowAnswerReview(false);
+    setReviewSchedule(null);
+    reviewRequestIdRef.current += 1;
     setTimeout(() => inputRef.current?.focus(), 100);
   };
 
@@ -215,6 +232,34 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
 
       // Transition to Answer Review Overlay
       setShowAnswerReview(true);
+
+      if (onReviewCompleted) {
+        const reviewedAt = new Date();
+        const rating = deriveAutomaticRating({
+          questionType: currentQuestion.type,
+          isFirstAttemptCorrect: isFirstTry,
+          attemptsCount: newAttempts,
+          hintLevelUsed: hintLevel,
+          answerRevealed: hintLevel >= 5,
+          responseTimeMs,
+          expectedAnswerLength: currentQuestion.expectedAnswer.length,
+        });
+        const requestId = ++reviewRequestIdRef.current;
+
+        try {
+          void Promise.resolve(onReviewCompleted(
+            currentQuestion.targetMeaningCard.id,
+            rating,
+            reviewedAt,
+          )).then((schedule) => {
+            if (reviewRequestIdRef.current === requestId) {
+              setReviewSchedule(schedule);
+            }
+          }).catch(() => undefined);
+        } catch {
+          // Scheduling persistence never interrupts Answer Review or Continue.
+        }
+      }
 
       // Autoplay audio if enabled
       if (settings.audioAutoplay) {
@@ -669,6 +714,17 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
                 {currentQuestion.targetMeaningCard.meaning}
               </p>
             </div>
+
+            {reviewSchedule && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 font-semibold text-indigo-800">
+                  Predicted recall: {Math.round(reviewSchedule.retrievability * 100)}%
+                </div>
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 font-semibold text-indigo-800">
+                  Review again: {formatRelativeDueTime(reviewSchedule.card.due)}
+                </div>
+              </div>
+            )}
 
             {/* All OTHER Meanings Display (Requirement Section 3.4) */}
             {currentQuestion.word.meanings.length > 1 && (

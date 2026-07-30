@@ -19,20 +19,24 @@ import {
 const {
   completeStudySession,
   createStudySession,
+  getLearningCardSchedule,
   loadLearnerState,
   pauseStudySession,
   recordStudyAttempt,
   signOut,
   supabaseClient,
+  updateLearningCardSchedule,
   authState,
 } = vi.hoisted(() => ({
   completeStudySession: vi.fn(),
   createStudySession: vi.fn(),
+  getLearningCardSchedule: vi.fn(),
   loadLearnerState: vi.fn(),
   pauseStudySession: vi.fn(),
   recordStudyAttempt: vi.fn(),
   signOut: vi.fn(),
   supabaseClient: {},
+  updateLearningCardSchedule: vi.fn(),
   authState: {
     userId: 'user-1',
   },
@@ -65,8 +69,10 @@ vi.mock('./features/persistence/vocabularyRepository', async (importOriginal) =>
 vi.mock('./features/persistence/sessionRepository', () => ({
   completeStudySession,
   createStudySession,
+  getLearningCardSchedule,
   pauseStudySession,
   recordStudyAttempt,
+  updateLearningCardSchedule,
 }));
 
 import App from './App';
@@ -87,8 +93,10 @@ beforeEach(() => {
   authState.userId = 'user-1';
   createStudySession.mockReset();
   completeStudySession.mockReset();
+  getLearningCardSchedule.mockReset();
   pauseStudySession.mockReset();
   recordStudyAttempt.mockReset();
+  updateLearningCardSchedule.mockReset();
   loadLearnerState.mockReset();
   loadLearnerState.mockResolvedValue({
     data: {
@@ -104,9 +112,31 @@ beforeEach(() => {
   completeStudySession.mockResolvedValue({data: null, error: null});
   pauseStudySession.mockResolvedValue({data: null, error: null});
   recordStudyAttempt.mockResolvedValue({data: null, error: null});
+  getLearningCardSchedule.mockResolvedValue({
+    data: {
+      id: 'meaning_unprecedented_1',
+      next_review_at: null,
+      last_reviewed_at: null,
+      fsrs_state_version: 1,
+      fsrs_state: 0,
+      fsrs_stability: 0,
+      fsrs_difficulty: 0,
+      fsrs_elapsed_days: 0,
+      fsrs_scheduled_days: 0,
+      fsrs_learning_steps: 0,
+      fsrs_reps: 0,
+      fsrs_lapses: 0,
+      fsrs_retrievability: 1,
+    },
+    error: null,
+  });
+  updateLearningCardSchedule.mockResolvedValue({data: null, error: null});
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe('App session creation concurrency', () => {
   it('creates exactly one session for two starts in the same render batch', async () => {
@@ -197,5 +227,50 @@ describe('App authenticated identity state', () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/Câu 1 \//)).not.toBeInTheDocument();
     expect(loadLearnerState).toHaveBeenLastCalledWith('user-2');
+  });
+});
+
+describe('App FSRS review scheduling', () => {
+  it('persists a completed retry schedule while a rejected write leaves Answer Review usable', async () => {
+    createStudySession.mockResolvedValue({data: 'session-1', error: null});
+    updateLearningCardSchedule.mockRejectedValue(new Error('offline'));
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole('button', {name: 'Continue Learning'}),
+    );
+    await screen.findByText(/Câu 1 \//);
+
+    fireEvent.click(screen.getByRole('button', {
+      name: /Giao thông vận tải, sự vận chuyển/,
+    }));
+    fireEvent.click(screen.getByRole('button', {name: /Check/i}));
+    fireEvent.click(screen.getByRole('button', {name: /Thử lại/i}));
+    fireEvent.click(screen.getByRole('button', {
+      name: /Chưa từng có tiền lệ/,
+    }));
+    fireEvent.click(screen.getByRole('button', {name: /Check/i}));
+
+    expect(
+      await screen.findByText('Predicted recall: 100%'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Review again: in 10 minutes')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {name: /Tiếp tục/i}),
+    ).toBeInTheDocument();
+
+    expect(getLearningCardSchedule).toHaveBeenCalledWith(
+      'user-1',
+      'meaning_unprecedented_1',
+    );
+    expect(updateLearningCardSchedule).toHaveBeenCalledWith(
+      'user-1',
+      'meaning_unprecedented_1',
+      expect.objectContaining({
+        fsrs_state_version: 1,
+        fsrs_reps: 1,
+        memory_score: 100,
+      }),
+    );
   });
 });

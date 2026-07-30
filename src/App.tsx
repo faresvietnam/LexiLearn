@@ -42,9 +42,16 @@ import {saveSettings, saveStudyScope} from './features/persistence/settingsRepos
 import {
   completeStudySession,
   createStudySession,
+  getLearningCardSchedule,
   pauseStudySession,
   recordStudyAttempt,
+  updateLearningCardSchedule,
 } from './features/persistence/sessionRepository';
+import type {AutomaticRating} from './features/scheduling/automaticRating';
+import {
+  scheduleCard,
+  type ScheduledLearningCard,
+} from './features/scheduling/fsrsScheduler';
 import {
   createPrivateWord,
   linkGlobalWord,
@@ -297,6 +304,56 @@ function AuthenticatedApp({
       attempt,
     );
     if (result.error) showToast(result.error);
+  };
+
+  const handleReviewCompleted = async (
+    learningCardId: string,
+    rating: AutomaticRating,
+    reviewedAt: Date,
+  ): Promise<ScheduledLearningCard | null> => {
+    if (!client || !user) return null;
+
+    try {
+      const current = await getLearningCardSchedule(user.id, learningCardId);
+      if (current.error) {
+        showToast(current.error);
+        return null;
+      }
+
+      const scheduled = scheduleCard(current.data, rating, reviewedAt);
+      const next = scheduled.persistence;
+      setWords((previous) => previous.map((word) => ({
+        ...word,
+        meanings: word.meanings.map((card) => card.id === learningCardId
+          ? {
+              ...card,
+              memoryScore: next.memory_score,
+              reviewIntervalDays: next.review_interval_days,
+              nextReviewDate: next.next_review_at,
+              lastReviewedDate: next.last_reviewed_at ?? undefined,
+            }
+          : card),
+      })));
+
+      try {
+        void updateLearningCardSchedule(
+          user.id,
+          learningCardId,
+          next,
+        ).then((result) => {
+          if (result.error) showToast(result.error);
+        }).catch(() => {
+          showToast('Không thể lưu lịch ôn tập. Tiến trình cục bộ vẫn được giữ.');
+        });
+      } catch {
+        showToast('Không thể lưu lịch ôn tập. Tiến trình cục bộ vẫn được giữ.');
+      }
+
+      return scheduled;
+    } catch {
+      showToast('Không thể tải trạng thái ôn tập. Tiến trình cục bộ vẫn được giữ.');
+      return null;
+    }
   };
 
   const handleExitSession = () => {
@@ -555,6 +612,7 @@ function AuthenticatedApp({
           isExtraReview={isExtraReviewSession}
           onMeaningCardUpdated={handleMeaningCardUpdated}
           onAttempt={handleAttempt}
+          onReviewCompleted={handleReviewCompleted}
           onFinishSession={handleFinishSession}
           onExitSession={handleExitSession}
         />

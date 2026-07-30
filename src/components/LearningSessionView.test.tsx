@@ -1,7 +1,12 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { State } from 'ts-fsrs';
 import { LearningSessionView } from './LearningSessionView';
+import {
+  scheduleCard,
+  type LearningCardFsrsRow,
+} from '../features/scheduling/fsrsScheduler';
 import {
   MeaningCard,
   Question,
@@ -61,6 +66,22 @@ const settings: UserSettings = {
   language: 'vi',
   reducedMotion: false,
   charDiffAccessibility: true,
+};
+
+const newCardRow: LearningCardFsrsRow = {
+  id: meaningCard.id,
+  next_review_at: null,
+  last_reviewed_at: null,
+  fsrs_state_version: 1,
+  fsrs_state: State.New,
+  fsrs_stability: 0,
+  fsrs_difficulty: 0,
+  fsrs_elapsed_days: 0,
+  fsrs_scheduled_days: 0,
+  fsrs_learning_steps: 0,
+  fsrs_reps: 0,
+  fsrs_lapses: 0,
+  fsrs_retrievability: 1,
 };
 
 afterEach(() => {
@@ -276,6 +297,48 @@ describe('LearningSessionView session completion', () => {
 });
 
 describe('LearningSessionView attempt persistence contract', () => {
+  it('rates a completed retry Again and renders its FSRS prediction in Answer Review', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-30T05:00:00.000Z'));
+    const ratings: string[] = [];
+
+    render(
+      <LearningSessionView
+        questions={[question]}
+        settings={settings}
+        isExtraReview={false}
+        onMeaningCardUpdated={() => undefined}
+        onAttempt={() => undefined}
+        onReviewCompleted={async (_cardId, rating, reviewedAt) => {
+          ratings.push(rating);
+          return scheduleCard(newCardRow, rating, reviewedAt);
+        }}
+        onFinishSession={() => undefined}
+        onExitSession={() => undefined}
+      />
+    );
+
+    const answerInput = screen.getByPlaceholderText(
+      'Gõ từ tiếng Anh tại đây...',
+    );
+    fireEvent.change(answerInput, {target: {value: 'remmber'}});
+    fireEvent.click(screen.getByRole('button', {name: /Check/i}));
+    fireEvent.click(screen.getByRole('button', {name: /Thử lại/i}));
+    fireEvent.change(answerInput, {target: {value: 'remember'}});
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', {name: /Check/i}));
+      await Promise.resolve();
+    });
+
+    expect(ratings).toEqual(['Again']);
+    expect(screen.getByText('Predicted recall: 100%')).toBeInTheDocument();
+    expect(screen.getByText('Review again: in 10 minutes')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {name: /Tiếp tục/i}),
+    ).toBeInTheDocument();
+  });
+
   it('emits two ordered immutable attempt records for a retry', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-29T13:00:00.000Z'));

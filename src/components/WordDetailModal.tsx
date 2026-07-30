@@ -15,6 +15,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Word, Deck, Tag, WordPart, MeaningCard, WordPartType, WordStudyStatus, ExampleSentence } from '../types';
+import {formatRelativeDueTime} from '../features/scheduling/relativeDueTime';
 
 interface WordDetailModalProps {
   word: Word | null;
@@ -633,9 +634,13 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
                     )}
 
                     {/* SRS Info */}
-                    <div className="flex items-center gap-4 text-xs text-slate-500 pt-2 border-t border-slate-200/60">
+                    <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 pt-2 border-t border-slate-200/60">
+                      <span className="font-semibold text-indigo-700">
+                        Predicted recall: {card.memoryScore}%
+                      </span>
                       <span className="flex items-center gap-1 font-medium">
-                        <Calendar className="w-3.5 h-3.5 text-indigo-600" /> Ngày ôn kế tiếp: {card.nextReviewDate}
+                        <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                        Review again: {formatRelativeDueTime(card.nextReviewDate)}
                       </span>
                       <span>Khoảng cách: {card.reviewIntervalDays} ngày</span>
                     </div>
