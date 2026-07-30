@@ -12,7 +12,15 @@ import {
   Eye,
   CornerDownLeft,
 } from 'lucide-react';
-import { MeaningCard, Question, UserSettings, SessionStats, WordPart } from '../types';
+import {
+  MeaningCard,
+  Question,
+  UserSettings,
+  SessionStats,
+  StudyAttemptInput,
+  StudyInputMode,
+  WordPart,
+} from '../types';
 import { computeCharDiff, DiffResult, normalizeText } from '../utils/charDiff';
 import { evaluateSrsAttempt } from '../utils/srs';
 import { CharacterDiffComparison } from './CharacterDiffComparison';
@@ -26,6 +34,7 @@ interface LearningSessionViewProps {
     meaningCardId: string,
     updatedCard: MeaningCard
   ) => void;
+  onAttempt: (attempt: StudyAttemptInput) => void | Promise<void>;
   onFinishSession: (stats: SessionStats) => void;
   onExitSession: () => void;
 }
@@ -35,6 +44,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
   settings,
   isExtraReview,
   onMeaningCardUpdated,
+  onAttempt,
   onFinishSession,
   onExitSession,
 }) => {
@@ -67,6 +77,22 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
 
   // Focus ref for input
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const getInputMode = (question: Question): StudyInputMode => {
+    if (
+      question.type === 'en_to_vn_mc'
+      || question.type === 'vn_to_en_mc'
+    ) {
+      return 'multiple_choice';
+    }
+    if (
+      question.type === 'word_part_selection'
+      || question.type === 'word_part_typing'
+    ) {
+      return 'word_parts';
+    }
+    return question.type === 'image_question' ? 'image' : 'typing';
+  };
 
   useEffect(() => {
     questionStartTimeRef.current = Date.now();
@@ -113,6 +139,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
 
     if (currentQuestion.type === 'en_to_vn_mc' || currentQuestion.type === 'vn_to_en_mc') {
       const selectedOpt = currentQuestion.mcOptions?.find((o) => o.id === selectedMcOption);
+      userVal = selectedOpt?.label ?? '';
       correct = selectedOpt?.isCorrect || false;
     } else if (currentQuestion.type === 'word_part_selection') {
       userVal = selectedParts.map((p) => p.text).join('');
@@ -142,6 +169,26 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
     setIsChecked(true);
     setIsCorrect(correct);
 
+    const responseTimeMs = Date.now() - questionStartTimeRef.current;
+    const attemptErrorTypes = currentDiff?.errorTypes ?? [];
+    try {
+      void Promise.resolve(onAttempt({
+        learningCardId: currentQuestion.targetMeaningCard.id,
+        questionType: currentQuestion.type,
+        inputMode: getInputMode(currentQuestion),
+        attemptNumber: newAttempts,
+        submittedAnswer: userVal,
+        isCorrect: correct,
+        firstAttempt: newAttempts === 1,
+        responseTimeMs,
+        hintLevel,
+        answerRevealed: hintLevel >= 5,
+        errorTypes: attemptErrorTypes,
+      })).catch(() => undefined);
+    } catch {
+      // Persistence never interrupts the in-memory learning flow.
+    }
+
     if (correct) {
       // First attempt recording
       const isFirstTry = newAttempts === 1;
@@ -151,7 +198,6 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
       totalAttemptedQuestionsRef.current += 1;
 
       // Evaluate SRS
-      const responseTimeMs = Date.now() - questionStartTimeRef.current;
       const result = evaluateSrsAttempt(
         currentQuestion.targetMeaningCard,
         currentQuestion.stage,
@@ -177,8 +223,8 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
     } else {
       // Wrong answer behavior
       retriesTotalRef.current += 1;
-      if (currentDiff) {
-        setAccumulatedErrorTypes((prev) => [...prev, ...currentDiff.errorTypes]);
+      if (attemptErrorTypes.length > 0) {
+        setAccumulatedErrorTypes((prev) => [...prev, ...attemptErrorTypes]);
       }
 
       // Auto increase hint level on repeated attempts

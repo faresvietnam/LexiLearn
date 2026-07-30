@@ -11,6 +11,7 @@ import {
   MemoryStrength,
   WordStudyStatus,
   SessionStats,
+  StudyAttemptInput,
   MeaningCard,
   Question,
 } from './types';
@@ -37,6 +38,12 @@ import { RootWordInsightsView } from './components/RootWordInsightsView';
 import { buildSessionQuestions } from './utils/sessionBuilder';
 import {getSupabaseClient} from './lib/supabase';
 import {saveSettings, saveStudyScope} from './features/persistence/settingsRepository';
+import {
+  completeStudySession,
+  createStudySession,
+  pauseStudySession,
+  recordStudyAttempt,
+} from './features/persistence/sessionRepository';
 import {
   createPrivateWord,
   linkGlobalWord,
@@ -82,6 +89,7 @@ export default function App() {
   const [isSessionActive, setIsSessionActive] = useState<boolean>(false);
   const [activeQuestions, setActiveQuestions] = useState<Question[]>([]);
   const [isExtraReviewSession, setIsExtraReviewSession] = useState<boolean>(false);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   // Modals & Overlay States
   const [showStudyScopeModal, setShowStudyScopeModal] = useState<boolean>(false);
@@ -163,26 +171,50 @@ export default function App() {
   // Toggle User Role (Learner vs Admin)
 
   // Start Learning Session Builder
-  const handleStartLearning = (isExtraReview: boolean = false) => {
-    const session = buildSessionQuestions(words, studyScope, settings, isExtraReview);
-    if (session.questions.length === 0) {
-      showToast('Không có từ vựng nào cần học trong Study Scope hiện tại!');
-      return;
+  const activateLearningSession = async (
+    questions: Question[],
+    isExtraReview: boolean,
+  ) => {
+    let sessionId: string | null = null;
+    if (client && user) {
+      const result = await createStudySession(user.id, {
+        scopeSnapshot: studyScope,
+        reviewLimit: settings.reviewLimitPerDay,
+        newWordLimit: settings.newWordsPerDay,
+      });
+      if (result.error) {
+        showToast(result.error);
+      } else {
+        sessionId = result.data;
+      }
     }
-    setActiveQuestions(session.questions);
+    setActiveSessionId(sessionId);
+    setActiveQuestions(questions);
     setIsExtraReviewSession(isExtraReview);
     setIsSessionActive(true);
   };
 
-  const handlePracticeSingleWord = (wordId: string) => {
+  const handleStartLearning = async (isExtraReview: boolean = false) => {
+    const {questions} = buildSessionQuestions(
+      words,
+      studyScope,
+      settings,
+      isExtraReview,
+    );
+    if (questions.length === 0) {
+      showToast('Không có từ vựng nào cần học trong Study Scope hiện tại!');
+      return;
+    }
+    await activateLearningSession(questions, isExtraReview);
+  };
+
+  const handlePracticeSingleWord = async (wordId: string) => {
     const targetWord = words.find((w) => w.id === wordId);
     if (!targetWord) return;
 
     const session = buildSessionQuestions([targetWord], studyScope, settings, true);
     if (session.questions.length > 0) {
-      setActiveQuestions(session.questions);
-      setIsExtraReviewSession(true);
-      setIsSessionActive(true);
+      await activateLearningSession(session.questions, true);
     }
   };
 
@@ -206,11 +238,43 @@ export default function App() {
   };
 
   const handleFinishSession = (stats: SessionStats) => {
+    const sessionId = activeSessionId;
     setIsSessionActive(false);
+    setActiveSessionId(null);
     showToast(
       `Hoàn thành Session! Độ chính xác lần đầu: ${stats.firstAttemptAccuracy}% • Đã ôn ${stats.reviewsCompleted} card(s).`
     );
     setCurrentTab('dashboard');
+    if (client && user && sessionId) {
+      void completeStudySession(
+        user.id,
+        sessionId,
+        new Date().toISOString(),
+      ).then((result) => {
+        if (result.error) showToast(result.error);
+      });
+    }
+  };
+
+  const handleAttempt = async (attempt: StudyAttemptInput) => {
+    if (!client || !user || !activeSessionId) return;
+    const result = await recordStudyAttempt(
+      user.id,
+      activeSessionId,
+      attempt,
+    );
+    if (result.error) showToast(result.error);
+  };
+
+  const handleExitSession = () => {
+    const sessionId = activeSessionId;
+    setIsSessionActive(false);
+    setActiveSessionId(null);
+    if (client && user && sessionId) {
+      void pauseStudySession(user.id, sessionId).then((result) => {
+        if (result.error) showToast(result.error);
+      });
+    }
   };
 
   // Vocabulary handlers
@@ -456,8 +520,9 @@ export default function App() {
           settings={settings}
           isExtraReview={isExtraReviewSession}
           onMeaningCardUpdated={handleMeaningCardUpdated}
+          onAttempt={handleAttempt}
           onFinishSession={handleFinishSession}
-          onExitSession={() => setIsSessionActive(false)}
+          onExitSession={handleExitSession}
         />
       ) : (
         <main className="md:ml-64 lg:ml-72 transition-all min-h-screen pb-12">

@@ -174,6 +174,32 @@ export interface SessionStats {
   extraReviewMode: boolean;
 }
 
+export interface StudySessionInput {
+  scopeSnapshot: StudyScope;
+  reviewLimit: number;
+  newWordLimit: number;
+}
+
+export type StudyInputMode =
+  | 'multiple_choice'
+  | 'word_parts'
+  | 'typing'
+  | 'image';
+
+export interface StudyAttemptInput {
+  learningCardId: string;
+  questionType: QuestionType;
+  inputMode: StudyInputMode;
+  attemptNumber: number;
+  submittedAnswer: string;
+  isCorrect: boolean;
+  firstAttempt: boolean;
+  responseTimeMs: number;
+  hintLevel: number;
+  answerRevealed: boolean;
+  errorTypes: string[];
+}
+
 export interface CsvRowRaw {
   word: string;
   vietnameseMeaning: string;

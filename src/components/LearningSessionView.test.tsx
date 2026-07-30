@@ -2,7 +2,14 @@ import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LearningSessionView } from './LearningSessionView';
-import { MeaningCard, Question, SessionStats, UserSettings, Word } from '../types';
+import {
+  MeaningCard,
+  Question,
+  SessionStats,
+  StudyAttemptInput,
+  UserSettings,
+  Word,
+} from '../types';
 
 const meaningCard: MeaningCard = {
   id: 'meaning-remember',
@@ -81,6 +88,7 @@ describe('LearningSessionView session completion', () => {
           updatedMeaningCardId = meaningCardId;
           updatedCard = card;
         }}
+        onAttempt={() => undefined}
         onFinishSession={(stats) => {
           finishedStats = stats;
         }}
@@ -133,6 +141,7 @@ describe('LearningSessionView session completion', () => {
         settings={settings}
         isExtraReview={false}
         onMeaningCardUpdated={() => undefined}
+        onAttempt={() => undefined}
         onFinishSession={(stats) => {
           finishedStats = stats;
         }}
@@ -163,6 +172,7 @@ describe('LearningSessionView session completion', () => {
         onMeaningCardUpdated={(_wordId, _meaningCardId, card) => {
           updatedCard = card;
         }}
+        onAttempt={() => undefined}
         onFinishSession={() => undefined}
         onExitSession={() => undefined}
       />
@@ -202,6 +212,7 @@ describe('LearningSessionView session completion', () => {
         onMeaningCardUpdated={(_wordId, _meaningCardId, card) => {
           updatedCard = card;
         }}
+        onAttempt={() => undefined}
         onFinishSession={() => undefined}
         onExitSession={() => undefined}
       />
@@ -226,6 +237,7 @@ describe('LearningSessionView session completion', () => {
         settings={settings}
         isExtraReview={false}
         onMeaningCardUpdated={() => undefined}
+        onAttempt={() => undefined}
         onFinishSession={() => undefined}
         onExitSession={() => undefined}
       />
@@ -247,6 +259,7 @@ describe('LearningSessionView session completion', () => {
         settings={settings}
         isExtraReview={false}
         onMeaningCardUpdated={() => undefined}
+        onAttempt={() => undefined}
         onFinishSession={() => undefined}
         onExitSession={() => undefined}
       />
@@ -259,5 +272,108 @@ describe('LearningSessionView session completion', () => {
 
     expect(screen.queryByText('- Bạn nhập:')).not.toBeInTheDocument();
     expect(screen.queryByText('+ Đáp án:')).not.toBeInTheDocument();
+  });
+});
+
+describe('LearningSessionView attempt persistence contract', () => {
+  it('emits two ordered immutable attempt records for a retry', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-29T13:00:00.000Z'));
+    const attempts: StudyAttemptInput[] = [];
+
+    render(
+      <LearningSessionView
+        questions={[question]}
+        settings={settings}
+        isExtraReview={false}
+        onMeaningCardUpdated={() => undefined}
+        onAttempt={(attempt) => {
+          attempts.push(attempt);
+        }}
+        onFinishSession={() => undefined}
+        onExitSession={() => undefined}
+      />
+    );
+
+    const answerInput = screen.getByPlaceholderText(
+      'Gõ từ tiếng Anh tại đây...',
+    );
+    fireEvent.change(answerInput, {target: {value: 'remmber'}});
+    vi.setSystemTime(new Date('2026-07-29T13:00:08.000Z'));
+    fireEvent.click(screen.getByRole('button', {name: /Check/i}));
+
+    fireEvent.click(screen.getByRole('button', {name: /Thử lại/i}));
+    fireEvent.click(screen.getByRole('button', {name: /Gợi ý/i}));
+    fireEvent.click(screen.getByRole('button', {name: /Đã hiểu/i}));
+    fireEvent.change(answerInput, {target: {value: 'remember'}});
+    vi.setSystemTime(new Date('2026-07-29T13:00:12.000Z'));
+    fireEvent.click(screen.getByRole('button', {name: /Check/i}));
+
+    expect(attempts).toEqual([
+      {
+        learningCardId: 'meaning-remember',
+        questionType: 'full_word_typing',
+        inputMode: 'typing',
+        attemptNumber: 1,
+        submittedAnswer: 'remmber',
+        isCorrect: false,
+        firstAttempt: true,
+        responseTimeMs: 8_000,
+        hintLevel: 0,
+        answerRevealed: false,
+        errorTypes: ['Replacement', 'Missing character'],
+      },
+      {
+        learningCardId: 'meaning-remember',
+        questionType: 'full_word_typing',
+        inputMode: 'typing',
+        attemptNumber: 2,
+        submittedAnswer: 'remember',
+        isCorrect: true,
+        firstAttempt: false,
+        responseTimeMs: 12_000,
+        hintLevel: 1,
+        answerRevealed: false,
+        errorTypes: [],
+      },
+    ]);
+  });
+
+  it('keeps the local retry and completion flow when attempt persistence rejects', async () => {
+    vi.useFakeTimers();
+    const onFinishSession = vi.fn();
+
+    render(
+      <LearningSessionView
+        questions={[question]}
+        settings={settings}
+        isExtraReview={false}
+        onMeaningCardUpdated={() => undefined}
+        onAttempt={() => Promise.reject(new Error('write failed'))}
+        onFinishSession={onFinishSession}
+        onExitSession={() => undefined}
+      />
+    );
+
+    const answerInput = screen.getByPlaceholderText(
+      'Gõ từ tiếng Anh tại đây...',
+    );
+    fireEvent.change(answerInput, {target: {value: 'wrong'}});
+    fireEvent.click(screen.getByRole('button', {name: /Check/i}));
+    expect(
+      screen.getByRole('button', {name: /Thử lại/i}),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', {name: /Thử lại/i}));
+    fireEvent.change(answerInput, {target: {value: 'remember'}});
+    fireEvent.click(screen.getByRole('button', {name: /Check/i}));
+    expect(
+      screen.getByRole('button', {name: /Tiếp tục/i}),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', {name: /Tiếp tục/i}));
+    await Promise.resolve();
+
+    expect(onFinishSession).toHaveBeenCalledOnce();
   });
 });
