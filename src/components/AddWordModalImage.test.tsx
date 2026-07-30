@@ -95,6 +95,11 @@ describe('AddWordModal R2 image upload', () => {
     });
 
     expect(await screen.findByText('Đã tải ảnh lên.')).toBeInTheDocument();
+    expect(screen.getByRole('img', {name: 'Ảnh minh họa xem trước'}))
+      .toHaveAttribute(
+        'src',
+        'https://images.example/users/user-1/images/image-1.webp',
+      );
     fireEvent.click(screen.getByRole('button', {name: 'Lưu từ vựng'}));
 
     await waitFor(() => expect(onAddWord).toHaveBeenCalledOnce());

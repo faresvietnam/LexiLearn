@@ -447,7 +447,16 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
               <p className="text-xs text-slate-500">Đang tải ảnh...</p>
             )}
             {uploadedImage && !isImageUploading && (
-              <p className="text-xs text-emerald-700">Đã tải ảnh lên.</p>
+              <div className="space-y-2">
+                <p className="text-xs text-emerald-700">Đã tải ảnh lên.</p>
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2">
+                  <img
+                    src={uploadedImage.publicUrl}
+                    alt="Ảnh minh họa xem trước"
+                    className="max-h-48 w-full rounded-lg object-contain"
+                  />
+                </div>
+              </div>
             )}
             {imageError && (
               <p role="alert" className="text-xs text-rose-700">
