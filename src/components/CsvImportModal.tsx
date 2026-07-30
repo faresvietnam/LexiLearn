@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Upload, FileText, CheckCircle2, AlertTriangle, ArrowRight, ShieldAlert } from 'lucide-react';
 import { Word, CsvRowRaw, CsvImportConflict, CsvImportReport } from '../types';
+import {parseCsv, CsvInvalidRow} from '../features/import/csvParser';
 
 interface CsvImportModalProps {
   existingWords: Word[];
@@ -27,42 +28,17 @@ reconstruction,Sự tái thiết,noun,re,struct,ion`
 
   const [parsedRows, setParsedRows] = useState<CsvRowRaw[]>([]);
   const [duplicateReport, setDuplicateReport] = useState<number>(0);
+  const [invalidRows, setInvalidRows] = useState<CsvInvalidRow[]>([]);
   const [conflicts, setConflicts] = useState<CsvImportConflict[]>([]);
   const [finalReport, setFinalReport] = useState<CsvImportReport | null>(null);
 
-  // Simple CSV parser
   const parseCsvText = () => {
-    const lines = rawText.trim().split('\n');
-    if (lines.length <= 1) return;
-
-    const headers = lines[0].split(',').map((h) => h.trim());
-    const rows: CsvRowRaw[] = [];
-    const seenWords = new Set<string>();
-    let dupsCount = 0;
-
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(',').map((c) => c.trim());
-      if (cols.length < 2) continue;
-
-      const wordVal = cols[0].toLowerCase();
-      if (seenWords.has(wordVal)) {
-        dupsCount++;
-        continue; // Keep first row, skip duplicate
-      }
-      seenWords.add(wordVal);
-
-      rows.push({
-        word: cols[0] || '',
-        vietnameseMeaning: cols[1] || '',
-        partOfSpeech: cols[2] || 'noun',
-        prefix: cols[3] || '',
-        root: cols[4] || '',
-        suffix: cols[5] || '',
-      });
-    }
+    const result = parseCsv(rawText);
+    const rows: CsvRowRaw[] = result.rows.map(({rowNumber: _rowNumber, canonicalKey: _canonicalKey, ...row}) => row);
 
     setParsedRows(rows);
-    setDuplicateReport(dupsCount);
+    setDuplicateReport(result.duplicates.length);
+    setInvalidRows(result.invalidRows);
 
     // Detect conflicts with existing Global Words
     const foundConflicts: CsvImportConflict[] = [];
@@ -86,6 +62,15 @@ reconstruction,Sự tái thiết,noun,re,struct,ion`
 
     setConflicts(foundConflicts);
     setStep('preview');
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setRawText(String(reader.result ?? ''));
+    reader.onerror = () => setRawText('');
+    reader.readAsText(file);
   };
 
   const handleResolveConflict = (index: number, resolution: 'keep' | 'use_imported') => {
@@ -185,6 +170,18 @@ reconstruction,Sự tái thiết,noun,re,struct,ion`
         {step === 'upload' && (
           <div className="space-y-4">
             <div className="space-y-1">
+              <label htmlFor="csv-file" className="text-xs font-bold text-slate-700">
+                Tải file CSV
+              </label>
+              <input
+                id="csv-file"
+                type="file"
+                accept=".csv,text/csv"
+                onChange={(event) => void handleFileChange(event)}
+                className="block w-full text-xs text-slate-600"
+              />
+            </div>
+            <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700">Dữ liệu CSV Sample (hoặc dán nội dung CSV)</label>
               <textarea
                 value={rawText}
@@ -216,7 +213,22 @@ reconstruction,Sự tái thiết,noun,re,struct,ion`
                 <span className="text-slate-500">Dòng trùng lặp đã loại bỏ:</span>{' '}
                 <strong className="text-rose-600 font-bold">{duplicateReport}</strong>
               </div>
+              <div>
+                <span className="text-slate-500">Dòng lỗi:</span>{' '}
+                <strong className="text-amber-700 font-bold">{invalidRows.length}</strong>
+              </div>
             </div>
+
+            {invalidRows.length > 0 && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                <p className="font-bold">Các dòng chưa hợp lệ</p>
+                <ul className="mt-1 list-disc pl-5">
+                  {invalidRows.map((row) => (
+                    <li key={row.rowNumber}>Dòng {row.rowNumber}: {row.errors.join(', ')}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="max-h-60 overflow-y-auto rounded-xl border border-slate-200 text-xs">
               <table className="w-full text-left text-slate-700">

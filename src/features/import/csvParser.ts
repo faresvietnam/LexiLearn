@@ -27,7 +27,7 @@ type RecordResult = {fields: string[]; rowNumber: number; errors: string[]};
 
 const HEADER_ALIASES: Record<keyof CsvRowRaw, string[]> = {
   word: ['word', 'englishword', 'term', 'tienganh'],
-  vietnameseMeaning: ['vietnam meaning', 'vietnamese meaning', 'meaning', 'meaningvi', 'nghiatiengviet', 'nghia'],
+  vietnameseMeaning: ['vietnammeaning', 'vietnamesemeaning', 'meaning', 'meaningvi', 'nghiatiengviet', 'nghia'],
   partOfSpeech: ['partofspeech', 'pos', 'lexicaltype', 'tuloai'],
   ipa: ['ipa', 'pronunciation', 'phonetic'],
   deck: ['deck'],
