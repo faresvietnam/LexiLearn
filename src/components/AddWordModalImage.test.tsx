@@ -152,6 +152,12 @@ describe('AddWordModal R2 image upload', () => {
     });
 
     await waitFor(() => expect(uploadWordImage).toHaveBeenCalledTimes(2));
+    expect(deleteWordImage).toHaveBeenCalledWith(
+      'users/user-1/images/image-1.png',
+    );
+    expect(deleteWordImage).not.toHaveBeenCalledWith(
+      'users/user-1/images/image-2.png',
+    );
     expect(screen.getByText('Đã tải ảnh lên.')).toBeInTheDocument();
   });
 
