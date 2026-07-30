@@ -107,6 +107,7 @@ describe('AddWordModal R2 image upload', () => {
       imageObjectKey: 'users/user-1/images/image-1.webp',
       imageUrl: 'https://images.example/users/user-1/images/image-1.webp',
     });
+    expect(deleteWordImage).not.toHaveBeenCalled();
   });
 
   it('cleans up a successful upload when saving the word fails', async () => {
@@ -152,5 +153,33 @@ describe('AddWordModal R2 image upload', () => {
 
     await waitFor(() => expect(uploadWordImage).toHaveBeenCalledTimes(2));
     expect(screen.getByText('Đã tải ảnh lên.')).toBeInTheDocument();
+  });
+
+  it('cleans an uploaded image when the form unmounts before saving', async () => {
+    uploadWordImage.mockResolvedValue({
+      objectKey: 'users/user-1/images/image-1.png',
+      publicUrl: 'https://images.example/users/user-1/images/image-1.png',
+    });
+    const view = render(
+      <AddWordModal
+        decks={[]}
+        tags={[]}
+        globalWords={[]}
+        linkedGlobalWords={[]}
+        onAddWord={vi.fn().mockResolvedValue(true)}
+        onLinkExistingGlobalWord={vi.fn().mockResolvedValue(false)}
+        onClose={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText('Ảnh minh họa'), {
+      target: {files: [new File(['image'], 'word.png', {type: 'image/png'})]},
+    });
+
+    await screen.findByText('Đã tải ảnh lên.');
+    view.unmount();
+
+    await waitFor(() => expect(deleteWordImage).toHaveBeenCalledWith(
+      'users/user-1/images/image-1.png',
+    ));
   });
 });

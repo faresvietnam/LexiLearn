@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { X, Sparkles, Plus, Trash2, Globe, AlertCircle, Check } from 'lucide-react';
 import { Word, Deck, Tag, WordPart, WordPartType, ExampleSentence } from '../types';
 import {
@@ -52,6 +52,8 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
   const [imageError, setImageError] = useState<string | null>(null);
   const [isImageUploading, setIsImageUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const uploadedImageRef = useRef<UploadedImage | null>(null);
+  const imageCommittedRef = useRef(false);
   const [selectedGlobalWordId, setSelectedGlobalWordId] = useState('');
   const [duplicateGlobalWord, setDuplicateGlobalWord] = useState<
     Pick<Word, 'id' | 'word' | 'ipa'> | null
@@ -186,6 +188,8 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
       if (uploadedImage) {
         void deleteWordImage(uploadedImage.objectKey).catch(() => undefined);
       }
+      imageCommittedRef.current = false;
+      uploadedImageRef.current = metadata;
       setUploadedImage(metadata);
     } catch (error) {
       setImageError(
@@ -201,8 +205,16 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
   const cleanupUploadedImage = async () => {
     if (!uploadedImage) return;
     await deleteWordImage(uploadedImage.objectKey).catch(() => undefined);
+    uploadedImageRef.current = null;
     setUploadedImage(null);
   };
+
+  useEffect(() => () => {
+    const image = uploadedImageRef.current;
+    if (image && !imageCommittedRef.current) {
+      void deleteWordImage(image.objectKey).catch(() => undefined);
+    }
+  }, []);
 
   const handleClose = async () => {
     await cleanupUploadedImage();
@@ -281,6 +293,7 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
       setIsSaving(false);
     }
     if (saved) {
+      imageCommittedRef.current = true;
       onClose();
     } else {
       await cleanupUploadedImage();
