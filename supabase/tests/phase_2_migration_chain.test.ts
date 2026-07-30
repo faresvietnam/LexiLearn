@@ -24,6 +24,7 @@ describe('Phase 2 migration chain', () => {
       '20260729171732_add_learning_content_schema.sql',
       '20260730025853_phase_2_security_hardening.sql',
       '20260730033519_close_phase_2_security_review_gaps.sql',
+      '20260730035000_remove_legacy_private_word_helper.sql',
     ]);
   });
 
