@@ -22,7 +22,7 @@
 
 ## File structure
 
-- `supabase/migrations/*_phase_2_schema.sql`: complete schema, trigger, secure helpers, RLS policies, grants, indexes, and seed setting.
+- `supabase/migrations/20260729170452_phase_2_identity_schema.sql`: identity schema, triggers, RLS policies, grants, indexes, and seed setting.
 - `src/lib/supabase.ts`: guarded browser client and missing-configuration result.
 - `src/lib/studyDate.ts`: timezone/04:00 date boundary helpers matching the database contract.
 - `src/features/auth/*`: session context, Google sign-in/sign-out actions, auth gate, login view, and race-safe role loading.
@@ -99,7 +99,7 @@ git commit -m "feat: add supabase client boundary"
 ### Task 2: Create and verify the Supabase schema, role bootstrap, and RLS
 
 **Files:**
-- Create: `supabase/migrations/*_phase_2_schema.sql`, `supabase/tests/phase_2_rls.sql`
+- Create: `supabase/migrations/20260729170452_phase_2_identity_schema.sql`, `supabase/tests/phase_2_rls.sql`
 
 **Interfaces:**
 - `public.is_admin()` is a `security definer`, `set search_path = public`, revoked from `PUBLIC`, and granted only to `authenticated`; it returns role membership for `(select auth.uid())`.

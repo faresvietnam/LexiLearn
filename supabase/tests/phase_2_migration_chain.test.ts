@@ -18,15 +18,13 @@ describe('Phase 2 migration chain', () => {
   it('keeps the complete migration order available for a clean replay', () => {
     const files = migrationFiles();
 
-    expect(files.slice(0, 4)).toEqual([
-      '20260729165754_phase_2_schema.sql',
-      '20260730000100_harden_identity_functions.sql',
-      '20260730001000_add_learning_content_schema.sql',
+    expect(files).toEqual([
+      '20260729170452_phase_2_identity_schema.sql',
+      '20260729170549_harden_identity_functions.sql',
+      '20260729171732_add_learning_content_schema.sql',
       '20260730025853_phase_2_security_hardening.sql',
+      '20260730033519_close_phase_2_security_review_gaps.sql',
     ]);
-    expect(files.at(-1)).toMatch(
-      /^\d{14}_close_phase_2_security_review_gaps\.sql$/,
-    );
   });
 
   it('guards removal of the optional legacy public admin helper', () => {
