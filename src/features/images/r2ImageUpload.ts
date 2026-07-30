@@ -41,12 +41,9 @@ export async function uploadWordImage(file: File): Promise<UploadedImage> {
   const metadata = await presignResponse.json() as PresignResponse;
   const uploadResponse = await fetch(metadata.uploadUrl, {
     method: 'PUT',
-    // The Function signs this exact length; the browser sends the File's
-    // matching Content-Length for the presigned request.
-    headers: {
-      'Content-Length': String(file.size),
-      'Content-Type': file.type,
-    },
+    // The Function signs this exact length. Browsers own Content-Length and
+    // add the File's matching value automatically; only Content-Type is set.
+    headers: {'Content-Type': file.type},
     body: file,
   });
 

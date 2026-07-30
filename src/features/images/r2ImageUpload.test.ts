@@ -77,10 +77,7 @@ describe('uploadWordImage', () => {
       'https://r2.example/signed-put',
       {
         method: 'PUT',
-        headers: {
-          'Content-Length': '5',
-          'Content-Type': 'image/png',
-        },
+        headers: {'Content-Type': 'image/png'},
         body: file,
       },
     );

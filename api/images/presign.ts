@@ -26,6 +26,31 @@ type PresignDependencies = {
   randomUUID: () => string;
 };
 
+type R2Signer = Pick<AwsClient, 'sign'>;
+
+export async function signR2UploadRequest(
+  signer: R2Signer,
+  endpoint: string,
+  input: {
+    objectKey: string;
+    contentType: string;
+    size: number;
+    expiresIn: number;
+  },
+) {
+  const signed = await signer.sign(new Request(
+    `${endpoint}/${input.objectKey}?X-Amz-Expires=${input.expiresIn}`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Length': String(input.size),
+        'Content-Type': input.contentType,
+      },
+    },
+  ), {aws: {allHeaders: true, signQuery: true}});
+  return signed.url;
+}
+
 function json(status: number, body: Record<string, unknown>) {
   return Response.json(body, {status});
 }
@@ -170,15 +195,12 @@ function runtimeDependencies(): PresignDependencies {
       return error ? null : data.user?.id ?? null;
     },
     signUpload: async ({objectKey, contentType, size, expiresIn}) => {
-      const url = `${endpoint}/${objectKey}?X-Amz-Expires=${expiresIn}`;
-      const signed = await signer.sign(new Request(url, {
-        method: 'PUT',
-        headers: {
-          'Content-Length': String(size),
-          'Content-Type': contentType,
-        },
-      }), {aws: {signQuery: true}});
-      return signed.url;
+      return signR2UploadRequest(signer, endpoint, {
+        objectKey,
+        contentType,
+        size,
+        expiresIn,
+      });
     },
     signDelete: async ({objectKey, expiresIn}) => {
       const url = `${endpoint}/${objectKey}?X-Amz-Expires=${expiresIn}`;

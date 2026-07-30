@@ -1,5 +1,9 @@
 import {describe, expect, it, vi} from 'vitest';
-import {createPresignHandler} from '../../../api/images/presign';
+import {AwsClient} from 'aws4fetch';
+import {
+  createPresignHandler,
+  signR2UploadRequest,
+} from '../../../api/images/presign';
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -29,6 +33,28 @@ function dependencies() {
 }
 
 describe('R2 image presign function', () => {
+  it('binds exact upload length and MIME type in the R2 signature', async () => {
+    const signer = new AwsClient({
+      accessKeyId: 'test-access-key',
+      secretAccessKey: 'test-secret-key',
+      service: 's3',
+      region: 'auto',
+    });
+    const signedUrl = await signR2UploadRequest(
+      signer,
+      'https://account.r2.cloudflarestorage.com/bucket',
+      {
+        objectKey: 'users/user-1/images/image-1.png',
+        contentType: 'image/png',
+        size: 2_048,
+        expiresIn: 300,
+      },
+    );
+
+    expect(new URL(signedUrl).searchParams.get('X-Amz-SignedHeaders'))
+      .toBe('content-length;content-type;host');
+  });
+
   it('rejects anonymous requests before signing an upload', async () => {
     const deps = dependencies();
     const response = await createPresignHandler(deps)(
