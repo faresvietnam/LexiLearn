@@ -61,11 +61,14 @@ function user(id: string): User {
 }
 
 function AuthStateProbe() {
-  const {roles, status, user: currentUser} = useAuth();
+  const {error, roles, status, user: currentUser} = useAuth();
   return (
-    <output data-testid="auth-state">
-      {JSON.stringify({status, userId: currentUser?.id ?? null, roles})}
-    </output>
+    <>
+      <output data-testid="auth-state">
+        {JSON.stringify({status, userId: currentUser?.id ?? null, roles})}
+      </output>
+      <output data-testid="auth-error">{error}</output>
+    </>
   );
 }
 
@@ -199,5 +202,28 @@ describe('AuthProvider role request ordering', () => {
       });
       await refreshedRoles.promise;
     });
+  });
+
+  it('fails closed with a retryable error when role loading fails', async () => {
+    authMocks.getUser.mockResolvedValue({data: {user: user('user-a')}});
+    authMocks.queryRoles.mockResolvedValue({
+      data: null,
+      error: {message: 'network unavailable'},
+    });
+
+    render(
+      <AuthProvider>
+        <AuthStateProbe />
+      </AuthProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-state')).toHaveTextContent(
+        '{"status":"anonymous","userId":null,"roles":[]}',
+      );
+    });
+    expect(screen.getByTestId('auth-error')).toHaveTextContent(
+      'Không thể tải quyền tài khoản. Vui lòng thử lại.',
+    );
   });
 });

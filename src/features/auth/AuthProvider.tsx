@@ -39,8 +39,14 @@ export function AuthProvider({children}: {children: ReactNode}) {
       if (identityChanged) setStatus('loading');
       const {data, error: roleError} = await client.from('user_roles').select('role').eq('user_id', nextUser.id);
       if (!alive || generation !== requestGeneration) return;
-      if (roleError) { setError('Không thể tải quyền tài khoản.'); setRoles([]); }
-      else setRoles((data ?? []).map((row) => row.role));
+      if (roleError) {
+        setUser(null);
+        setError('Không thể tải quyền tài khoản. Vui lòng thử lại.');
+        setRoles([]);
+        setStatus('anonymous');
+        return;
+      }
+      setRoles((data ?? []).map((row) => row.role));
       setStatus('authenticated');
     };
     const initialGeneration = ++requestGeneration;
