@@ -14,7 +14,7 @@ function readMigration(file: string) {
   return readFileSync(`${migrationsDirectory}/${file}`, 'utf8');
 }
 
-describe('Phase 2 migration chain', () => {
+describe('database migration chain', () => {
   it('keeps the complete migration order available for a clean replay', () => {
     const files = migrationFiles();
 
@@ -25,6 +25,7 @@ describe('Phase 2 migration chain', () => {
       '20260730025853_phase_2_security_hardening.sql',
       '20260730033519_close_phase_2_security_review_gaps.sql',
       '20260730035000_remove_legacy_private_word_helper.sql',
+      '20260730064946_add_fsrs_learning_card_state.sql',
     ]);
   });
 

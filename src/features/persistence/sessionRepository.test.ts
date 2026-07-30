@@ -11,8 +11,10 @@ vi.mock('../../lib/supabase', () => ({getSupabaseClient}));
 import {
   completeStudySession,
   createStudySession,
+  getLearningCardSchedule,
   pauseStudySession,
   recordStudyAttempt,
+  updateLearningCardSchedule,
 } from './sessionRepository';
 
 const sessionInput: StudySessionInput = {
@@ -37,6 +39,23 @@ const attemptInput: StudyAttemptInput = {
   hintLevel: 1,
   answerRevealed: false,
   errorTypes: [],
+};
+
+const cardSchedule = {
+  next_review_at: '2026-08-09T05:00:00.000Z',
+  last_reviewed_at: '2026-07-30T05:00:00.000Z',
+  review_interval_days: 10,
+  memory_score: 100,
+  fsrs_state_version: 1 as const,
+  fsrs_state: 2,
+  fsrs_stability: 14.2,
+  fsrs_difficulty: 4.8,
+  fsrs_elapsed_days: 10,
+  fsrs_scheduled_days: 10,
+  fsrs_learning_steps: 0,
+  fsrs_reps: 5,
+  fsrs_lapses: 0,
+  fsrs_retrievability: 1,
 };
 
 describe('session persistence repository', () => {
@@ -95,6 +114,46 @@ describe('session persistence repository', () => {
       answer_revealed: false,
       error_types: [],
     });
+  });
+
+  it('loads the complete owner-scoped FSRS state needed after reload', async () => {
+    const row = {id: 'card-1', ...cardSchedule};
+    const single = vi.fn().mockResolvedValue({data: row, error: null});
+    const filterUser = vi.fn(() => ({single}));
+    const filterId = vi.fn(() => ({eq: filterUser}));
+    const select = vi.fn(() => ({eq: filterId}));
+    from.mockReturnValue({select});
+
+    await expect(
+      getLearningCardSchedule('user-1', 'card-1'),
+    ).resolves.toEqual({data: row, error: null});
+
+    expect(from).toHaveBeenCalledWith('learning_cards');
+    expect(select).toHaveBeenCalledWith(
+      'id, next_review_at, last_reviewed_at, fsrs_state_version, fsrs_state, fsrs_stability, fsrs_difficulty, fsrs_elapsed_days, fsrs_scheduled_days, fsrs_learning_steps, fsrs_reps, fsrs_lapses, fsrs_retrievability',
+    );
+    expect(filterId).toHaveBeenCalledWith('id', 'card-1');
+    expect(filterUser).toHaveBeenCalledWith('user_id', 'user-1');
+  });
+
+  it('persists one complete schedule update on only the caller-owned card', async () => {
+    const single = vi.fn().mockResolvedValue({
+      data: {id: 'card-1'},
+      error: null,
+    });
+    const select = vi.fn(() => ({single}));
+    const filterUser = vi.fn(() => ({select}));
+    const filterId = vi.fn(() => ({eq: filterUser}));
+    const update = vi.fn(() => ({eq: filterId}));
+    from.mockReturnValue({update});
+
+    await expect(
+      updateLearningCardSchedule('user-1', 'card-1', cardSchedule),
+    ).resolves.toEqual({data: null, error: null});
+
+    expect(update).toHaveBeenCalledWith(cardSchedule);
+    expect(filterId).toHaveBeenCalledWith('id', 'card-1');
+    expect(filterUser).toHaveBeenCalledWith('user_id', 'user-1');
   });
 
   it('completes only the caller-owned active session with an end time', async () => {

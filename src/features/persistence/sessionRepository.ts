@@ -1,5 +1,9 @@
 import {getSupabaseClient} from '../../lib/supabase';
 import {StudyAttemptInput, StudySessionInput} from '../../types';
+import type {
+  LearningCardFsrsRow,
+  LearningCardScheduleUpdate,
+} from '../scheduling/fsrsScheduler';
 import {PersistenceResult} from './settingsRepository';
 
 const CREATE_ERROR =
@@ -8,6 +12,13 @@ const ATTEMPT_ERROR =
   'Không thể lưu lần trả lời. Tiến trình cục bộ vẫn được giữ.';
 const UPDATE_ERROR =
   'Không thể cập nhật trạng thái phiên học. Vui lòng thử lại.';
+const CARD_READ_ERROR =
+  'Không thể tải trạng thái ôn tập. Tiến trình cục bộ vẫn được giữ.';
+const CARD_UPDATE_ERROR =
+  'Không thể lưu lịch ôn tập. Tiến trình cục bộ vẫn được giữ.';
+
+const LEARNING_CARD_SCHEDULE_COLUMNS =
+  'id, next_review_at, last_reviewed_at, fsrs_state_version, fsrs_state, fsrs_stability, fsrs_difficulty, fsrs_elapsed_days, fsrs_scheduled_days, fsrs_learning_steps, fsrs_reps, fsrs_lapses, fsrs_retrievability';
 
 export async function createStudySession(
   userId: string,
@@ -67,6 +78,54 @@ export async function recordStudyAttempt(
       : {data: null, error: null};
   } catch {
     return {data: null, error: ATTEMPT_ERROR};
+  }
+}
+
+export async function getLearningCardSchedule(
+  userId: string,
+  cardId: string,
+): Promise<PersistenceResult<LearningCardFsrsRow>> {
+  const client = getSupabaseClient();
+  if (!client) return {data: null, error: CARD_READ_ERROR};
+
+  try {
+    const {data, error} = await client
+      .from('learning_cards')
+      .select(LEARNING_CARD_SCHEDULE_COLUMNS)
+      .eq('id', cardId)
+      .eq('user_id', userId)
+      .single();
+
+    return error || !data
+      ? {data: null, error: CARD_READ_ERROR}
+      : {data: data as LearningCardFsrsRow, error: null};
+  } catch {
+    return {data: null, error: CARD_READ_ERROR};
+  }
+}
+
+export async function updateLearningCardSchedule(
+  userId: string,
+  cardId: string,
+  schedule: LearningCardScheduleUpdate,
+): Promise<PersistenceResult<null>> {
+  const client = getSupabaseClient();
+  if (!client) return {data: null, error: CARD_UPDATE_ERROR};
+
+  try {
+    const {data, error} = await client
+      .from('learning_cards')
+      .update(schedule)
+      .eq('id', cardId)
+      .eq('user_id', userId)
+      .select('id')
+      .single();
+
+    return error || !data
+      ? {data: null, error: CARD_UPDATE_ERROR}
+      : {data: null, error: null};
+  } catch {
+    return {data: null, error: CARD_UPDATE_ERROR};
   }
 }
 
