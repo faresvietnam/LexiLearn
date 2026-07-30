@@ -97,6 +97,14 @@ describe('FSRS scheduler adapter', () => {
     expect(good.persistence.memory_score).toBe(95);
   });
 
+  it('derives and serializes product memory strength from FSRS state and recall', () => {
+    const again = scheduleCard(newCardRow, 'Again', reviewedAt);
+    const good = scheduleCard(newCardRow, 'Good', reviewedAt);
+
+    expect(again.persistence.memory_strength).toBe('critical');
+    expect(good.persistence.memory_strength).toBe('strong');
+  });
+
   it('puts a forgotten review card on the ten-minute relearning step', () => {
     const scheduled = scheduleCard(reviewCardRow, 'Again', reviewedAt);
 

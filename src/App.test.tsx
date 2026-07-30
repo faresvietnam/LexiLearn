@@ -231,6 +231,33 @@ describe('App authenticated identity state', () => {
 });
 
 describe('App FSRS review scheduling', () => {
+  it('updates the existing MeaningCard strength from a successful FSRS review', async () => {
+    createStudySession.mockResolvedValue({data: 'session-1', error: null});
+    updateLearningCardSchedule.mockResolvedValue({data: null, error: null});
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole('button', {name: 'Continue Learning'}),
+    );
+    await screen.findByText(/Câu 1 \//);
+    fireEvent.click(screen.getByRole('button', {
+      name: /Chưa từng có tiền lệ/,
+    }));
+    fireEvent.click(screen.getByRole('button', {name: /Check/i}));
+
+    expect(
+      await screen.findByText('Predicted recall: 95%'),
+    ).toBeInTheDocument();
+    expect(updateLearningCardSchedule).toHaveBeenCalledWith(
+      'user-1',
+      'meaning_unprecedented_1',
+      expect.objectContaining({
+        memory_score: 95,
+        memory_strength: 'strong',
+      }),
+    );
+  });
+
   it('persists a completed retry schedule while a rejected write leaves Answer Review usable', async () => {
     createStudySession.mockResolvedValue({data: 'session-1', error: null});
     updateLearningCardSchedule.mockRejectedValue(new Error('offline'));

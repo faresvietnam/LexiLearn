@@ -328,6 +328,7 @@ function AuthenticatedApp({
           ? {
               ...card,
               memoryScore: next.memory_score,
+              memoryStrength: next.memory_strength,
               reviewIntervalDays: next.review_interval_days,
               nextReviewDate: next.next_review_at,
               lastReviewedDate: next.last_reviewed_at ?? undefined,

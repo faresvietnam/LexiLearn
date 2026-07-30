@@ -6,6 +6,7 @@ import {
   type Grade,
 } from 'ts-fsrs';
 import type {AutomaticRating} from './automaticRating';
+import type {MemoryStrength} from '../../types';
 
 export const FSRS_STATE_VERSION = 1 as const;
 
@@ -28,12 +29,28 @@ export interface LearningCardFsrsRow {
 export type LearningCardScheduleUpdate = Omit<LearningCardFsrsRow, 'id'> & {
   review_interval_days: number;
   memory_score: number;
+  memory_strength: MemoryStrength;
 };
 
 export interface ScheduledLearningCard {
   card: Card;
   retrievability: number;
   persistence: LearningCardScheduleUpdate;
+}
+
+export function deriveMemoryStrength(
+  card: Card,
+  retrievability: number,
+  rating: AutomaticRating,
+): MemoryStrength {
+  if (rating === 'Again' || card.state === State.Relearning) return 'critical';
+  if (card.state === State.New || card.state === State.Learning) return 'weak';
+
+  const score = Math.round(Math.max(0, Math.min(1, retrievability)) * 100);
+  if (score >= 80) return 'strong';
+  if (score >= 50) return 'stable';
+  if (score >= 25) return 'weak';
+  return 'critical';
 }
 
 const scheduler = fsrs({
@@ -74,12 +91,14 @@ export function learningCardRowToFsrsCard(
 export function fsrsCardToLearningCardUpdate(
   card: Card,
   retrievability: number,
+  rating: AutomaticRating = 'Good',
 ): LearningCardScheduleUpdate {
   return {
     next_review_at: card.due.toISOString(),
     last_reviewed_at: card.last_review?.toISOString() ?? null,
     review_interval_days: card.scheduled_days,
     memory_score: Math.round(retrievability * 100),
+    memory_strength: deriveMemoryStrength(card, retrievability, rating),
     fsrs_state_version: FSRS_STATE_VERSION,
     fsrs_state: card.state,
     fsrs_stability: card.stability,
@@ -111,6 +130,6 @@ export function scheduleCard(
   return {
     card: scheduled,
     retrievability,
-    persistence: fsrsCardToLearningCardUpdate(scheduled, retrievability),
+    persistence: fsrsCardToLearningCardUpdate(scheduled, retrievability, rating),
   };
 }

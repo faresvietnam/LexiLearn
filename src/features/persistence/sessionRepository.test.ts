@@ -46,6 +46,7 @@ const cardSchedule = {
   last_reviewed_at: '2026-07-30T05:00:00.000Z',
   review_interval_days: 10,
   memory_score: 100,
+  memory_strength: 'strong' as const,
   fsrs_state_version: 1 as const,
   fsrs_state: 2,
   fsrs_stability: 14.2,

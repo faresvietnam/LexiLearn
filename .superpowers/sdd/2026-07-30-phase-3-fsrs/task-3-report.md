@@ -74,3 +74,15 @@ session-builder suites, plus the learning-session and legacy SRS tests. The
 full verification run after these fixes passed 106 tests across 18 files,
 lint, build, and diff checks. The existing Node localStorage and Vite chunk-size
 warnings remain unchanged.
+
+## Round 2 review fix
+
+FSRS schedule updates now include the existing `memory_strength` column. The
+adapter derives product labels from FSRS state and predicted recall: Again or
+relearning is critical, active learning is weak, and review-state recall uses
+the existing strong/stable/weak/critical bands at 80/50/25 percent. App applies
+that same value to the existing `MeaningCard`, keeping dashboard and session
+queue strength filters aligned with the persisted state.
+
+Regression coverage proves a successful FSRS review persists `strong` and
+updates the App schedule payload, while an Again review persists `critical`.
