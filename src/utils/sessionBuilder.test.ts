@@ -75,6 +75,23 @@ describe('buildSessionQuestions', () => {
     expect(session.totalAvailableReviews).toBe(0);
   });
 
+  it('does not treat a hydrated future-due FSRS card with empty history as new', () => {
+    const hydratedCard = meaningCard('hydrated', {
+      history: [],
+      lastReviewedDate: '2026-07-30T00:00:00.000Z',
+      nextReviewDate: '2099-01-01T00:00:00.000Z',
+    });
+
+    const session = buildSessionQuestions(
+      [word('hydrated', [hydratedCard])],
+      scope,
+      settings,
+    );
+
+    expect(session.questions).toEqual([]);
+    expect(session.totalAvailableReviews).toBe(0);
+  });
+
   it('excludes strong cards from extra review', () => {
     const words = [
       word('strong', [meaningCard('strong', { memoryStrength: 'strong', memoryScore: 90 })]),

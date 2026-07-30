@@ -54,3 +54,23 @@ successfully.
 
 No Gemini, R2, CSV, moderation, calibration, Stage 4, or Admin routing changes
 were made.
+
+## Round 1 review fixes
+
+Hydrated learning cards now retain the existing `lastReviewedDate` evidence
+from persistence, and the session builder treats a card with persisted review
+evidence plus a future due date as reviewed even when `history` is empty. A
+mapper-to-builder regression test proves that a future-due FSRS card is not
+reintroduced as a new card after reload.
+
+The learning-session success path no longer calls the legacy
+`evaluateSrsAttempt` scheduler. It records immutable attempt analytics and
+history only; the FSRS callback remains the sole owner of memory score,
+strength, interval, and due-date fields. A regression test asserts those
+legacy scheduling fields stay unchanged before the FSRS result is applied.
+
+Focused review-fix verification passed: 32 tests across persistence and
+session-builder suites, plus the learning-session and legacy SRS tests. The
+full verification run after these fixes passed 106 tests across 18 files,
+lint, build, and diff checks. The existing Node localStorage and Vite chunk-size
+warnings remain unchanged.

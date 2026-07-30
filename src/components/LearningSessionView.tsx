@@ -22,7 +22,7 @@ import {
   WordPart,
 } from '../types';
 import { computeCharDiff, DiffResult, normalizeText } from '../utils/charDiff';
-import { evaluateSrsAttempt } from '../utils/srs';
+import { recordAttemptAnalytics } from '../utils/srs';
 import {
   deriveAutomaticRating,
   type AutomaticRating,
@@ -214,20 +214,21 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
       }
       totalAttemptedQuestionsRef.current += 1;
 
-      // Evaluate SRS
-      const result = evaluateSrsAttempt(
+      // Keep analytics/history separate from FSRS scheduling. FSRS owns all
+      // memory and due-date fields after the scheduler callback resolves.
+      const analyticsCard = recordAttemptAnalytics(
         currentQuestion.targetMeaningCard,
         currentQuestion.stage,
         isFirstTry,
         newAttempts,
         hintLevel,
         responseTimeMs,
-        accumulatedErrorTypes
+        accumulatedErrorTypes,
       );
       onMeaningCardUpdated(
         currentQuestion.word.id,
         currentQuestion.targetMeaningCard.id,
-        result.updatedCard
+        analyticsCard,
       );
 
       // Transition to Answer Review Overlay

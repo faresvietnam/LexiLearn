@@ -90,6 +90,37 @@ afterEach(() => {
 });
 
 describe('LearningSessionView session completion', () => {
+  it('leaves legacy heuristic scheduling fields unchanged for an FSRS review', () => {
+    let updatedCard: MeaningCard | undefined;
+
+    render(
+      <LearningSessionView
+        questions={[question]}
+        settings={settings}
+        isExtraReview={false}
+        onMeaningCardUpdated={(_wordId, _meaningCardId, card) => {
+          updatedCard = card;
+        }}
+        onAttempt={() => undefined}
+        onFinishSession={() => undefined}
+        onExitSession={() => undefined}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Gõ từ tiếng Anh tại đây...'), {
+      target: {value: 'remember'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: /Check/i}));
+
+    expect(updatedCard).toMatchObject({
+      memoryStrength: 'stable',
+      memoryScore: 60,
+      reviewIntervalDays: 4,
+      nextReviewDate: '2026-07-29',
+      history: [expect.objectContaining({isFirstAttemptCorrect: true})],
+    });
+  });
+
   it('keeps failed-attempt errors in the updated card and reports retry session stats', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-29T10:00:00.000Z'));

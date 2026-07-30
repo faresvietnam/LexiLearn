@@ -39,7 +39,8 @@ export function buildSessionQuestions(
 
   activeWords.forEach((word) => {
     word.meanings.forEach((meaningCard) => {
-      const hasBeenReviewed = meaningCard.history && meaningCard.history.length > 0;
+      const hasBeenReviewed = Boolean(meaningCard.lastReviewedDate)
+        || Boolean(meaningCard.history && meaningCard.history.length > 0);
       const isDue = isOverdue(meaningCard.nextReviewDate) || meaningCard.nextReviewDate <= todayStr;
 
       // Determine initial stage based on memory strength

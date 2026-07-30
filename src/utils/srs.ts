@@ -6,6 +6,39 @@ export interface SrsEvaluationResult {
   scoreChange: number;
 }
 
+export function recordAttemptAnalytics(
+  card: MeaningCard,
+  stage: number,
+  isFirstAttemptCorrect: boolean,
+  attemptsCount: number,
+  hintLevelUsed: number,
+  responseTimeMs: number,
+  errorTypes: string[],
+): MeaningCard {
+  const historyItem: LearningHistoryItem = {
+    id: `hist_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    date: new Date().toISOString(),
+    stage,
+    isFirstAttemptCorrect,
+    attemptsCount,
+    hintLevelUsed,
+    responseTimeMs,
+    errorTypes,
+  };
+  const updatedHistory = [...(card.history || []), historyItem];
+  const firstAttemptErrorsCount = updatedHistory.filter(
+    (history) => !history.isFirstAttemptCorrect,
+  ).length;
+
+  return {
+    ...card,
+    firstAttemptErrorRate: Math.round(
+      (firstAttemptErrorsCount / updatedHistory.length) * 100,
+    ),
+    history: updatedHistory,
+  };
+}
+
 /**
  * Calculates new memory state based on retry attempt history, hint level, response time
  */
@@ -18,16 +51,15 @@ export function evaluateSrsAttempt(
   responseTimeMs: number,
   errorTypes: string[]
 ): SrsEvaluationResult {
-  const historyItem: LearningHistoryItem = {
-    id: `hist_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-    date: new Date().toISOString(),
+  const analyticsCard = recordAttemptAnalytics(
+    card,
     stage,
     isFirstAttemptCorrect,
     attemptsCount,
     hintLevelUsed,
     responseTimeMs,
     errorTypes,
-  };
+  );
 
   let newScore = card.memoryScore || 50;
   let newInterval = card.reviewIntervalDays || 1;
@@ -65,19 +97,13 @@ export function evaluateSrsAttempt(
   nextDate.setDate(nextDate.getDate() + newInterval);
   const nextReviewDateStr = nextDate.toISOString().split('T')[0];
 
-  const updatedHistory = [...(card.history || []), historyItem];
-  const firstAttemptErrorsCount = updatedHistory.filter((h) => !h.isFirstAttemptCorrect).length;
-  const newErrorRate = Math.round((firstAttemptErrorsCount / updatedHistory.length) * 100);
-
   const updatedCard: MeaningCard = {
-    ...card,
+    ...analyticsCard,
     memoryScore: newScore,
     memoryStrength,
     reviewIntervalDays: newInterval,
     nextReviewDate: nextReviewDateStr,
     lastReviewedDate: new Date().toISOString().split('T')[0],
-    firstAttemptErrorRate: newErrorRate,
-    history: updatedHistory,
   };
 
   return {

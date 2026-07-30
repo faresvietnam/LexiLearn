@@ -7,11 +7,12 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
-import {INITIAL_SETTINGS} from '../../data/mockData';
+import {INITIAL_SETTINGS, INITIAL_STUDY_SCOPE} from '../../data/mockData';
 import {AddWordModal} from '../../components/AddWordModal';
 import {DecksAndTagsView} from '../../components/DecksAndTagsView';
 import {StudyScopeModal} from '../../components/StudyScopeModal';
 import {Word} from '../../types';
+import {buildSessionQuestions} from '../../utils/sessionBuilder';
 import {
   mapDeckRow,
   mapSettingsRow,
@@ -198,6 +199,55 @@ describe('persistence mappers', () => {
         }],
       }],
     });
+  });
+
+  it('keeps a hydrated future-due FSRS card out of the new-card queue', () => {
+    const hydrated = mapVocabularyRow({
+      id: 'vocabulary-fsrs',
+      deck_id: null,
+      study_status: 'active',
+      added_at: '2026-07-30T00:00:00Z',
+      personal_word_tags: [],
+      learning_cards: [{
+        id: 'card-fsrs',
+        meaning_source_id: 'meaning-fsrs',
+        memory_strength: 'stable',
+        memory_score: 90,
+        review_interval_days: 30,
+        next_review_at: '2099-01-01T00:00:00Z',
+        last_reviewed_at: '2026-07-30T00:00:00Z',
+      }],
+      global_words: {
+        id: 'global-fsrs',
+        word: 'persisted',
+        ipa: null,
+        audio_url: null,
+        image_url: null,
+        status: 'active',
+        created_by_admin_id: null,
+        created_at: '2026-07-30T00:00:00Z',
+        word_parts: [],
+        global_meanings: [{
+          id: 'meaning-fsrs',
+          meaning_vi: 'đã lưu',
+          part_of_speech: 'verb',
+          display_order: 0,
+          status: 'active',
+          global_examples: [],
+        }],
+      },
+      private_words: null,
+    });
+
+    expect(hydrated).not.toBeNull();
+    const session = buildSessionQuestions(
+      [hydrated!],
+      INITIAL_STUDY_SCOPE,
+      INITIAL_SETTINGS,
+    );
+
+    expect(session.questions).toEqual([]);
+    expect(session.totalAvailableReviews).toBe(0);
   });
 
   it('maps private vocabulary and supplies defaults for fields absent from its schema', () => {
