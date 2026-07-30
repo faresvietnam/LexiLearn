@@ -184,7 +184,7 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
     try {
       const metadata = await uploadWordImage(file);
       if (uploadedImage) {
-        void deleteWordImage(uploadedImage.objectKey);
+        void deleteWordImage(uploadedImage.objectKey).catch(() => undefined);
       }
       setUploadedImage(metadata);
     } catch (error) {

@@ -77,7 +77,7 @@ production và local gọi PUT với đúng `Content-Type`:
       "http://127.0.0.1:3000",
       "http://localhost:3000"
     ],
-    "AllowedMethods": ["PUT"],
+    "AllowedMethods": ["PUT", "DELETE"],
     "AllowedHeaders": ["Content-Type"],
     "ExposeHeaders": ["ETag"],
     "MaxAgeSeconds": 3600

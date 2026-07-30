@@ -18,11 +18,11 @@ app.get("/api/health", (_req, res) => {
 });
 
 // Keep the Vercel Function reachable through the existing local dev command.
-app.post("/api/images/presign", async (req, res) => {
+async function forwardImageRequest(req: express.Request, res: express.Response) {
   const response = await imagePresignFunction.fetch(new Request(
     "http://localhost:3000/api/images/presign",
     {
-      method: "POST",
+      method: req.method,
       headers: {
         authorization: req.header("authorization") ?? "",
         "content-type": "application/json",
@@ -31,7 +31,10 @@ app.post("/api/images/presign", async (req, res) => {
     },
   ));
   res.status(response.status).send(await response.text());
-});
+}
+
+app.post("/api/images/presign", forwardImageRequest);
+app.delete("/api/images/presign", forwardImageRequest);
 
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {

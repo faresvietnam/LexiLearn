@@ -122,4 +122,30 @@ describe('AddWordModal R2 image upload', () => {
       'users/user-1/images/image-1.png',
     ));
   });
+
+  it('keeps a replacement upload successful when old-image cleanup fails', async () => {
+    uploadWordImage
+      .mockResolvedValueOnce({
+        objectKey: 'users/user-1/images/image-1.png',
+        publicUrl: 'https://images.example/users/user-1/images/image-1.png',
+      })
+      .mockResolvedValueOnce({
+        objectKey: 'users/user-1/images/image-2.png',
+        publicUrl: 'https://images.example/users/user-1/images/image-2.png',
+      });
+    deleteWordImage.mockRejectedValueOnce(new Error('cleanup unavailable'));
+    renderModal();
+
+    const imageInput = screen.getByLabelText('Ảnh minh họa');
+    fireEvent.change(imageInput, {
+      target: {files: [new File(['one'], 'one.png', {type: 'image/png'})]},
+    });
+    await screen.findByText('Đã tải ảnh lên.');
+    fireEvent.change(imageInput, {
+      target: {files: [new File(['two'], 'two.png', {type: 'image/png'})]},
+    });
+
+    await waitFor(() => expect(uploadWordImage).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('Đã tải ảnh lên.')).toBeInTheDocument();
+  });
 });
