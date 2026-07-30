@@ -13,7 +13,7 @@ Replace the prototype rule-based SRS calculation with automatic FSRS scheduling 
 - First-attempt correct with hint level 1–2: `Hard` when slow, otherwise `Good`.
 - First-attempt correct without hint: recognition questions are `Good`; typed recall is `Easy` when fast, `Good` when normal, and `Hard` when slow.
 
-Speed uses the spec baselines and ratios: fast `<= 0.6`, normal `> 0.6 && <= 1.5`, slow `> 1.5`. Timing excludes hidden-tab time or caps it at the visibility boundary.
+Speed uses the spec baselines and ratios: fast `<= 0.6`, normal `> 0.6 && <= 1.5`, slow `> 1.5`. Timing excludes hidden-tab time or caps it at the visibility boundary. `image_question` is treated as recognition with a 7-second baseline and can never produce `Easy`.
 
 ## Scheduler contract
 
@@ -36,6 +36,10 @@ Learning/relearning steps remain `10 minutes → 1 day → FSRS review`. The cur
 Each user supplies their own Gemini API key. The key is stored in the user's `user_settings` row protected by owner-only RLS and Supabase encryption at rest; it is never shown in Admin or logs. When Auto-Fill is used, the authenticated user's browser reads its own key and sends the request directly to Gemini. Because the browser must hold the key to make a direct request, this is not equivalent to server-side secret protection; the UI must explain that trade-off and provide clear save/remove controls. The old Express/Vercel proxy is not used for this personal-key flow.
 
 This work does not add CSV, moderation transactions, calibration, or adaptive Stage 4. Gemini direct-browser settings are a separate Phase 3 task after FSRS is stable.
+
+## Image storage
+
+Image binaries are stored in Cloudflare R2. Browser uploads use a short-lived presigned URL issued by a Vercel Function; R2 credentials never reach the browser. Supabase stores only the object key and public/delivered URL metadata. The R2 upload function validates authenticated ownership, content type, size, and object-key scope. This storage path is separate from browser-direct Gemini requests.
 
 ## Acceptance tests
 
