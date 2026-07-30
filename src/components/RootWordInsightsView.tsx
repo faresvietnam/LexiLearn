@@ -16,6 +16,7 @@ import { Word, WordPart, WordPartType } from '../types';
 
 interface RootWordInsightsViewProps {
   words: Word[];
+  isSessionStartPending: boolean;
   onPracticeWord: (wordId: string) => void;
   onOpenWordDetail?: (word: Word) => void;
 }
@@ -30,6 +31,7 @@ interface ComponentSummary {
 
 export const RootWordInsightsView: React.FC<RootWordInsightsViewProps> = ({
   words,
+  isSessionStartPending,
   onPracticeWord,
   onOpenWordDetail,
 }) => {
@@ -438,8 +440,9 @@ export const RootWordInsightsView: React.FC<RootWordInsightsViewProps> = ({
                         </span>
 
                         <button
+                          disabled={isSessionStartPending}
                           onClick={() => onPracticeWord(word.id)}
-                          className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition"
+                          className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 disabled:opacity-60 disabled:cursor-not-allowed transition"
                           title="Luyện tập từ này"
                         >
                           <Play className="w-3 h-3 fill-current" />

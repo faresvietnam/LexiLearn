@@ -19,6 +19,7 @@ interface DashboardViewProps {
   words: Word[];
   studyScope: StudyScope;
   settings: UserSettings;
+  isSessionStartPending: boolean;
   onStartLearning: (isExtraReview?: boolean) => void;
   onOpenStudyScope: () => void;
   onOpenFilteredVocabulary: (filter: { memoryStrength?: MemoryStrength }) => void;
@@ -29,6 +30,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   words,
   studyScope,
   settings,
+  isSessionStartPending,
   onStartLearning,
   onOpenStudyScope,
   onOpenFilteredVocabulary,
@@ -151,8 +153,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="flex flex-col gap-3 min-w-[220px]">
             <button
               id="btn-continue-learning"
+              disabled={isSessionStartPending}
               onClick={() => onStartLearning(false)}
-              className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-lg shadow-lg shadow-indigo-100 transition transform active:scale-[0.98]"
+              className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-lg shadow-lg shadow-indigo-100 transition transform active:scale-[0.98]"
             >
               <Play className="w-5 h-5 fill-current" />
               <span>Continue Learning</span>
@@ -161,8 +164,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {reviewsDueCount >= settings.reviewLimitPerDay && (
               <button
                 id="btn-extra-review"
+                disabled={isSessionStartPending}
                 onClick={() => onStartLearning(true)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold text-sm border border-amber-200 transition"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-50 hover:bg-amber-100 disabled:opacity-60 disabled:cursor-not-allowed text-amber-800 font-semibold text-sm border border-amber-200 transition"
               >
                 <RotateCcw className="w-4 h-4 text-amber-600" />
                 <span>Review more at-risk words</span>
@@ -375,8 +379,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </td>
                     <td className="py-3.5 px-4">
                       <button
+                        disabled={isSessionStartPending}
                         onClick={() => onPracticeWord(item.word.id)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 disabled:opacity-60 disabled:cursor-not-allowed text-indigo-700 font-bold text-xs border border-indigo-200 transition"
                       >
                         <Play className="w-3 h-3 fill-current" />
                         <span>Practice</span>

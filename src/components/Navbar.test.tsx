@@ -15,6 +15,7 @@ const renderNavbar = ({
     <Navbar
       currentTab="dashboard"
       onSelectTab={() => undefined}
+      isSessionStartPending={false}
       userRole={userRole}
       onOpenStudyScope={() => undefined}
       pendingSubmissionsCount={pendingSubmissionsCount}
@@ -26,7 +27,7 @@ const renderNavbar = ({
 describe('Navbar authenticated profile footer', () => {
   it('shows the account identity and calls the dedicated sign-out action', () => {
     const onSignOut = vi.fn();
-    render(<Navbar currentTab="dashboard" onSelectTab={() => undefined} userRole="admin" onOpenStudyScope={() => undefined} pendingSubmissionsCount={0} userProfile={{name: 'Thang Hong', email: 'thanghong195@gmail.com', avatarUrl: undefined}} onSignOut={onSignOut} />);
+    render(<Navbar currentTab="dashboard" onSelectTab={() => undefined} isSessionStartPending={false} userRole="admin" onOpenStudyScope={() => undefined} pendingSubmissionsCount={0} userProfile={{name: 'Thang Hong', email: 'thanghong195@gmail.com', avatarUrl: undefined}} onSignOut={onSignOut} />);
     expect(screen.getByText('Thang Hong')).toBeInTheDocument();
     expect(screen.getByText('thanghong195@gmail.com')).toBeInTheDocument();
     expect(screen.getByText('Admin', {selector: 'span.rounded-md'})).toBeInTheDocument();

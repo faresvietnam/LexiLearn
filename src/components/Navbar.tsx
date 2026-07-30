@@ -21,6 +21,7 @@ import { UserRole } from '../types';
 interface NavbarProps {
   currentTab: string;
   onSelectTab: (tab: string) => void;
+  isSessionStartPending: boolean;
   userRole: UserRole;
   onOpenStudyScope: () => void;
   pendingSubmissionsCount: number;
@@ -43,6 +44,7 @@ interface NavItem {
 export const Navbar: React.FC<NavbarProps> = ({
   currentTab,
   onSelectTab,
+  isSessionStartPending,
   userRole,
   onOpenStudyScope,
   pendingSubmissionsCount,
@@ -153,8 +155,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 key={item.id}
                 id={`nav-btn-${item.id}`}
+                disabled={isSessionStartPending && item.id === 'learn'}
                 onClick={() => handleNavClick(item.id)}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                   isHighlight
                     ? 'bg-indigo-600 text-white font-bold hover:bg-indigo-700 shadow-md shadow-indigo-100 my-2'
                     : isActive

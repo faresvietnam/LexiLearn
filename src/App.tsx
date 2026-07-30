@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {LoginView} from './features/auth/LoginView';
 import {useAuth} from './features/auth/AuthProvider';
 import {
@@ -90,6 +90,8 @@ export default function App() {
   const [activeQuestions, setActiveQuestions] = useState<Question[]>([]);
   const [isExtraReviewSession, setIsExtraReviewSession] = useState<boolean>(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [isSessionStartPending, setIsSessionStartPending] = useState(false);
+  const sessionStartPendingRef = useRef(false);
 
   // Modals & Overlay States
   const [showStudyScopeModal, setShowStudyScopeModal] = useState<boolean>(false);
@@ -175,18 +177,28 @@ export default function App() {
     questions: Question[],
     isExtraReview: boolean,
   ) => {
+    if (sessionStartPendingRef.current) return;
+    sessionStartPendingRef.current = true;
+    setIsSessionStartPending(true);
     let sessionId: string | null = null;
-    if (client && user) {
-      const result = await createStudySession(user.id, {
-        scopeSnapshot: studyScope,
-        reviewLimit: settings.reviewLimitPerDay,
-        newWordLimit: settings.newWordsPerDay,
-      });
-      if (result.error) {
-        showToast(result.error);
-      } else {
-        sessionId = result.data;
+    try {
+      if (client && user) {
+        const result = await createStudySession(user.id, {
+          scopeSnapshot: studyScope,
+          reviewLimit: settings.reviewLimitPerDay,
+          newWordLimit: settings.newWordsPerDay,
+        });
+        if (result.error) {
+          showToast(result.error);
+        } else {
+          sessionId = result.data;
+        }
       }
+    } catch {
+      showToast('Không thể lưu phiên học. Tiến trình cục bộ vẫn được giữ.');
+    } finally {
+      sessionStartPendingRef.current = false;
+      setIsSessionStartPending(false);
     }
     setActiveSessionId(sessionId);
     setActiveQuestions(questions);
@@ -501,6 +513,7 @@ export default function App() {
               setCurrentTab(tab);
             }
           }}
+          isSessionStartPending={isSessionStartPending}
           userRole={userRole}
           onOpenStudyScope={() => setShowStudyScopeModal(true)}
           pendingSubmissionsCount={pendingSubmissionsCount}
@@ -531,6 +544,7 @@ export default function App() {
               words={words}
               studyScope={studyScope}
               settings={settings}
+              isSessionStartPending={isSessionStartPending}
               onStartLearning={handleStartLearning}
               onOpenStudyScope={() => setShowStudyScopeModal(true)}
               onOpenFilteredVocabulary={({ memoryStrength }) => {
@@ -548,8 +562,9 @@ export default function App() {
                 Hệ thống sẽ chuẩn bị câu hỏi theo danh sách ưu tiên SRS và Study Scope của bạn.
               </p>
               <button
+                disabled={isSessionStartPending}
                 onClick={() => handleStartLearning(false)}
-                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-lg rounded-xl shadow-md shadow-indigo-100 transition"
+                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-lg rounded-xl shadow-md shadow-indigo-100 transition"
               >
                 Bắt đầu phiên học
               </button>
@@ -559,6 +574,7 @@ export default function App() {
           {currentTab === 'rootword' && (
             <RootWordInsightsView
               words={words}
+              isSessionStartPending={isSessionStartPending}
               onPracticeWord={handlePracticeSingleWord}
               onOpenWordDetail={(w) => setSelectedWordDetail(w)}
             />
