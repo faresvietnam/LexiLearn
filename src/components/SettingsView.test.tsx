@@ -35,12 +35,15 @@ function renderSettings({
 }
 
 describe('SettingsView personal Gemini key', () => {
-  it('explains browser exposure and saves a trimmed key without displaying it as text', async () => {
+  it('explains how to get a key and saves a trimmed key without displaying it as text', async () => {
     const onSaveGeminiApiKey = vi.fn().mockResolvedValue(true);
     renderSettings({onSaveGeminiApiKey});
 
-    expect(screen.getByText(/trình duyệt.*Gemini/i)).toBeInTheDocument();
-    expect(screen.getByText(/mã hóa khi lưu trữ/i)).toBeInTheDocument();
+    expect(screen.getByText(/Cách lấy Gemini API key/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: /Google AI Studio/i})).toHaveAttribute(
+      'href',
+      'https://aistudio.google.com/apikey',
+    );
     const keyInput = screen.getByLabelText('Gemini API key');
     expect(keyInput).toHaveAttribute('type', 'password');
 

@@ -160,16 +160,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <KeyRound className="w-5 h-5 text-indigo-600" />
             <span>Gemini Auto-Fill cá nhân</span>
           </h2>
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-1">
-            <p>
-              Supabase mã hóa khi lưu trữ và chỉ tài khoản của bạn được đọc
-              key này.
-            </p>
-            <p>
-              Khi Auto-Fill, trình duyệt đọc key và gửi trực tiếp tới Gemini.
-              Vì vậy key có thể được xem trong bộ nhớ hoặc công cụ mạng của
-              trình duyệt; đây không phải bảo vệ bí mật phía máy chủ.
-            </p>
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-xs text-indigo-900 space-y-1.5">
+            <p className="font-bold">Cách lấy Gemini API key:</p>
+            <ol className="list-decimal list-inside space-y-0.5">
+              <li>
+                Mở{' '}
+                <a
+                  href="https://aistudio.google.com/apikey"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-bold underline hover:text-indigo-700"
+                >
+                  Google AI Studio → API keys
+                </a>
+                .
+              </li>
+              <li>Đăng nhập tài khoản Google và chọn <strong>Create API key</strong>.</li>
+              <li>Sao chép key rồi dán vào ô bên dưới và bấm <strong>Lưu</strong>.</li>
+            </ol>
           </div>
           <div className="space-y-1">
             <label
