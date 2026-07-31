@@ -12,6 +12,7 @@ type UserDirectoryStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 const formatJoinedAt = (joinedAt: string) =>
   new Intl.DateTimeFormat('vi-VN').format(new Date(joinedAt));
+const formatAverage = (value: number) => `${value.toLocaleString('vi-VN', {maximumFractionDigits: 1})}/ngày`;
 
 export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
   loadUsers = loadAdminUsers,
@@ -76,6 +77,9 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
               <tr>
                 <th className="px-5 py-3 font-bold" scope="col">Tên</th>
                 <th className="px-5 py-3 font-bold" scope="col">Email</th>
+                <th className="px-5 py-3 font-bold" scope="col">Từ trong thư viện</th>
+                <th className="px-5 py-3 font-bold" scope="col">Từ đã nhớ</th>
+                <th className="px-5 py-3 font-bold" scope="col">TB từ mới/ngày học</th>
                 <th className="px-5 py-3 font-bold" scope="col">Vai trò</th>
                 <th className="px-5 py-3 font-bold" scope="col">Tham gia</th>
               </tr>
@@ -85,6 +89,9 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
                 <tr key={user.id} className="text-slate-700">
                   <td className="px-5 py-4 font-semibold text-slate-900">{user.displayName}</td>
                   <td className="px-5 py-4">{user.email}</td>
+                  <td className="px-5 py-4 text-center">{user.vocabularyCount}</td>
+                  <td className="px-5 py-4 text-center">{user.rememberedWordCount}</td>
+                  <td className="px-5 py-4">{formatAverage(user.averageNewWordsPerStudyDay)}</td>
                   <td className="px-5 py-4">{user.roles.join(', ')}</td>
                   <td className="px-5 py-4">{formatJoinedAt(user.joinedAt)}</td>
                 </tr>

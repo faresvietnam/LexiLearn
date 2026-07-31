@@ -1,23 +1,18 @@
 import {describe, expect, it, vi} from 'vitest';
 
-const {getSupabaseClient, mockQuery, select} = vi.hoisted(() => {
+const {getSupabaseClient, mockQuery, rpc} = vi.hoisted(() => {
   const getSupabaseClient = vi.fn();
-  const query = {
-    order: vi.fn(),
-  };
-  const select = vi.fn(() => query);
+  const rpc = vi.fn();
 
   const mockQuery = (result: unknown) => {
-    select.mockClear();
-    query.order.mockResolvedValue({data: result, error: null});
+    rpc.mockClear();
+    rpc.mockResolvedValue({data: result, error: null});
     getSupabaseClient.mockReturnValue({
-      from: vi.fn(() => ({
-        select,
-      })),
+      rpc,
     });
   };
 
-  return {getSupabaseClient, mockQuery, select};
+  return {getSupabaseClient, mockQuery, rpc};
 });
 
 vi.mock('../../lib/supabase', () => ({getSupabaseClient}));
@@ -32,7 +27,10 @@ describe('loadAdminUsers', () => {
         email: 'a@example.com',
         display_name: null,
         created_at: '2026-07-30T00:00:00Z',
-        user_roles: [{role: 'learner'}],
+        roles: ['learner'],
+        vocabulary_count: 12,
+        remembered_word_count: 5,
+        average_new_words_per_study_day: 3.5,
       },
     ]);
 
@@ -44,15 +42,13 @@ describe('loadAdminUsers', () => {
           email: 'a@example.com',
           roles: ['learner'],
           joinedAt: '2026-07-30T00:00:00Z',
+          vocabularyCount: 12,
+          rememberedWordCount: 5,
+          averageNewWordsPerStudyDay: 3.5,
         },
       ],
       error: null,
     });
-    expect(select).toHaveBeenCalledWith(
-      'id, email, display_name, created_at, user_roles(role)',
-    );
-    expect(select.mock.calls.flat().join(' ')).not.toMatch(
-      /gemini|user_settings/i,
-    );
+    expect(rpc).toHaveBeenCalledWith('admin_user_stats');
   });
 });

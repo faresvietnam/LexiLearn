@@ -44,6 +44,9 @@ describe('AdminWorkspace', () => {
             email: 'thang@example.com',
             roles: ['admin', 'learner'],
             joinedAt: '2026-07-30T00:00:00Z',
+            vocabularyCount: 20,
+            rememberedWordCount: 8,
+            averageNewWordsPerStudyDay: 4.5,
           },
         ],
         error: null,
@@ -53,7 +56,10 @@ describe('AdminWorkspace', () => {
     expect(await screen.findByText('thang@example.com')).toBeInTheDocument();
     expect(screen.getByText('admin, learner')).toBeInTheDocument();
     expect(screen.getByText('30/7/2026')).toBeInTheDocument();
-    for (const column of ['Tên', 'Email', 'Vai trò', 'Tham gia']) {
+    expect(screen.getByText('20')).toBeInTheDocument();
+    expect(screen.getByText('8')).toBeInTheDocument();
+    expect(screen.getByText('4,5/ngày')).toBeInTheDocument();
+    for (const column of ['Tên', 'Email', 'Từ trong thư viện', 'Từ đã nhớ', 'TB từ mới/ngày học', 'Vai trò', 'Tham gia']) {
       expect(screen.getByRole('columnheader', {name: column})).toBeInTheDocument();
     }
   });
