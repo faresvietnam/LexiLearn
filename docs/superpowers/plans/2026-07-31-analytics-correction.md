@@ -98,7 +98,7 @@ export function calculateProgressAnalytics(
 
 - [ ] Add failing UI tests for correct FSRS state counts, predicted retention, observed accuracy, null empty states, and exclusion of paused/out-of-scope words.
 - [ ] Replace legacy `memoryStrength`/`firstAttemptErrorRate` calculations with Task 1 output. Show labels: `Khả năng nhớ dự đoán`, `Đúng lần đầu`, `Độ chính xác tổng`, `Tỷ lệ retry`, `Dùng hint`, and `Reveal đáp án`.
-- [ ] Add a compact per-card Memory Analytics table with FSRS status, predicted retention, attempts, first-attempt accuracy, last review, and next review.
+- [x] Move per-card FSRS status, predicted retention, attempts, first-attempt accuracy, last review, and next review into the Vocabulary Library word-detail popup; keep Progress focused on aggregate analytics.
 - [ ] Keep sentence analytics and activity sections, but render activity from the reducer’s local study-date buckets.
 - [ ] Run focused UI tests and commit: `feat: correct memory analytics dashboard`.
 

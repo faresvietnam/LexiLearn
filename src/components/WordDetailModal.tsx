@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Word, Deck, Tag, WordPart, MeaningCard, WordPartType, WordStudyStatus, ExampleSentence } from '../types';
 import {formatRelativeDueTime} from '../features/scheduling/relativeDueTime';
+import type {ProgressAttemptRow} from '../features/analytics/progressAnalytics';
 
 interface WordDetailModalProps {
   word: Word | null;
@@ -23,6 +24,7 @@ interface WordDetailModalProps {
   tags: Tag[];
   onSaveWord: (updatedWord: Word) => void;
   onClose: () => void;
+  attempts?: ProgressAttemptRow[];
 }
 
 export const WordDetailModal: React.FC<WordDetailModalProps> = ({
@@ -31,6 +33,7 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
   tags,
   onSaveWord,
   onClose,
+  attempts = [],
 }) => {
   if (!word) return null;
 
@@ -643,12 +646,18 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
                     {/* SRS Info */}
                     <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 pt-2 border-t border-slate-200/60">
                       <span className="font-semibold text-indigo-700">
-                        Predicted recall: {card.memoryScore}%
+                        Trạng thái FSRS: {card.learningStatus ?? ({0: 'Mới', 1: 'Đang học', 2: 'Review', 3: 'Học lại'}[card.fsrsState ?? 0])}
+                      </span>
+                      <span className="font-semibold text-indigo-700">
+                        Khả năng nhớ dự đoán: {(card.fsrsState ?? 0) === 0 ? '—' : `${Math.round((card.fsrsRetrievability ?? card.memoryScore / 100) * 100)}%`}
                       </span>
                       <span className="flex items-center gap-1 font-medium">
                         <Calendar className="w-3.5 h-3.5 text-indigo-600" />
-                        Review again: {formatRelativeDueTime(card.nextReviewDate)}
+                        Ôn tiếp theo: {(card.fsrsState ?? 0) === 0 ? 'Chưa có lịch ôn' : formatRelativeDueTime(card.nextReviewDate)}
                       </span>
+                      <span>Ôn gần nhất: {card.lastReviewedDate ? formatRelativeDueTime(card.lastReviewedDate) : 'Chưa ôn'}</span>
+                      <span>Số lần trả lời: {attempts.filter((attempt) => attempt.learning_card_id === card.id).length}</span>
+                      <span>Đúng lần đầu: {(() => { const first = attempts.filter((attempt) => attempt.learning_card_id === card.id && attempt.first_attempt); return first.length > 0 ? `${Math.round(first.filter((attempt) => attempt.is_correct).length / first.length * 100)}%` : '—'; })()}</span>
                       <span>Khoảng cách: {card.reviewIntervalDays} ngày</span>
                     </div>
                   </div>

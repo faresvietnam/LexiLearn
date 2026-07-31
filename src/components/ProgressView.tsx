@@ -14,13 +14,6 @@ interface ProgressViewProps {
 
 const percentLabel = (value: number | null) => value === null ? '—' : `${value}%`;
 
-const statusLabel: Record<number, string> = {
-  0: 'Mới',
-  1: 'Đang học',
-  2: 'Review',
-  3: 'Học lại',
-};
-
 export const ProgressView: React.FC<ProgressViewProps> = ({
   words,
   studyScope,
@@ -103,23 +96,6 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
           <div><div className="text-slate-500">Thời gian trả lời</div><strong>{analytics.averageResponseTimeMs === null ? '—' : `${(analytics.averageResponseTimeMs / 1000).toFixed(1)}s`}</strong></div>
           <div><div className="text-slate-500">Số lượt trả lời</div><strong>{filteredAttempts.length}</strong></div>
         </div>
-      </div>
-
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-900 mb-4">Memory Analytics theo từ</h2>
-        {analytics.cards.length === 0 ? <p className="text-sm text-slate-500">Chưa có dữ liệu.</p> : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="text-left text-xs uppercase text-slate-500 border-b border-slate-200">
-                <th className="py-2 pr-4">Từ</th><th className="py-2 pr-4">Trạng thái</th><th className="py-2 pr-4">Nhớ dự đoán</th><th className="py-2 pr-4">Lần trả lời</th><th className="py-2 pr-4">Đúng lần đầu</th><th className="py-2 pr-4">Ôn gần nhất</th><th className="py-2">Ôn tiếp theo</th>
-              </tr></thead>
-              <tbody>{analytics.cards.map((card) => {
-                const meaning = words.flatMap((word) => word.meanings.map((item) => ({word, item}))).find(({item}) => item.id === card.cardId);
-                return <tr key={card.cardId} className="border-b border-slate-100"><td className="py-3 pr-4 font-semibold">{meaning?.word.word ?? card.cardId}</td><td className="py-3 pr-4">{statusLabel[card.fsrsState]}</td><td className="py-3 pr-4">{percentLabel(card.predictedRetention)}</td><td className="py-3 pr-4">{card.attempts}</td><td className="py-3 pr-4">{percentLabel(card.firstAttemptAccuracy)}</td><td className="py-3 pr-4">{card.lastReviewedDate?.slice(0, 10) ?? '—'}</td><td className="py-3">{card.nextReviewDate?.slice(0, 10) ?? '—'}</td></tr>;
-              })}</tbody>
-            </table>
-          </div>
-        )}
       </div>
 
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">

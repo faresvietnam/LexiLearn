@@ -961,6 +961,7 @@ function AuthenticatedApp({
       {selectedWordDetail && (
         <WordDetailModal
           word={selectedWordDetail}
+          attempts={attemptAnalytics}
           decks={decks}
           tags={tags}
           onSaveWord={(updatedWord) => {
