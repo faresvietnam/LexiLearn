@@ -3,11 +3,11 @@ import type {StudyScope, Word} from '../../types';
 import {buildReviewForecast} from './reviewForecast';
 
 const scope: StudyScope = {activeDeckIds: [], excludedTagIds: [], pausedWordIds: []};
-const word = (id: string, fsrsState: 0 | 1 | 2 | 3, nextReviewDate: string): Word => ({
+const word = (id: string, fsrsState: 0 | 1 | 2 | 3, nextReviewDate: string, lastReviewedDate?: string): Word => ({
   id, word: id, wordStructure: [], wordFamily: [], isGlobal: false, approvalStatus: 'approved',
   createdBy: 'user-1', createdAt: '2026-07-01', deckId: 'deck-1', tags: [], status: 'active',
   meanings: [{id: `${id}-card`, wordId: id, meaning: id, partOfSpeech: 'noun', exampleSentences: [],
-    memoryStrength: 'strong', memoryScore: 80, fsrsState, nextReviewDate, reviewIntervalDays: 1,
+    memoryStrength: 'strong', memoryScore: 80, fsrsState, nextReviewDate, lastReviewedDate, reviewIntervalDays: 1,
     firstAttemptErrorRate: 0, forgottenWordParts: [], history: []}],
 });
 
@@ -28,5 +28,14 @@ describe('buildReviewForecast', () => {
   it('keeps a review at 03:30 Vietnam time in the previous study day', () => {
     const forecast = buildReviewForecast([word('review', 2, '2026-07-30T20:00:00.000Z')], scope, new Date('2026-07-30T20:30:00.000Z'));
     expect(forecast[0]).toMatchObject({dateKey: '2026-07-30', count: 1});
+  });
+
+  it('removes cards already reviewed today from today forecast', () => {
+    const forecast = buildReviewForecast([
+      word('reviewed', 2, '2026-07-31T06:00:00.000Z', '2026-07-31T05:30:00.000Z'),
+      word('remaining', 2, '2026-07-31T07:00:00.000Z'),
+    ], scope, new Date('2026-07-31T05:00:00.000Z'));
+
+    expect(forecast[0]).toMatchObject({dateKey: '2026-07-31', count: 1});
   });
 });

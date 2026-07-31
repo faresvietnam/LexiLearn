@@ -42,7 +42,18 @@ export function buildReviewForecast(
     const dateKey = addStudyDays(todayStudyDate, offset);
     const count = activeCards.filter((meaning) => {
       const dueDate = reviewStudyDate(meaning.nextReviewDate, timezone);
-      return dueDate !== null && (offset === 0 ? dueDate <= todayStudyDate : dueDate === dateKey);
+      if (dueDate === null) return false;
+
+      // A card reviewed during today's study day has already contributed to
+      // today's forecast. Even if FSRS schedules a short same-day relearning
+      // step, keep the dashboard count focused on work still awaiting its
+      // first review today; future forecast days continue to use the next due
+      // date normally.
+      if (offset === 0 && reviewStudyDate(meaning.lastReviewedDate, timezone) === todayStudyDate) {
+        return false;
+      }
+
+      return offset === 0 ? dueDate <= todayStudyDate : dueDate === dateKey;
     }).length;
     const date = new Date(`${dateKey}T12:00:00.000Z`);
     return {
