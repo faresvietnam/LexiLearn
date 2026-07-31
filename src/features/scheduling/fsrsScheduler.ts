@@ -24,6 +24,13 @@ export interface LearningCardFsrsRow {
   fsrs_reps: number;
   fsrs_lapses: number;
   fsrs_retrievability: number;
+  recognition_score?: number;
+  recall_score?: number;
+  spelling_score?: number;
+  context_score?: number;
+  word_structure_score?: number;
+  response_time_sample_count?: number;
+  response_time_average_ms?: number;
 }
 
 export type LearningCardScheduleUpdate = Omit<LearningCardFsrsRow, 'id'> & {
@@ -53,13 +60,33 @@ export function deriveMemoryStrength(
   return 'critical';
 }
 
-const scheduler = fsrs({
-  request_retention: 0.9,
-  enable_fuzz: false,
-  enable_short_term: true,
-  learning_steps: ['10m', '1d'],
-  relearning_steps: ['10m'],
-});
+export type FsrsProfile = {
+  requestRetention: 0.9;
+  learningSteps: ['10m' | '15m', '1d'];
+  relearningSteps: ['10m' | '15m'];
+};
+
+export function deriveFsrsProfile(
+  responseTimeAverageMs = 0,
+  responseTimeSampleCount = 0,
+): FsrsProfile {
+  const slow = responseTimeSampleCount >= 3 && responseTimeAverageMs > 10_000;
+  return {
+    requestRetention: 0.9,
+    learningSteps: [slow ? '15m' : '10m', '1d'],
+    relearningSteps: [slow ? '15m' : '10m'],
+  };
+}
+
+function createScheduler(profile: FsrsProfile) {
+  return fsrs({
+    request_retention: profile.requestRetention,
+    enable_fuzz: false,
+    enable_short_term: true,
+    learning_steps: profile.learningSteps,
+    relearning_steps: profile.relearningSteps,
+  });
+}
 
 const ratingMap: Record<AutomaticRating, Grade> = {
   Again: Rating.Again,
@@ -109,6 +136,13 @@ export function fsrsCardToLearningCardUpdate(
     fsrs_reps: card.reps,
     fsrs_lapses: card.lapses,
     fsrs_retrievability: retrievability,
+    recognition_score: 0,
+    recall_score: 0,
+    spelling_score: 0,
+    context_score: 0,
+    word_structure_score: 0,
+    response_time_sample_count: 0,
+    response_time_average_ms: 0,
   };
 }
 
@@ -118,6 +152,8 @@ export function scheduleCard(
   reviewedAt: Date,
 ): ScheduledLearningCard {
   const card = learningCardRowToFsrsCard(row, reviewedAt);
+  const profile = deriveFsrsProfile(row.response_time_average_ms, row.response_time_sample_count);
+  const scheduler = createScheduler(profile);
   const scheduled = scheduler.next(card, reviewedAt, ratingMap[rating]).card;
   // Persist the predicted recall at the next due timestamp, not immediately
   // after review (which is always 1.0 by definition).
@@ -130,6 +166,15 @@ export function scheduleCard(
   return {
     card: scheduled,
     retrievability,
-    persistence: fsrsCardToLearningCardUpdate(scheduled, retrievability, rating),
+    persistence: {
+      ...fsrsCardToLearningCardUpdate(scheduled, retrievability, rating),
+      recognition_score: row.recognition_score ?? 0,
+      recall_score: row.recall_score ?? 0,
+      spelling_score: row.spelling_score ?? 0,
+      context_score: row.context_score ?? 0,
+      word_structure_score: row.word_structure_score ?? 0,
+      response_time_sample_count: row.response_time_sample_count ?? 0,
+      response_time_average_ms: row.response_time_average_ms ?? 0,
+    },
   };
 }

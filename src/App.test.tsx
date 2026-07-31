@@ -20,9 +20,12 @@ const {
   completeStudySession,
   createStudySession,
   getLearningCardSchedule,
+  getDailyNewWordUsage,
+  getSentenceAttemptAnalytics,
   loadLearnerState,
   pauseStudySession,
   recordStudyAttempt,
+  reserveDailyNewWordQuota,
   signOut,
   supabaseClient,
   updateLearningCardSchedule,
@@ -31,9 +34,12 @@ const {
   completeStudySession: vi.fn(),
   createStudySession: vi.fn(),
   getLearningCardSchedule: vi.fn(),
+  getDailyNewWordUsage: vi.fn(),
+  getSentenceAttemptAnalytics: vi.fn(),
   loadLearnerState: vi.fn(),
   pauseStudySession: vi.fn(),
   recordStudyAttempt: vi.fn(),
+  reserveDailyNewWordQuota: vi.fn(),
   signOut: vi.fn(),
   supabaseClient: {},
   updateLearningCardSchedule: vi.fn(),
@@ -70,8 +76,11 @@ vi.mock('./features/persistence/sessionRepository', () => ({
   completeStudySession,
   createStudySession,
   getLearningCardSchedule,
+  getDailyNewWordUsage,
+  getSentenceAttemptAnalytics,
   pauseStudySession,
   recordStudyAttempt,
+  reserveDailyNewWordQuota,
   updateLearningCardSchedule,
 }));
 
@@ -96,6 +105,8 @@ beforeEach(() => {
   getLearningCardSchedule.mockReset();
   pauseStudySession.mockReset();
   recordStudyAttempt.mockReset();
+  getDailyNewWordUsage.mockReset();
+  reserveDailyNewWordQuota.mockReset();
   updateLearningCardSchedule.mockReset();
   loadLearnerState.mockReset();
   loadLearnerState.mockResolvedValue({
@@ -112,6 +123,8 @@ beforeEach(() => {
   completeStudySession.mockResolvedValue({data: null, error: null});
   pauseStudySession.mockResolvedValue({data: null, error: null});
   recordStudyAttempt.mockResolvedValue({data: null, error: null});
+  getDailyNewWordUsage.mockResolvedValue({data: 0, error: null});
+  reserveDailyNewWordQuota.mockImplementation(async (_userId: string, _date: string, _limit: number, count: number) => ({data: count, error: null}));
   getLearningCardSchedule.mockResolvedValue({
     data: {
       id: 'meaning_unprecedented_1',
@@ -130,6 +143,7 @@ beforeEach(() => {
     },
     error: null,
   });
+  getSentenceAttemptAnalytics.mockResolvedValue({data: [], error: null});
   updateLearningCardSchedule.mockResolvedValue({data: null, error: null});
 });
 
@@ -153,7 +167,7 @@ describe('App session creation concurrency', () => {
       startButton.dispatchEvent(new MouseEvent('click', {bubbles: true}));
     });
 
-    expect(createStudySession).toHaveBeenCalledOnce();
+    await waitFor(() => expect(createStudySession).toHaveBeenCalledOnce());
     expect(startButton).toBeDisabled();
     expect(
       screen.getByRole('button', {name: 'Học ngay'}),
@@ -182,7 +196,7 @@ describe('App session creation concurrency', () => {
       name: 'Continue Learning',
     });
     fireEvent.click(startButton);
-    expect(startButton).toBeDisabled();
+    await waitFor(() => expect(startButton).toBeDisabled());
 
     await act(async () => {
       pending.resolve({

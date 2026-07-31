@@ -17,6 +17,16 @@
 - Preserve the current learner navigation and Answer → Retry → Review → Continue flow.
 - Commit after every task and run focused tests before each commit.
 
+## Phase 3 carry-over prerequisite
+
+Phase 4 assumes the following Phase 3 correctness gap is closed before CSV smoke testing:
+
+- Vocabulary loading selects and maps the persisted FSRS fields (`fsrs_state`, `fsrs_reps`, `fsrs_lapses`, `fsrs_scheduled_days`, and `fsrs_retrievability`).
+- Dashboard and vocabulary UI classify learning status from `fsrs_state`: `0` New, `1` Learning, `2` Review, `3` Relearning.
+- The UI does not use `memoryStrength` or legacy `history` to decide whether a card is new.
+
+This is a hardening task, not a new phase. It can be implemented immediately before the CSV-to-database smoke test.
+
 ### Task 1: Robust CSV parser and normalization
 
 **Files:** Create `src/features/import/csvParser.ts` and tests; add parser types under `src/features/import/types.ts`.
@@ -38,7 +48,10 @@
 **Files:** Add Supabase migration/tests, `importRepository.ts`, and App integration tests.
 
 - [ ] Add `imports` and `import_rows` with owner RLS, statuses, row numbers, canonical keys, error details, and idempotency constraints.
+- [ ] Connect the confirmed CSV rows to the existing `createPrivateWord(user.id, word)` persistence flow. Each accepted new row must create `private_words`, `private_meanings`, `personal_vocabulary`, and `learning_cards`; keep the row pending and immediately studyable.
+- [ ] Return persisted words from the repository and replace the current React-only `setWords` import callback. A failed row must not be reported as imported.
 - [ ] Persist `uploaded → validating → ready → importing → completed/failed` and resume only pending rows.
+- [ ] Make retries idempotent using the persisted import row and canonical key, so a retry cannot create a second private word or learning card.
 - [ ] Verify migration/RLS assertions, repository tests, lint/build, and commit `feat: persist csv imports`.
 
 ### Task 4: Global/private matching and Edit Suggestions
@@ -68,6 +81,15 @@
 
 ### Task 7: Phase 4 verification gate
 
-- [ ] Run full tests, lint, build, migration assertions, RLS/security advisors, and a manual CSV-to-pending-to-approved smoke test.
-- [ ] Update the roadmap/spec completion notes and commit `docs: verify phase 4 csv moderation`.
+- [x] Run full tests, lint, build, migration assertions, and RLS/security advisors.
+- [x] Confirm the persisted pipeline contract: fresh rows are pending/studyable, FSRS state is `0`, resume uses existing row IDs, and retries do not create a new batch.
+- [x] Update the roadmap/spec completion notes.
 
+## Verification result
+
+- `npm test -- --run`: 32 files, 166 tests passed.
+- `npm run lint`: passed.
+- `npm run build`: passed; Vite emitted only the existing chunk-size warning.
+- Supabase live assertions passed for CSV tables, Edit Suggestions, Admin Audit Logs, FSRS state, and moderation RPC.
+- Supabase security advisor retains only the pre-existing leaked-password-protection warning.
+- Manual browser smoke test remains user-facing because it requires an authenticated session and a real CSV upload.

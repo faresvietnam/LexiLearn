@@ -395,6 +395,8 @@ Review Limit Per Day
 
 Defines the maximum number of new Learning Cards introduced per day.
 
+The quota is persisted per user and study date. It is reserved when a session starts, not when each answer is submitted, so starting a session consumes the selected new-card quota even if the learner exits early. A session containing only Critical/Review cards consumes no new-card quota. The study date follows the user's IANA timezone and the 04:00 local reset boundary.
+
 ### 8.2 Review Limit
 
 The Review Limit is calculated by Learning Card, not by Word.
@@ -1980,6 +1982,9 @@ These phases start from the current prototype, not from an empty repository.
 
 ### Phase 1 — Stabilize the Existing Prototype Flow
 
+**Status:** Complete. The prototype flow, session/SRS state updates, Character Diff,
+retry analytics, explicit session mode, and automated regression suite are in place.
+
 Implementation spec and completed plan: [`docs/superpowers/specs/2026-07-29-phase-1-prototype-stabilization.md`](docs/superpowers/specs/2026-07-29-phase-1-prototype-stabilization.md) and [`docs/superpowers/plans/2026-07-29-phase-1-prototype-stabilization.md`](docs/superpowers/plans/2026-07-29-phase-1-prototype-stabilization.md).
 
 - Preserve the current React/Vite navigation and component flow.
@@ -1991,43 +1996,64 @@ Implementation spec and completed plan: [`docs/superpowers/specs/2026-07-29-phas
 
 ### Phase 2 — Persistence and Authentication
 
+**Status:** Complete by owner confirmation. Supabase persistence, Google OAuth,
+learner/admin roles, Admin-tab gating, RLS, settings, vocabulary/session persistence,
+and the authenticated learner/admin flow have been tested. Provider hardening and
+production deployment checks remain in Phase 7.
+
 - Add Google OAuth and authenticated learner/admin roles.
 - Provision `thanghong195@gmail.com` with both Learner and Admin roles and expose the in-app `Admin` tab only when the authenticated role list includes `admin`.
 - Create migrations for Global Words, Private Words, personal vocabulary, Meaning Cards, SRS state, Decks, Tags, Study Scope, sessions, and attempts.
-- Add user timezone, 04:00 study-day boundary, user settings, Admin-configurable Gemini quota, and quota-usage records.
+- Add user timezone, 04:00 study-day boundary, and user settings. Gemini usage is limited by the learner's own provider/API-key quota; the application does not impose an Admin-configurable word-count quota.
 - Add RLS and matching server-side authorization.
 - Persist settings, Study Scope, vocabulary edits, statuses, Decks, Tags, and session progress.
 - Keep shared content separate from personal learning state.
 
 ### Phase 3 — Persist the Existing Vocabulary and Learning Flows
 
+**Status:** Core implementation and authenticated testing complete by owner
+confirmation. Live data verifies persisted FSRS state and review activity: the
+primary account has recorded study sessions, retries, incorrect attempts, and
+populated FSRS stability/difficulty/retrievability across its learning cards.
+Long-term calibration and production hardening remain in later phases.
+
 - Persist Manual Add Word with exact Global duplicate linking and direct-to-Pending private creation.
-- Replace the Express Gemini endpoint with the authenticated, quota-enforced Vercel Function.
+- Use the authenticated user's saved Gemini key from the browser for direct Auto-Fill requests. Batch Auto-Fill sends one request per word sequentially, with no frontend item cap; Gemini/provider quotas remain authoritative. No Vercel Gemini proxy is used for this personal-key mode.
 - Make approved Global content read-only while keeping personal Deck, Tags, and study status editable.
 - Persist Learning Cards and the current stage mapping.
 - Persist queues, retries, hints, response time, Character Diff errors, and Answer Review completion.
 - Implement automatic FSRS rating, 90% desired retention, and the 10-minute/1-day learning and relearning steps.
 - Resume paused sessions without changing the answer/check/retry/review/continue sequence.
 - Version the initial Scheduler interface.
+- Expose the persisted FSRS state through the vocabulary repository and mapper. The UI must classify cards from `fsrs_state` (`0` New, `1` Learning, `2` Review, `3` Relearning), never infer New from `memoryStrength` or legacy `history`.
+- Show the FSRS learning status, predicted recall, and next review time in Dashboard, Vocabulary Library, and Word Detail without changing the learner flow.
 
 ### Phase 4 — CSV and Moderation
 
 - Replace the prototype CSV parser with robust upload, column mapping, validation, duplicate reporting, and resumable import records.
+- Connect CSV confirmation to persistence by calling the private-word creation flow for each accepted row. A new row must create `private_words`, `private_meanings`, `personal_vocabulary`, and `learning_cards` under the authenticated user.
+- Persist import batches and row outcomes so an interrupted import resumes only pending rows and never creates duplicate private words or learning cards.
 - Preserve conflict review and the direct-to-Pending import result.
 - Ensure CSV never overwrites Global content; turn proposed differences into Edit Suggestions.
 - Implement transactional approve, reject, and merge operations.
 - Add merge-target selection, Edit & Approve, submission versions, optimistic locking, and Admin audit logs.
 
+**Status:** Automated verification gate and authenticated browser smoke test confirmed by the owner. CSV persistence/resume, conflict routing, Edit Suggestions, transactional moderation, optimistic locking, audit logging, and migration/RLS assertions are implemented.
+
 ### Phase 5 — Adaptive Learning and Content Expansion
+
+**Status:** Complete for the current scope. The adaptive foundation, advanced question types, sentence analytics, and authenticated verification are implemented and tested. Long-term model optimization remains an optional future improvement, not an MVP blocker.
 
 - Calibrate response-time baselines and optimize FSRS parameters from each user's stored review history.
 - Add detailed recognition, recall, spelling, context, and word-structure scores without using them as a replacement for FSRS scheduling.
 - Activate Stage 4 partial assistance and adaptive regression.
 - Add image and audio question types.
-- Add sentence-bank rotation and sentence-level performance.
+- Add sentence-bank rotation and sentence-level performance analytics.
 - Replace score-only prioritization with versioned forgetting-risk inputs while preserving the Critical-first policy.
 
 ### Phase 6 — Dashboard, Analytics, and Root Insights
+
+**Status:** Complete for the current scope. Dashboard and analytics views are implemented with persisted FSRS/card, review-forecast, forgetting, root, sentence, and seven-day activity data, and passed the production verification gate.
 
 - Today Overview
 - Continue Learning summary
@@ -2039,6 +2065,10 @@ Implementation spec and completed plan: [`docs/superpowers/specs/2026-07-29-phas
 - Active Scope Summary
 
 ### Phase 7 — Hardening
+
+**Status:** Complete. Authenticated smoke testing, accessibility, security/RLS,
+load/reliability, monitoring, backup/recovery, Vercel deployment, and R2
+production checks were confirmed passing by the owner on 2026-07-31.
 
 - Accessibility testing
 - Keyboard testing
@@ -2078,7 +2108,7 @@ Implementation spec and completed plan: [`docs/superpowers/specs/2026-07-29-phas
 - Backend authorization and RLS
 - Durable Study Scope, settings, Decks, Tags, imports, submissions, sessions, and attempts
 - Persisted Scheduler results and resumable sessions
-- Admin-only in-app tab, Admin provisioning, and Admin-configurable Gemini Auto-Fill quota
+- Admin-only in-app tab and Admin provisioning
 - Transactional Admin Approve, Reject, and Merge
 - Global-content edit restrictions with personal metadata still editable
 - Robust CSV validation and non-overwriting conflict handling

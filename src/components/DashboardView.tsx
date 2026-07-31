@@ -17,6 +17,7 @@ import { isOverdue } from '../utils/srs';
 
 interface DashboardViewProps {
   words: Word[];
+  newWordsStartedToday?: number;
   studyScope: StudyScope;
   settings: UserSettings;
   isSessionStartPending: boolean;
@@ -28,6 +29,7 @@ interface DashboardViewProps {
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   words,
+  newWordsStartedToday = 0,
   studyScope,
   settings,
   isSessionStartPending,
@@ -53,7 +55,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   let reviewsDueCount = 0;
   let atRiskCount = 0;
-  let newWordsAvailableCount = 0;
 
   const forgottenList: Array<{
     word: Word;
@@ -66,11 +67,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   activeWords.forEach((word) => {
     word.meanings.forEach((m) => {
-      const hasHistory = m.history && m.history.length > 0;
       const isWeakOrCritical = m.memoryStrength === 'critical' || m.memoryStrength === 'weak';
-      
-      if (!hasHistory && !isWeakOrCritical) {
-        newWordsAvailableCount++;
+
+      // FSRS state is the source of truth for new cards. Legacy cards without
+      // persisted FSRS state continue through the existing review/at-risk flow.
+      if (m.fsrsState === 0) {
       } else {
         if (isOverdue(m.nextReviewDate)) {
           reviewsDueCount++;
@@ -97,6 +98,38 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const totalMeaningCards = strongCount + stableCount + weakCount + criticalCount;
   const estimatedTimeMinutes = Math.max(1, Math.round(reviewsDueCount * 0.8));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const localDateKey = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const todayKey = localDateKey(today);
+  const forecast = Array.from({length: 7}, (_, offset) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() + offset);
+    const dateKey = localDateKey(date);
+    const count = activeWords.reduce((total, word) => total + word.meanings.filter((meaning) => {
+      const rawNextReview = meaning.nextReviewDate;
+      const nextReview = rawNextReview
+        ? rawNextReview.includes('T')
+          ? localDateKey(new Date(rawNextReview))
+          : rawNextReview.slice(0, 10)
+        : null;
+      if (!nextReview || meaning.fsrsState === 0) return false;
+      // Overdue cards are actionable today; future buckets contain only cards
+      // scheduled for that exact local date.
+      return offset === 0 ? nextReview <= todayKey : nextReview === dateKey;
+    }).length, 0);
+    return {
+      dateKey,
+      day: new Intl.DateTimeFormat('vi-VN', {weekday: 'short'}).format(date).replace('.', ''),
+      count,
+      isToday: offset === 0,
+    };
+  });
 
   // Sort frequently forgotten words by error rate descending
   forgottenList.sort((a, b) => b.errorRate - a.errorRate);
@@ -135,12 +168,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <div className="text-2xl font-bold text-emerald-600">{reviewsDueCount}</div>
               </div>
               <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
-                <div className="text-xs text-slate-500 font-medium">At-risk Words</div>
-                <div className="text-2xl font-bold text-amber-600">{atRiskCount}</div>
+                <div className="text-xs text-slate-500 font-medium">Forecast hôm nay</div>
+                <div className="text-2xl font-bold text-amber-600">{forecast[0]?.count ?? 0}</div>
               </div>
               <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
-                <div className="text-xs text-slate-500 font-medium">Từ mới sẵn sàng</div>
-                <div className="text-2xl font-bold text-indigo-600">{newWordsAvailableCount}</div>
+                <div className="text-xs text-slate-500 font-medium">Từ mới hôm nay</div>
+                <div className="text-2xl font-bold text-indigo-600">
+                  {newWordsStartedToday}/{settings.newWordsPerDay}
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  Còn lại: {Math.max(0, settings.newWordsPerDay - newWordsStartedToday)}
+                </div>
               </div>
               <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
                 <div className="text-xs text-slate-500 font-medium">Thời gian ước tính</div>
@@ -285,19 +323,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </p>
 
           <div className="grid grid-cols-7 gap-2 pt-2">
-            {[
-              { day: 'T2', count: reviewsDueCount, isToday: true },
-              { day: 'T3', count: Math.round(reviewsDueCount * 0.7), isToday: false },
-              { day: 'T4', count: Math.round(reviewsDueCount * 0.5), isToday: false },
-              { day: 'T5', count: Math.round(reviewsDueCount * 0.9), isToday: false },
-              { day: 'T6', count: Math.round(reviewsDueCount * 0.4), isToday: false },
-              { day: 'T7', count: Math.round(reviewsDueCount * 0.3), isToday: false },
-              { day: 'CN', count: Math.round(reviewsDueCount * 0.6), isToday: false },
-            ].map((f, i) => {
+            {forecast.map((f) => {
               const isOverLimit = f.count > settings.reviewLimitPerDay;
               return (
                 <div
-                  key={i}
+                  key={f.dateKey}
                   className={`rounded-2xl p-2.5 text-center border transition ${
                     f.isToday
                       ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold'

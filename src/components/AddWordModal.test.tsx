@@ -12,6 +12,7 @@ import {AddWordModal} from './AddWordModal';
 const PERSONAL_KEY = 'personal-gemini-key';
 
 function renderModal(geminiApiKey: string | null) {
+  const onAddWord = vi.fn().mockResolvedValue(true);
   render(
     <AddWordModal
       decks={[{
@@ -24,11 +25,12 @@ function renderModal(geminiApiKey: string | null) {
       globalWords={[]}
       linkedGlobalWords={[]}
       geminiApiKey={geminiApiKey}
-      onAddWord={vi.fn().mockResolvedValue(true)}
+      onAddWord={onAddWord}
       onLinkExistingGlobalWord={vi.fn().mockResolvedValue(true)}
       onClose={() => undefined}
     />,
   );
+  return onAddWord;
 }
 
 function geminiResponse() {
@@ -72,7 +74,7 @@ function geminiResponse() {
       candidatesTokenCount: 40,
       totalTokenCount: 60,
     },
-    modelVersion: 'gemini-2.5-flash',
+    modelVersion: 'gemini-flash-latest',
     responseId: 'response-1',
   }), {
     status: 200,
@@ -166,5 +168,19 @@ describe('AddWordModal Gemini Auto-Fill', () => {
       target: {value: 'nghĩa nhập tay'},
     });
     expect(meaningInput).toHaveValue('nghĩa nhập tay');
+  });
+
+  it('analyzes and saves every batch word sequentially without a frontend cap', async () => {
+    vi.mocked(fetch).mockImplementation(() => Promise.resolve(geminiResponse()));
+    const onAddWord = renderModal(PERSONAL_KEY);
+    fireEvent.change(screen.getByLabelText('AI thêm nhiều từ'), {
+      target: {value: 'transportation\nsuccessful, transportation'},
+    });
+
+    fireEvent.click(screen.getByRole('button', {name: 'AI thêm danh sách'}));
+
+    await waitFor(() => expect(onAddWord).toHaveBeenCalledTimes(2));
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('status')).toHaveTextContent('Đã thêm 2/2 từ');
   });
 });

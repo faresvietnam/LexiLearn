@@ -113,3 +113,8 @@ Expected: PASS.
 - [x] **Step 3: Verify scope manually**
 
 Inspect `git diff` or changed-file list. Confirm no Supabase client, Vercel configuration/function, FSRS package, or navigation redesign was introduced.
+
+## Verification result
+
+- Phase 1 implementation is complete and its React/Vite flow is covered by the automated suite.
+- Later Supabase, authentication, FSRS, and production work is intentionally tracked in Phases 2–7.

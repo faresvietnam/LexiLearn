@@ -4,6 +4,7 @@ import {
   fsrsCardToLearningCardUpdate,
   learningCardRowToFsrsCard,
   scheduleCard,
+  deriveFsrsProfile,
   type LearningCardFsrsRow,
 } from './fsrsScheduler';
 
@@ -38,6 +39,10 @@ const reviewCardRow: LearningCardFsrsRow = {
 };
 
 describe('FSRS scheduler adapter', () => {
+  it('adapts learning steps after enough slow response history', () => {
+    expect(deriveFsrsProfile(12_000, 3).learningSteps[0]).toBe('15m');
+    expect(deriveFsrsProfile(12_000, 2).learningSteps[0]).toBe('10m');
+  });
   it('maps a new persisted row to the complete FSRS card state', () => {
     const card = learningCardRowToFsrsCard(newCardRow, reviewedAt);
 

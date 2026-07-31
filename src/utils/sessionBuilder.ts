@@ -1,5 +1,6 @@
 import { Word, MeaningCard, Question, StudyScope, UserSettings } from '../types';
 import { isOverdue } from './srs';
+import {calculateForgettingRisk} from '../features/scheduling/forgettingRisk';
 
 export interface SessionQueueItem {
   word: Word;
@@ -12,7 +13,8 @@ export function buildSessionQuestions(
   words: Word[],
   studyScope: StudyScope,
   settings: UserSettings,
-  isExtraReview: boolean = false
+  isExtraReview: boolean = false,
+  newWordsLimitOverride?: number,
 ): { questions: Question[]; totalAvailableReviews: number; limitReached: boolean } {
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -39,8 +41,13 @@ export function buildSessionQuestions(
 
   activeWords.forEach((word) => {
     word.meanings.forEach((meaningCard) => {
-      const hasBeenReviewed = Boolean(meaningCard.lastReviewedDate)
-        || Boolean(meaningCard.history && meaningCard.history.length > 0);
+      // Persisted FSRS state is authoritative. A card in state 0 is new even
+      // when legacy analytics/history fields were populated during import.
+      const isFsrsNew = meaningCard.fsrsState === 0;
+      const hasBeenReviewed = !isFsrsNew && (
+        Boolean(meaningCard.lastReviewedDate)
+        || Boolean(meaningCard.history && meaningCard.history.length > 0)
+      );
       const isDue = isOverdue(meaningCard.nextReviewDate) || meaningCard.nextReviewDate <= todayStr;
 
       // Determine initial stage based on memory strength
@@ -48,6 +55,11 @@ export function buildSessionQuestions(
       if (meaningCard.memoryStrength === 'strong') stage = 5;
       else if (meaningCard.memoryStrength === 'stable') stage = 3;
       else if (meaningCard.memoryStrength === 'weak') stage = 2;
+      if (
+        stage === 3
+        && meaningCard.wordStructureScore !== undefined
+        && meaningCard.wordStructureScore < 50
+      ) stage = 4;
 
       if (hasBeenReviewed) {
         if (isDue || isExtraReview) {
@@ -62,9 +74,15 @@ export function buildSessionQuestions(
   // 2. Priority Sorting for Reviews:
   // Order: Overdue -> Critical Strength -> Weak Strength -> Due today
   reviewCards.sort((a, b) => {
-    const scoreA = a.meaningCard.memoryScore || 50;
-    const scoreB = b.meaningCard.memoryScore || 50;
-    return scoreA - scoreB; // Lower memory score first
+    const hasTelemetry = a.meaningCard.recognitionScore !== undefined
+      || a.meaningCard.recallScore !== undefined
+      || a.meaningCard.spellingScore !== undefined
+      || a.meaningCard.contextScore !== undefined
+      || a.meaningCard.wordStructureScore !== undefined;
+    if (!hasTelemetry) {
+      return (a.meaningCard.memoryScore || 50) - (b.meaningCard.memoryScore || 50);
+    }
+    return calculateForgettingRisk(b.meaningCard) - calculateForgettingRisk(a.meaningCard);
   });
 
   const criticalReviews = reviewCards.filter(
@@ -86,7 +104,7 @@ export function buildSessionQuestions(
 
   // Enforce Review Limit Per Day
   const reviewLimit = settings.reviewLimitPerDay || 40;
-  const newWordsLimit = settings.newWordsPerDay || 10;
+  const newWordsLimit = newWordsLimitOverride ?? (settings.newWordsPerDay || 10);
 
   const totalAvailableReviews = reviewCards.length;
   const selectedReviews = reviewCards.slice(0, reviewLimit);
@@ -156,16 +174,16 @@ function convertQueueToQuestions(queue: SessionQueueItem[], allWords: Word[]): Q
 
     if (stage === 1) {
       // Variety in Stage 1
-      const rand = index % 3;
-      if (rand === 0) qType = 'en_to_vn_mc';
-      else if (rand === 1) qType = 'vn_to_en_mc';
-      else qType = 'sentence_completion';
-    } else if (stage === 2) {
+      const rand = index % 4;
+      if (rand === 0 && word.imageUrl && meaningCard.fsrsState === 2) qType = 'image_question';
+      else if (rand === 0 && word.audioUrl && meaningCard.fsrsState === 2) qType = 'audio_question';
+      else if (rand <= 1) qType = 'en_to_vn_mc';
+      else if (rand === 2) qType = 'vn_to_en_mc';
+      else qType = meaningCard.exampleSentences.length > 0 ? 'sentence_completion' : 'en_to_vn_mc';
+    } else if (stage === 2 && word.wordStructure.length > 0) {
       qType = 'word_part_selection';
-    } else if (stage === 3) {
-      qType = 'word_part_typing';
-    } else if (stage === 4) {
-      qType = 'word_part_typing'; // Partial assistance
+    } else if ((stage === 3 || stage === 4) && word.wordStructure.length > 0) {
+      qType = 'word_part_typing'; // Stage 4 keeps partial assistance when parts exist
     } else {
       qType = 'full_word_typing';
     }
@@ -204,7 +222,10 @@ function convertQueueToQuestions(queue: SessionQueueItem[], allWords: Word[]): Q
       }));
     }
 
-    const example = meaningCard.exampleSentences[0];
+    const examples = meaningCard.exampleSentences;
+    const example = examples.length > 0
+      ? examples[(index + meaningCard.history.length) % examples.length]
+      : undefined;
 
     return {
       id: `q_${word.id}_${meaningCard.id}_${index}_${Date.now()}`,
@@ -221,6 +242,10 @@ function convertQueueToQuestions(queue: SessionQueueItem[], allWords: Word[]): Q
           ? `Chọn và ghép các thành phần cấu tạo của từ "${word.word}"`
           : qType === 'word_part_typing'
           ? `Gõ từng thành phần (Prefix, Root, Suffix) của từ "${word.word}"`
+          : qType === 'image_question'
+          ? `Nhìn hình và gõ từ Tiếng Anh tương ứng`
+          : qType === 'audio_question'
+          ? `Nghe âm thanh và gõ từ Tiếng Anh tương ứng`
           : qType === 'sentence_completion'
           ? `Hoàn thành câu bằng từ hoặc dạng từ thích hợp:`
           : `Gõ toàn bộ từ Tiếng Anh có nghĩa: "${meaningCard.meaning}"`,
@@ -228,6 +253,7 @@ function convertQueueToQuestions(queue: SessionQueueItem[], allWords: Word[]): Q
       wordParts: word.wordStructure,
       exampleSentence: example,
       expectedAnswer: word.word,
+      isNewWord: item.isNewWord,
     };
   });
 }

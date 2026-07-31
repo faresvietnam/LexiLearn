@@ -29,6 +29,15 @@ describe('database migration chain', () => {
       '20260730075754_add_personal_gemini_key.sql',
       '20260730081921_add_r2_image_metadata.sql',
       '20260730093433_add_csv_import_persistence.sql',
+      '20260730112632_add_edit_suggestions.sql',
+      '20260730115441_add_moderation_transactions.sql',
+      '20260730123000_fix_admin_moderation_rls_version.sql',
+      '20260730124500_allow_owner_delete_private_words.sql',
+      '20260730130000_cascade_delete_word_attempts.sql',
+      '20260730133000_add_adaptive_skill_telemetry.sql',
+      '20260730134500_add_sentence_attempt_key.sql',
+      '20260730162148_daily_new_word_usage.sql',
+      '20260731094000_normalize_fsrs_card_consistency.sql',
     ]);
   });
 

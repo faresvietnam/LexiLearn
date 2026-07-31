@@ -11,6 +11,7 @@ import {
   WordPartType,
   WordStudyStatus,
 } from '../../types';
+import {getLearningStatus} from '../scheduling/fsrsStatus';
 
 export type SettingsRow = {
   user_id: string;
@@ -55,6 +56,22 @@ type LearningCardRow = {
   review_interval_days: number;
   next_review_at: string | null;
   last_reviewed_at: string | null;
+  fsrs_state?: number;
+  fsrs_stability?: number;
+  fsrs_difficulty?: number;
+  fsrs_elapsed_days?: number;
+  fsrs_scheduled_days?: number;
+  fsrs_learning_steps?: number;
+  fsrs_reps?: number;
+  fsrs_lapses?: number;
+  fsrs_retrievability?: number;
+  recognition_score?: number;
+  recall_score?: number;
+  spelling_score?: number;
+  context_score?: number;
+  word_structure_score?: number;
+  response_time_sample_count?: number;
+  response_time_average_ms?: number;
 };
 
 type GlobalExampleRow = {
@@ -109,6 +126,7 @@ type PrivateWordRow = {
   audio_url: string | null;
   image_url: string | null;
   image_object_key?: string | null;
+  submission_version?: number;
   status: 'pending' | 'rejected' | 'approved' | 'archived';
   admin_comment: string | null;
   created_at: string;
@@ -203,6 +221,41 @@ function mapMeaning(
     memoryScore: card?.memory_score ?? 0,
     reviewIntervalDays: card?.review_interval_days ?? 1,
     nextReviewDate: card?.next_review_at ?? vocabulary.added_at,
+    ...(card?.fsrs_state !== undefined
+      ? {
+          fsrsState: card.fsrs_state as MeaningCard['fsrsState'],
+          learningStatus: getLearningStatus(card.fsrs_state) ?? undefined,
+        }
+      : {}),
+    ...(card?.fsrs_stability !== undefined
+      ? {fsrsStability: card.fsrs_stability}
+      : {}),
+    ...(card?.fsrs_difficulty !== undefined
+      ? {fsrsDifficulty: card.fsrs_difficulty}
+      : {}),
+    ...(card?.fsrs_elapsed_days !== undefined
+      ? {fsrsElapsedDays: card.fsrs_elapsed_days}
+      : {}),
+    ...(card?.fsrs_scheduled_days !== undefined
+      ? {fsrsScheduledDays: card.fsrs_scheduled_days}
+      : {}),
+    ...(card?.fsrs_learning_steps !== undefined
+      ? {fsrsLearningSteps: card.fsrs_learning_steps}
+      : {}),
+    ...(card?.fsrs_reps !== undefined ? {fsrsReps: card.fsrs_reps} : {}),
+    ...(card?.fsrs_lapses !== undefined
+      ? {fsrsLapses: card.fsrs_lapses}
+      : {}),
+    ...(card?.fsrs_retrievability !== undefined
+      ? {fsrsRetrievability: card.fsrs_retrievability}
+      : {}),
+    ...(card?.recognition_score !== undefined ? {recognitionScore: card.recognition_score} : {}),
+    ...(card?.recall_score !== undefined ? {recallScore: card.recall_score} : {}),
+    ...(card?.spelling_score !== undefined ? {spellingScore: card.spelling_score} : {}),
+    ...(card?.context_score !== undefined ? {contextScore: card.context_score} : {}),
+    ...(card?.word_structure_score !== undefined ? {wordStructureScore: card.word_structure_score} : {}),
+    ...(card?.response_time_sample_count !== undefined ? {responseTimeSampleCount: card.response_time_sample_count} : {}),
+    ...(card?.response_time_average_ms !== undefined ? {responseTimeAverageMs: card.response_time_average_ms} : {}),
     ...(card?.last_reviewed_at
       ? {lastReviewedDate: card.last_reviewed_at}
       : {}),
@@ -236,6 +289,7 @@ export function mapVocabularyRow(row: VocabularyRow): Word | null {
 
   return {
     id: row.id,
+    ...(!isGlobal && privateWord ? {privateWordId: privateWord.id, submissionVersion: privateWord.submission_version ?? 1} : {}),
     word: source.word,
     ...(source.ipa ? {ipa: source.ipa} : {}),
     ...(source.audio_url ? {audioUrl: source.audio_url} : {}),

@@ -51,7 +51,7 @@ function geminiResponse(text: string) {
       candidatesTokenCount: 40,
       totalTokenCount: 60,
     },
-    modelVersion: 'gemini-2.5-flash',
+    modelVersion: 'gemini-flash-latest',
     responseId: 'response-1',
   }), {
     status: 200,
@@ -83,7 +83,7 @@ describe('analyzeWordWithGemini', () => {
     expect(fetchImpl).toHaveBeenCalledOnce();
     const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
     );
     expect(url).not.toContain(personalKey);
     expect(init).toMatchObject({
@@ -102,6 +102,13 @@ describe('analyzeWordWithGemini', () => {
       }],
       generationConfig: {
         responseMimeType: 'application/json',
+        responseSchema: expect.objectContaining({
+          properties: expect.objectContaining({
+            wordStructure: expect.objectContaining({maxItems: 5}),
+            meanings: expect.objectContaining({maxItems: 1}),
+            wordFamily: expect.objectContaining({maxItems: 5}),
+          }),
+        }),
       },
     });
     expect(log).not.toHaveBeenCalled();

@@ -93,6 +93,22 @@ describe('buildSessionQuestions', () => {
     expect(session.totalAvailableReviews).toBe(0);
   });
 
+  it('treats FSRS state 0 as new even when legacy history exists', () => {
+    const newCard = meaningCard('new-fsrs-card', {
+      fsrsState: 0,
+      nextReviewDate: '2099-01-01',
+    });
+
+    const session = buildSessionQuestions(
+      [word('new-fsrs-card', [newCard])],
+      scope,
+      settings,
+    );
+
+    expect(session.questions).toHaveLength(1);
+    expect(session.questions[0].isNewWord).toBe(true);
+  });
+
   it('excludes strong cards from extra review', () => {
     const words = [
       word('strong', [meaningCard('strong', { memoryStrength: 'strong', memoryScore: 90 })]),
@@ -104,6 +120,32 @@ describe('buildSessionQuestions', () => {
     expect(session.questions).toHaveLength(1);
     expect(session.questions[0].word.id).toBe('weak');
     expect(session.totalAvailableReviews).toBe(1);
+  });
+
+  it('does not create sentence completion without an example sentence', () => {
+    const words = ['one', 'two', 'three'].map((id) =>
+      word(id, [meaningCard(id, {history: [], memoryStrength: 'stable'})]),
+    );
+
+    const session = buildSessionQuestions(words, scope, settings);
+
+    expect(session.questions[2].type).not.toBe('sentence_completion');
+  });
+
+  it('falls back to full-word typing when a staged card has no word parts', () => {
+    const card = meaningCard('decide', {
+      memoryStrength: 'stable',
+      nextReviewDate: '2020-01-01',
+    });
+    const session = buildSessionQuestions(
+      [word('decide', [card])],
+      scope,
+      settings,
+    );
+
+    expect(session.questions[0].stage).toBe(3);
+    expect(session.questions[0].type).toBe('full_word_typing');
+    expect(session.questions[0].wordParts).toEqual([]);
   });
 
   it('spaces adjacent cards from the same word when another word is available in extra review', () => {

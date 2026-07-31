@@ -12,6 +12,7 @@ import {
   completeStudySession,
   createStudySession,
   getLearningCardSchedule,
+  getSentenceAttemptAnalytics,
   pauseStudySession,
   recordStudyAttempt,
   updateLearningCardSchedule,
@@ -114,6 +115,7 @@ describe('session persistence repository', () => {
       hint_level: 1,
       answer_revealed: false,
       error_types: [],
+      sentence_key: null,
     });
   });
 
@@ -131,10 +133,41 @@ describe('session persistence repository', () => {
 
     expect(from).toHaveBeenCalledWith('learning_cards');
     expect(select).toHaveBeenCalledWith(
-      'id, next_review_at, last_reviewed_at, fsrs_state_version, fsrs_state, fsrs_stability, fsrs_difficulty, fsrs_elapsed_days, fsrs_scheduled_days, fsrs_learning_steps, fsrs_reps, fsrs_lapses, fsrs_retrievability',
+      'id, next_review_at, last_reviewed_at, fsrs_state_version, fsrs_state, fsrs_stability, fsrs_difficulty, fsrs_elapsed_days, fsrs_scheduled_days, fsrs_learning_steps, fsrs_reps, fsrs_lapses, fsrs_retrievability, recognition_score, recall_score, spelling_score, context_score, word_structure_score, response_time_sample_count, response_time_average_ms',
     );
     expect(filterId).toHaveBeenCalledWith('id', 'card-1');
     expect(filterUser).toHaveBeenCalledWith('user_id', 'user-1');
+  });
+
+  it('loads only the authenticated user sentence attempts', async () => {
+    const order = vi.fn().mockResolvedValue({
+      data: [{
+        sentence_key: 'sentence-1',
+        is_correct: true,
+        first_attempt: true,
+        response_time_ms: 1200,
+        created_at: '2026-07-30T05:00:00Z',
+      }],
+      error: null,
+    });
+    const withoutSentence = vi.fn(() => ({order}));
+    const filterUser = vi.fn(() => ({not: withoutSentence}));
+    const select = vi.fn(() => ({eq: filterUser}));
+    from.mockReturnValue({select});
+
+    await expect(getSentenceAttemptAnalytics('user-1')).resolves.toEqual({
+      data: [{
+        sentence_key: 'sentence-1',
+        is_correct: true,
+        first_attempt: true,
+        response_time_ms: 1200,
+        created_at: '2026-07-30T05:00:00Z',
+      }],
+      error: null,
+    });
+    expect(filterUser).toHaveBeenCalledWith('user_id', 'user-1');
+    expect(withoutSentence).toHaveBeenCalledWith('sentence_key', 'is', null);
+    expect(order).toHaveBeenCalledWith('created_at', {ascending: false});
   });
 
   it('persists one complete schedule update on only the caller-owned card', async () => {

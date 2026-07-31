@@ -16,6 +16,7 @@ const RECOGNITION_QUESTION_TYPES: readonly QuestionType[] = [
   'en_to_vn_mc',
   'vn_to_en_mc',
   'image_question',
+  'audio_question',
   'word_part_selection',
 ];
 
@@ -27,6 +28,7 @@ function expectedResponseTimeMs(
     case 'en_to_vn_mc':
     case 'vn_to_en_mc':
     case 'image_question':
+    case 'audio_question':
       return 7_000;
     case 'word_part_selection':
       return 12_000;

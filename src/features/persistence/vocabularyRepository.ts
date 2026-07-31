@@ -30,13 +30,19 @@ const STATUS_ERROR = 'Không thể cập nhật trạng thái từ. Vui lòng th
 const MOVE_ERROR = 'Không thể chuyển từ sang Deck. Vui lòng thử lại.';
 const WORD_ERROR = 'Không thể lưu từ vựng. Vui lòng thử lại.';
 const LINK_ERROR = 'Không thể liên kết từ Global. Vui lòng thử lại.';
+const DELETE_ERROR = 'Không thể xoá từ vựng. Vui lòng thử lại.';
 
 const VOCABULARY_SELECT = `
   id, deck_id, study_status, added_at,
   personal_word_tags(tag_id),
   learning_cards(
     id, meaning_source_id, memory_strength, memory_score,
-    review_interval_days, next_review_at, last_reviewed_at
+    review_interval_days, next_review_at, last_reviewed_at,
+    fsrs_state, fsrs_stability, fsrs_difficulty, fsrs_elapsed_days,
+    fsrs_scheduled_days, fsrs_learning_steps, fsrs_reps, fsrs_lapses,
+    fsrs_retrievability, recognition_score, recall_score, spelling_score,
+    context_score, word_structure_score, response_time_sample_count,
+    response_time_average_ms
   ),
   global_words(
     id, word, ipa, audio_url, image_url, status,
@@ -51,7 +57,7 @@ const VOCABULARY_SELECT = `
   ),
   private_words(
     id, owner_user_id, word, ipa, audio_url, image_url, image_object_key,
-    status, admin_comment, created_at,
+    status, admin_comment, submission_version, created_at,
     private_meanings(id, meaning_vi, part_of_speech, display_order)
   )
 `;
@@ -230,6 +236,21 @@ export async function saveWordStatus(
     : {data: status, error: null};
 }
 
+export async function deleteWord(
+  userId: string,
+  vocabularyId: string,
+  privateWordId?: string,
+): Promise<PersistenceResult<true>> {
+  const client = getSupabaseClient();
+  if (!client) return {data: null, error: DELETE_ERROR};
+
+  const query = privateWordId
+    ? client.from('private_words').delete().eq('id', privateWordId).eq('owner_user_id', userId)
+    : client.from('personal_vocabulary').delete().eq('id', vocabularyId).eq('user_id', userId);
+  const {data, error} = await query.select('id');
+  return error || !data?.length ? {data: null, error: DELETE_ERROR} : {data: true, error: null};
+}
+
 function containsExactly(
   expectedIds: string[],
   actualIds: string[],
@@ -324,7 +345,7 @@ export async function createPrivateWord(
     })
     .select(`
       id, owner_user_id, word, ipa, audio_url, image_url, image_object_key,
-      status, admin_comment, created_at
+      status, admin_comment, submission_version, created_at
     `)
     .single();
 
@@ -384,7 +405,12 @@ export async function createPrivateWord(
     })))
     .select(`
       id, meaning_source_id, memory_strength, memory_score,
-      review_interval_days, next_review_at, last_reviewed_at
+      review_interval_days, next_review_at, last_reviewed_at,
+      fsrs_state, fsrs_stability, fsrs_difficulty, fsrs_elapsed_days,
+      fsrs_scheduled_days, fsrs_learning_steps, fsrs_reps, fsrs_lapses,
+      fsrs_retrievability, recognition_score, recall_score, spelling_score,
+      context_score, word_structure_score, response_time_sample_count,
+      response_time_average_ms
     `);
 
   if (cardError || !cards) {
@@ -480,7 +506,12 @@ export async function linkGlobalWord(
       })))
       .select(`
         id, meaning_source_id, memory_strength, memory_score,
-        review_interval_days, next_review_at, last_reviewed_at
+        review_interval_days, next_review_at, last_reviewed_at,
+        fsrs_state, fsrs_stability, fsrs_difficulty, fsrs_elapsed_days,
+      fsrs_scheduled_days, fsrs_learning_steps, fsrs_reps, fsrs_lapses,
+      fsrs_retrievability, recognition_score, recall_score, spelling_score,
+      context_score, word_structure_score, response_time_sample_count,
+      response_time_average_ms
       `);
     const createdMeaningIds = (createdCards ?? [])
       .map(({meaning_source_id}) => meaning_source_id);

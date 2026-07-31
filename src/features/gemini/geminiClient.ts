@@ -1,6 +1,6 @@
 import type {WordPartType} from '../../types';
 
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_MODEL = 'gemini-flash-latest';
 const GEMINI_ENDPOINT =
   `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
@@ -68,9 +68,7 @@ type AnalyzeWordInput = {
 };
 
 function buildPrompt(word: string) {
-  return `Analyze the English vocabulary word "${word}" for a Vietnamese learner.
-Return only the requested JSON. Give an accurate IPA transcription, a concise
-Vietnamese meaning, morphology, related words, and useful English examples.`;
+  return `Analyze "${word}" for a Vietnamese learner. Return JSON only. Use one concise Vietnamese meaning, one part of speech, accurate IPA, up to 5 morphology parts, up to 5 word-family items, and 1-2 natural example sentences. If morphology is unclear, return an empty list; do not guess.`;
 }
 
 const RESPONSE_SCHEMA = {
@@ -82,22 +80,23 @@ const RESPONSE_SCHEMA = {
     vietnameseMeaning: {type: 'string'},
     wordStructure: {
       type: 'array',
+      maxItems: 5,
       items: {
         type: 'object',
-        properties: {
+          properties: {
           text: {type: 'string'},
           type: {
             type: 'string',
             enum: [...WORD_PART_TYPES],
           },
           meaning: {type: 'string'},
-          order: {type: 'integer'},
         },
-        required: ['text', 'type', 'meaning', 'order'],
+        required: ['text', 'type', 'meaning'],
       },
     },
     meanings: {
       type: 'array',
+      maxItems: 1,
       items: {
         type: 'object',
         properties: {
@@ -105,27 +104,13 @@ const RESPONSE_SCHEMA = {
           partOfSpeech: {type: 'string'},
           examples: {
             type: 'array',
+            maxItems: 2,
             items: {
               type: 'object',
               properties: {
                 sentence: {type: 'string'},
-                expectedAnswer: {type: 'string'},
-                baseWord: {type: 'string'},
-                wordForm: {type: 'string'},
-                partOfSpeech: {type: 'string'},
-                difficulty: {
-                  type: 'string',
-                  enum: [...DIFFICULTIES],
-                },
               },
-              required: [
-                'sentence',
-                'expectedAnswer',
-                'baseWord',
-                'wordForm',
-                'partOfSpeech',
-                'difficulty',
-              ],
+              required: ['sentence'],
             },
           },
         },
@@ -134,6 +119,7 @@ const RESPONSE_SCHEMA = {
     },
     wordFamily: {
       type: 'array',
+      maxItems: 5,
       items: {type: 'string'},
     },
   },
@@ -163,21 +149,14 @@ function isWordPart(
     && isNonEmptyString(value.text)
     && typeof value.type === 'string'
     && WORD_PART_TYPES.has(value.type as WordPartType)
-    && typeof value.meaning === 'string'
-    && Number.isInteger(value.order);
+    && typeof value.meaning === 'string';
 }
 
 function isExample(
   value: unknown,
 ): value is GeminiWordAnalysis['meanings'][number]['examples'][number] {
   return isRecord(value)
-    && isNonEmptyString(value.sentence)
-    && isNonEmptyString(value.expectedAnswer)
-    && isNonEmptyString(value.baseWord)
-    && isNonEmptyString(value.wordForm)
-    && isNonEmptyString(value.partOfSpeech)
-    && typeof value.difficulty === 'string'
-    && DIFFICULTIES.has(value.difficulty);
+    && isNonEmptyString(value.sentence);
 }
 
 function isMeaning(
@@ -211,7 +190,46 @@ function parseAnalysis(value: unknown): GeminiWordAnalysis {
     );
   }
 
-  return value as GeminiWordAnalysis;
+  const word = value.word as string;
+  const defaultPartOfSpeech = value.partOfSpeech as string;
+  return {
+    word,
+    ipa: value.ipa as string,
+    partOfSpeech: defaultPartOfSpeech,
+    vietnameseMeaning: value.vietnameseMeaning as string,
+    wordStructure: (value.wordStructure as Array<Record<string, unknown>>).map((part, index) => ({
+      text: part.text as string,
+      type: part.type as WordPartType,
+      meaning: part.meaning as string,
+      order: Number.isInteger(part.order) ? part.order as number : index + 1,
+    })),
+    meanings: (value.meanings as Array<Record<string, unknown>>).map((meaning) => {
+      const meaningText = meaning.meaning as string;
+      const meaningPartOfSpeech = meaning.partOfSpeech as string;
+      return {
+        meaning: meaningText,
+        partOfSpeech: meaningPartOfSpeech,
+        examples: (meaning.examples as Array<Record<string, unknown>>).map((example) => ({
+          sentence: example.sentence as string,
+          expectedAnswer: typeof example.expectedAnswer === 'string'
+            ? example.expectedAnswer
+            : word,
+          baseWord: typeof example.baseWord === 'string'
+            ? example.baseWord
+            : word,
+          wordForm: typeof example.wordForm === 'string' ? example.wordForm : 'base',
+          partOfSpeech: typeof example.partOfSpeech === 'string'
+            ? example.partOfSpeech
+            : meaningPartOfSpeech || defaultPartOfSpeech,
+          difficulty: typeof example.difficulty === 'string'
+            && DIFFICULTIES.has(example.difficulty)
+            ? example.difficulty as 'easy' | 'medium' | 'hard'
+            : 'medium',
+        })),
+      };
+    }),
+    wordFamily: value.wordFamily as string[],
+  };
 }
 
 function responseText(value: unknown): string | null {
@@ -247,6 +265,13 @@ function httpError(status: number): GeminiRequestError {
     return new GeminiRequestError(
       'temporary',
       'Gemini đang tạm thời không khả dụng. Vui lòng thử lại hoặc nhập thủ công.',
+      status,
+    );
+  }
+  if (status === 404) {
+    return new GeminiRequestError(
+      'http',
+      'Model Gemini hiện không khả dụng. Vui lòng thử lại sau hoặc nhập thủ công.',
       status,
     );
   }

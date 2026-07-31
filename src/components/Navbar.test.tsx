@@ -49,3 +49,13 @@ describe('Navbar admin navigation', () => {
     expect(screen.queryByRole('button', {name: /Admin/})).not.toBeInTheDocument();
   });
 });
+
+describe('Navbar learning navigation', () => {
+  it('renders Học ngay with the same neutral inactive style as other tabs', () => {
+    renderNavbar({userRole: 'learner', pendingSubmissionsCount: 0});
+
+    const learnButton = screen.getByRole('button', {name: /Học ngay/});
+    expect(learnButton).not.toHaveClass('bg-indigo-600');
+    expect(learnButton).toHaveClass('text-slate-600');
+  });
+});

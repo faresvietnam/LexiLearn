@@ -26,7 +26,10 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
     useState<UserDirectoryStatus>('idle');
 
   useEffect(() => {
-    if (activeTab !== 'users') return;
+    // Load the directory up front when submissions exist so creator IDs can
+    // be rendered as emails in the approval list. Keep the lazy behaviour for
+    // an empty workspace (and for the existing users tab flow).
+    if (activeTab !== 'users' && approvalProps.words.length === 0) return;
 
     let cancelled = false;
     setUserDirectoryStatus('loading');
@@ -50,7 +53,11 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [activeTab, loadUsers]);
+  }, [activeTab, loadUsers, approvalProps.words.length]);
+
+  const creatorEmails = Object.fromEntries(
+    users.map((user) => [user.id, user.email]),
+  );
 
   return (
     <div>
@@ -99,7 +106,7 @@ export const AdminWorkspace: React.FC<AdminWorkspaceProps> = ({
           id="admin-submissions-panel"
           aria-labelledby="admin-submissions-tab"
         >
-          <AdminApprovalView {...approvalProps} />
+          <AdminApprovalView {...approvalProps} creatorEmails={creatorEmails} />
         </div>
       ) : (
         <div

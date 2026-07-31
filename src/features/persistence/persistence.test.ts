@@ -43,6 +43,63 @@ import {
 } from './vocabularyRepository';
 
 describe('persistence mappers', () => {
+  it('maps persisted FSRS state and scheduling fields onto a meaning card', () => {
+    const word = mapVocabularyRow({
+      id: 'vocabulary-fsrs',
+      deck_id: null,
+      study_status: 'active',
+      added_at: '2026-07-30T00:00:00Z',
+      personal_word_tags: [],
+      learning_cards: [{
+        id: 'card-fsrs',
+        meaning_source_id: 'meaning-fsrs',
+        memory_strength: 'critical',
+        memory_score: 0,
+        review_interval_days: 1,
+        next_review_at: '2026-07-30T00:00:00Z',
+        last_reviewed_at: null,
+        fsrs_state: 0,
+        fsrs_stability: 0,
+        fsrs_difficulty: 0,
+        fsrs_elapsed_days: 0,
+        fsrs_scheduled_days: 0,
+        fsrs_learning_steps: 0,
+        fsrs_reps: 0,
+        fsrs_lapses: 0,
+        fsrs_retrievability: 1,
+      }],
+      global_words: null,
+      private_words: {
+        id: 'private-fsrs',
+        owner_user_id: 'user-fsrs',
+        word: 'persist',
+        ipa: null,
+        audio_url: null,
+        image_url: null,
+        status: 'pending',
+        admin_comment: null,
+        created_at: '2026-07-30T00:00:00Z',
+        private_meanings: [{
+          id: 'meaning-fsrs',
+          meaning_vi: 'lưu lại',
+          part_of_speech: 'verb',
+          display_order: 0,
+        }],
+      },
+    });
+
+    expect(word?.meanings[0]).toMatchObject({
+      fsrsState: 0,
+      learningStatus: 'new',
+      fsrsStability: 0,
+      fsrsDifficulty: 0,
+      fsrsScheduledDays: 0,
+      fsrsReps: 0,
+      fsrsLapses: 0,
+      fsrsRetrievability: 1,
+    });
+  });
+
   it('maps persisted learner configuration into existing settings and scope shapes', () => {
     expect(mapSettingsRow({
       user_id: 'user-1',

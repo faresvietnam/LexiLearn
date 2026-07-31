@@ -35,6 +35,8 @@ Learning/relearning steps remain `10 minutes → 1 day → FSRS review`. The cur
 
 Each user supplies their own Gemini API key. The key is stored in the user's `user_settings` row protected by owner-only RLS and Supabase encryption at rest; it is never shown in Admin or logs. When Auto-Fill is used, the authenticated user's browser reads its own key and sends the request directly to Gemini. Because the browser must hold the key to make a direct request, this is not equivalent to server-side secret protection; the UI must explain that trade-off and provide clear save/remove controls. The old Express/Vercel proxy is not used for this personal-key flow.
 
+The Add Word view also supports a sequential batch input. The learner can enter any number of newline- or comma-separated words; the browser sends one Gemini request at a time and saves each result immediately through the existing private-word flow. There is no application-side item cap. A failed word is reported and does not stop later words, while existing Global Vocabulary entries are linked instead of duplicated.
+
 This work does not add CSV, moderation transactions, calibration, or adaptive Stage 4. Gemini direct-browser settings are a separate Phase 3 task after FSRS is stable.
 
 ## Image storage

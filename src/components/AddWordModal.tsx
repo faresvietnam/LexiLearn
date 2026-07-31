@@ -5,6 +5,7 @@ import {
   analyzeWordWithGemini,
   GeminiRequestError,
 } from '../features/gemini/geminiClient';
+import type {GeminiWordAnalysis} from '../features/gemini/geminiClient';
 import {
   deleteWordImage,
   uploadWordImage,
@@ -20,6 +21,104 @@ interface AddWordModalProps {
   onAddWord: (newWord: Word) => Promise<boolean>;
   onLinkExistingGlobalWord: (wordId: string) => Promise<boolean>;
   onClose: () => void;
+}
+
+type WordDraft = {
+  word: string;
+  vietnameseMeaning: string;
+  partOfSpeech: string;
+  ipa: string;
+  wordParts: WordPart[];
+  exampleSentences: string[];
+  wordFamily?: string[];
+  deckId: string;
+  tagIds: string[];
+  image?: UploadedImage | null;
+  idSuffix?: string;
+};
+
+function createWordFromDraft(draft: WordDraft): Word {
+  const normalizedWord = draft.word.trim().toLowerCase();
+  const idSuffix = draft.idSuffix ?? `${Date.now()}`;
+  const wordId = `word_user_${idSuffix}`;
+  const meaningCardId = `meaning_${idSuffix}`;
+  const validExamples = draft.exampleSentences.map((sentence) => sentence.trim()).filter(Boolean);
+  const exampleObjects: ExampleSentence[] = (
+    validExamples.length > 0 ? validExamples : [`Example sentence for ${normalizedWord}.`]
+  ).map((sentence, index) => ({
+    id: `ex_${idSuffix}_${index}`,
+    meaningCardId,
+    sentence,
+    expectedAnswer: normalizedWord,
+    baseWord: normalizedWord,
+    wordForm: 'base',
+    partOfSpeech: draft.partOfSpeech,
+    difficulty: 'medium',
+    approvalStatus: 'pending',
+  }));
+
+  return {
+    id: wordId,
+    word: normalizedWord,
+    ipa: draft.ipa.trim() || `/${normalizedWord}/`,
+    wordStructure: draft.wordParts.filter((part) => part.text.trim() !== ''),
+    wordFamily: draft.wordFamily?.length ? draft.wordFamily : [normalizedWord],
+    isGlobal: false,
+    approvalStatus: 'pending',
+    createdBy: 'user_learner',
+    createdAt: new Date().toISOString().split('T')[0],
+    deckId: draft.deckId,
+    tags: draft.tagIds,
+    status: 'active',
+    ...(draft.image
+      ? {
+          imageUrl: draft.image.publicUrl,
+          imageObjectKey: draft.image.objectKey,
+        }
+      : {}),
+    meanings: [{
+      id: meaningCardId,
+      wordId,
+      meaning: draft.vietnameseMeaning.trim(),
+      partOfSpeech: draft.partOfSpeech,
+      memoryStrength: 'critical',
+      memoryScore: 20,
+      reviewIntervalDays: 1,
+      nextReviewDate: new Date().toISOString().split('T')[0],
+      firstAttemptErrorRate: 0,
+      forgottenWordParts: [],
+      history: [],
+      exampleSentences: exampleObjects,
+    }],
+  };
+}
+
+function draftFromGemini(
+  data: GeminiWordAnalysis,
+  deckId: string,
+  tagIds: string[],
+  idSuffix: string,
+): Word {
+  const parts: WordPart[] = data.wordStructure.map((part, index) => ({
+    id: `part_ai_${idSuffix}_${index}`,
+    text: part.text,
+    type: part.type,
+    meaning: part.meaning,
+    order: index + 1,
+  }));
+  const firstMeaning = data.meanings[0];
+  return createWordFromDraft({
+    word: data.word,
+    vietnameseMeaning: data.vietnameseMeaning,
+    partOfSpeech: data.partOfSpeech.toLowerCase(),
+    ipa: data.ipa,
+    wordParts: parts,
+    exampleSentences: firstMeaning?.examples.map((example) => example.sentence) ?? [],
+    wordFamily: data.wordFamily,
+    deckId,
+    tagIds,
+    idSuffix,
+  });
 }
 
 export const AddWordModal: React.FC<AddWordModalProps> = ({
@@ -48,6 +147,12 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
   // AI loading state
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [batchWords, setBatchWords] = useState('');
+  const [isBatchLoading, setIsBatchLoading] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<string | null>(null);
+  const [batchError, setBatchError] = useState<string | null>(null);
+  const [batchTotal, setBatchTotal] = useState(0);
+  const [batchAdded, setBatchAdded] = useState(0);
   const [uploadedImage, setUploadedImage] = useState<UploadedImage | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const [isImageUploading, setIsImageUploading] = useState(false);
@@ -161,6 +266,64 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
     }
   };
 
+  const handleBatchAiAutoFill = async () => {
+    const words: string[] = Array.from(new Set<string>(
+      batchWords
+        .split(/[\n,;]+/)
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .map((value) => value.toLowerCase()),
+    ));
+    if (words.length === 0) return;
+    if (!geminiApiKey) {
+      setBatchError('Chưa có Gemini API key. Hãy lưu key trong Cài đặt hoặc nhập thủ công.');
+      return;
+    }
+
+    setBatchError(null);
+    setBatchTotal(words.length);
+    setBatchAdded(0);
+    setBatchProgress(`Đang chuẩn bị ${words.length} từ...`);
+    setIsBatchLoading(true);
+    let added = 0;
+    const failed: string[] = [];
+
+    try {
+      for (let index = 0; index < words.length; index += 1) {
+        const inputWord = words[index];
+        setBatchProgress(`Đang xử lý ${index + 1}/${words.length}: ${inputWord}`);
+        try {
+          const data = await analyzeWordWithGemini({apiKey: geminiApiKey, word: inputWord});
+          const normalized = inputWord.toLowerCase();
+          const existing = [...globalWords, ...linkedGlobalWords].find(
+            (candidate) => candidate.word.toLowerCase() === normalized,
+          );
+          const saved = existing
+            ? await onLinkExistingGlobalWord(existing.id)
+            : await onAddWord(draftFromGemini(
+                {...data, word: inputWord},
+                selectedDeckId,
+                selectedTagIds,
+                `${Date.now()}_${index}`,
+              ));
+          if (!saved) throw new Error('Không thể lưu từ');
+          added += 1;
+          setBatchAdded(added);
+        } catch {
+          failed.push(inputWord);
+        }
+      }
+    } finally {
+      setIsBatchLoading(false);
+    }
+
+    setBatchWords(failed.join('\n'));
+    setBatchProgress(`Đã thêm ${added}/${words.length} từ theo thứ tự.`);
+    if (failed.length > 0) {
+      setBatchError(`Chưa thêm được: ${failed.join(', ')}. Bạn có thể chạy lại các từ này.`);
+    }
+  };
+
   const handleLinkGlobal = async () => {
     if (!duplicateGlobalWord) return;
     setIsSaving(true);
@@ -230,60 +393,17 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
       return;
     }
 
-    const wordId = `word_user_${Date.now()}`;
-    const meaningCardId = `meaning_${Date.now()}`;
-
-    const validExamples = exampleSentences.map((s) => s.trim()).filter(Boolean);
-    const exampleObjects: ExampleSentence[] = (
-      validExamples.length > 0 ? validExamples : [`Example sentence for ${word}.`]
-    ).map((sentText, idx) => ({
-      id: `ex_${Date.now()}_${idx}`,
-      meaningCardId,
-      sentence: sentText,
-      expectedAnswer: word.trim(),
-      baseWord: word.trim(),
-      wordForm: 'base',
+    const newWord = createWordFromDraft({
+      word,
+      vietnameseMeaning,
       partOfSpeech,
-      difficulty: 'medium',
-      approvalStatus: 'pending',
-    }));
-
-    const newWord: Word = {
-      id: wordId,
-      word: word.trim().toLowerCase(),
-      ipa: ipa.trim() || `/${word.trim().toLowerCase()}/`,
-      wordStructure: wordParts.filter((p) => p.text.trim() !== ''),
-      wordFamily: [word.trim().toLowerCase()],
-      isGlobal: false,
-      approvalStatus: 'pending', // Pending Admin approval
-      createdBy: 'user_learner',
-      createdAt: new Date().toISOString().split('T')[0],
+      ipa,
+      wordParts,
+      exampleSentences,
       deckId: selectedDeckId,
-      tags: selectedTagIds,
-      status: 'active',
-      ...(uploadedImage
-        ? {
-            imageUrl: uploadedImage.publicUrl,
-            imageObjectKey: uploadedImage.objectKey,
-          }
-        : {}),
-      meanings: [
-        {
-          id: meaningCardId,
-          wordId,
-          meaning: vietnameseMeaning.trim(),
-          partOfSpeech,
-          memoryStrength: 'critical',
-          memoryScore: 20,
-          reviewIntervalDays: 1,
-          nextReviewDate: new Date().toISOString().split('T')[0],
-          firstAttemptErrorRate: 0,
-          forgottenWordParts: [],
-          history: [],
-          exampleSentences: exampleObjects,
-        },
-      ],
-    };
+      tagIds: selectedTagIds,
+      image: uploadedImage,
+    });
 
     setIsSaving(true);
     let saved = false;
@@ -294,7 +414,16 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
     }
     if (saved) {
       imageCommittedRef.current = true;
-      onClose();
+      uploadedImageRef.current = null;
+      setUploadedImage(null);
+      setWord('');
+      setVietnameseMeaning('');
+      setIpa('');
+      setPartOfSpeech('noun');
+      setWordParts([{id: 'part_1', text: '', type: 'root', meaning: '', order: 1}]);
+      setExampleSentences(['']);
+      setSelectedGlobalWordId('');
+      setDuplicateGlobalWord(null);
     } else {
       await cleanupUploadedImage();
     }
@@ -378,6 +507,60 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
             {aiError && (
               <p role="alert" className="text-xs text-rose-700">
                 {aiError}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4">
+            <label
+              htmlFor="batch-words"
+              className="text-xs font-bold text-indigo-900"
+            >
+              AI thêm nhiều từ (mỗi dòng hoặc dấu phẩy một từ)
+            </label>
+            <textarea
+              id="batch-words"
+              aria-label="AI thêm nhiều từ"
+              value={batchWords}
+              onChange={(event) => setBatchWords(event.target.value)}
+              placeholder="transportation\nsuccessful\nknowledge"
+              rows={3}
+              disabled={isBatchLoading}
+              className="w-full px-4 py-2.5 bg-white border border-indigo-200 rounded-xl text-slate-900 focus:outline-none focus:border-indigo-500 transition"
+            />
+              <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => void handleBatchAiAutoFill()}
+                disabled={isBatchLoading || !batchWords.trim()}
+                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs flex items-center gap-1.5 transition shadow-sm disabled:opacity-50"
+              >
+                <Sparkles className="w-4 h-4 text-indigo-200" />
+                {isBatchLoading ? 'AI đang thêm tuần tự...' : 'AI thêm danh sách'}
+              </button>
+                {batchProgress && (
+                  <span className="text-xs text-indigo-800" role="status">
+                    {batchProgress}
+                  </span>
+                )}
+              </div>
+            {batchTotal > 0 && (
+              <div className="space-y-1.5" aria-label={`Đã thêm ${batchAdded}/${batchTotal} từ`}>
+                <div className="flex items-center justify-between text-xs font-semibold text-indigo-900">
+                  <span>Tiến độ thêm từ</span>
+                  <span>{batchAdded}/{batchTotal}</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-indigo-100">
+                  <div
+                    className="h-full rounded-full bg-indigo-600 transition-all"
+                    style={{width: `${batchTotal > 0 ? (batchAdded / batchTotal) * 100 : 0}%`}}
+                  />
+                </div>
+              </div>
+            )}
+            {batchError && (
+              <p role="alert" className="text-xs text-rose-700">
+                {batchError}
               </p>
             )}
           </div>

@@ -55,7 +55,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const navItems: NavItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'learn', label: 'Học ngay', icon: GraduationCap, highlight: true },
+    { id: 'learn', label: 'Học ngay', icon: GraduationCap },
     { id: 'rootword', label: 'Gốc từ & Morphology', icon: BrainCircuit },
     { id: 'vocabulary', label: 'Thư viện từ vựng', icon: BookOpen },
     { id: 'decks_tags', label: 'Deck & Tags', icon: FolderTree },
@@ -87,10 +87,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           className="flex items-center gap-2.5 cursor-pointer"
           onClick={() => handleNavClick('dashboard')}
         >
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center font-bold text-white shadow-md shadow-indigo-100 text-sm">
-            V
-          </div>
-          <span className="font-bold tracking-tight text-lg text-slate-900">VocabAnki</span>
+          <img src="/lexilearn-logo.svg" alt="LexiLearn" className="w-8 h-8 rounded-lg shadow-md shadow-indigo-100" />
+          <span className="font-bold tracking-tight text-lg text-slate-900">LexiLearn</span>
         </div>
 
         <button
@@ -122,12 +120,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="flex items-center gap-3 cursor-pointer group"
             onClick={() => handleNavClick('dashboard')}
           >
-            <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center font-bold text-white shadow-md shadow-indigo-100 group-hover:scale-105 transition transform">
-              V
-            </div>
+            <img src="/lexilearn-logo.svg" alt="LexiLearn" className="w-9 h-9 rounded-xl shadow-md shadow-indigo-100 group-hover:scale-105 transition transform" />
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-extrabold tracking-tight text-xl text-slate-900">VocabAnki</span>
+                <span className="font-extrabold tracking-tight text-xl text-slate-900">LexiLearn</span>
                 <Sparkles className="w-3.5 h-3.5 text-indigo-500 fill-indigo-100" />
               </div>
               <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100">

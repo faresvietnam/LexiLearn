@@ -28,6 +28,7 @@ import { DashboardView } from './components/DashboardView';
 import { LearningSessionView } from './components/LearningSessionView';
 import { VocabularyLibraryView } from './components/VocabularyLibraryView';
 import { WordDetailModal } from './components/WordDetailModal';
+import {deleteWordImage} from './features/images/r2ImageUpload';
 import { AddWordModal } from './components/AddWordModal';
 import { CsvImportModal } from './components/CsvImportModal';
 import { DecksAndTagsView } from './components/DecksAndTagsView';
@@ -46,16 +47,21 @@ import {
 import {
   completeStudySession,
   createStudySession,
+  getDailyNewWordUsage,
   getLearningCardSchedule,
+  getSentenceAttemptAnalytics,
   pauseStudySession,
   recordStudyAttempt,
+  reserveDailyNewWordQuota,
   updateLearningCardSchedule,
 } from './features/persistence/sessionRepository';
+import {aggregateSentenceAnalytics, type SentenceAnalytics} from './features/analytics/sentenceAnalytics';
 import type {AutomaticRating} from './features/scheduling/automaticRating';
 import {
   scheduleCard,
   type ScheduledLearningCard,
 } from './features/scheduling/fsrsScheduler';
+import {updateSkillScores, type SkillScoreInput} from './features/scheduling/skillScores';
 import {
   createPrivateWord,
   linkGlobalWord,
@@ -65,7 +71,21 @@ import {
   saveTag,
   saveWordStatus,
   saveWordStatuses,
+  deleteWord,
 } from './features/persistence/vocabularyRepository';
+import {
+  createCsvImportBatch,
+  createEditSuggestion,
+  listResumableCsvImports,
+  markCsvImportRow,
+  updateCsvImportStatus,
+  type CsvImportRowInput,
+  type ResumableCsvImportRow,
+} from './features/persistence/importRepository';
+import {routeImportedRow} from './features/import/importRouting';
+import {buildImportedWord} from './features/import/csvWordBuilder';
+import {moderatePrivateWord} from './features/admin/moderationRepository';
+import {getStudyDate} from './lib/studyDate';
 
 export default function App() {
   const auth = useAuth();
@@ -111,6 +131,8 @@ function AuthenticatedApp({
   const [settings, setSettings] = useState<UserSettings | null>(
     () => client ? null : INITIAL_SETTINGS,
   );
+  const [sentenceAnalytics, setSentenceAnalytics] = useState<SentenceAnalytics[]>([]);
+  const [dailyNewWordsStarted, setDailyNewWordsStarted] = useState(0);
   const [isHydrating, setIsHydrating] = useState(Boolean(client));
   const [hydrationError, setHydrationError] = useState<string | null>(null);
   const [hydrationVersion, setHydrationVersion] = useState(0);
@@ -131,6 +153,7 @@ function AuthenticatedApp({
   const [showStudyScopeModal, setShowStudyScopeModal] = useState<boolean>(false);
   const [showAddWordModal, setShowAddWordModal] = useState<boolean>(false);
   const [showCsvImportModal, setShowCsvImportModal] = useState<boolean>(false);
+  const [resumableCsvRows, setResumableCsvRows] = useState<ResumableCsvImportRow[]>([]);
   const [selectedWordDetail, setSelectedWordDetail] = useState<Word | null>(null);
   const [vocabularyMemoryFilter, setVocabularyMemoryFilter] = useState<MemoryStrength | null>(null);
 
@@ -148,6 +171,8 @@ function AuthenticatedApp({
     setGlobalWords([]);
     setStudyScope(null);
     setSettings(null);
+    setSentenceAnalytics([]);
+    setDailyNewWordsStarted(0);
 
     void loadLearnerState(user.id).then((result) => {
       if (!alive) return;
@@ -162,6 +187,16 @@ function AuthenticatedApp({
         setSettings(result.data.settings);
       }
       setIsHydrating(false);
+    });
+    void listResumableCsvImports(user.id).then((result) => {
+      if (alive && result.data) setResumableCsvRows(result.data);
+    });
+    void getSentenceAttemptAnalytics(user.id).then((result) => {
+      if (alive) setSentenceAnalytics(aggregateSentenceAnalytics(result.data ?? []));
+    });
+    const studyDate = getStudyDate(new Date(), 'Asia/Ho_Chi_Minh');
+    void getDailyNewWordUsage(user.id, studyDate).then((result) => {
+      if (alive && result.data !== null) setDailyNewWordsStarted(result.data);
     });
 
     return () => {
@@ -239,15 +274,43 @@ function AuthenticatedApp({
   };
 
   const handleStartLearning = async (isExtraReview: boolean = false) => {
+    let newWordsLimitOverride: number | undefined;
+    if (!isExtraReview && client && user) {
+      const studyDate = getStudyDate(new Date(), 'Asia/Ho_Chi_Minh');
+      const usage = await getDailyNewWordUsage(user.id, studyDate);
+      if (usage.error || usage.data === null) {
+        showToast(usage.error ?? 'Không thể tải quota từ mới hôm nay.');
+        return;
+      }
+      newWordsLimitOverride = Math.max(0, settings.newWordsPerDay - usage.data);
+    }
     const {questions} = buildSessionQuestions(
       words,
       studyScope,
       settings,
       isExtraReview,
+      newWordsLimitOverride,
     );
     if (questions.length === 0) {
       showToast('Không có từ vựng nào cần học trong Study Scope hiện tại!');
       return;
+    }
+    const newWordsInSession = isExtraReview
+      ? 0
+      : questions.filter((question) => question.isNewWord).length;
+    if (newWordsInSession > 0 && client && user) {
+      const studyDate = getStudyDate(new Date(), 'Asia/Ho_Chi_Minh');
+      const reservation = await reserveDailyNewWordQuota(
+        user.id,
+        studyDate,
+        settings.newWordsPerDay,
+        newWordsInSession,
+      );
+      if (reservation.error) {
+        showToast(reservation.error);
+        return;
+      }
+      setDailyNewWordsStarted((current) => current + newWordsInSession);
     }
     await activateLearningSession(questions, isExtraReview);
   };
@@ -314,6 +377,7 @@ function AuthenticatedApp({
     learningCardId: string,
     rating: AutomaticRating,
     reviewedAt: Date,
+    skillInput?: SkillScoreInput,
   ): Promise<ScheduledLearningCard | null> => {
     if (!client || !user) return null;
 
@@ -325,17 +389,36 @@ function AuthenticatedApp({
       }
 
       const scheduled = scheduleCard(current.data, rating, reviewedAt);
-      const next = scheduled.persistence;
+      const next = {
+        ...scheduled.persistence,
+        ...(skillInput ? updateSkillScores(current.data, skillInput) : {}),
+      };
       setWords((previous) => previous.map((word) => ({
         ...word,
         meanings: word.meanings.map((card) => card.id === learningCardId
-          ? {
+              ? {
               ...card,
               memoryScore: next.memory_score,
               memoryStrength: next.memory_strength,
+              fsrsState: next.fsrs_state,
+              fsrsStability: next.fsrs_stability,
+              fsrsDifficulty: next.fsrs_difficulty,
+              fsrsElapsedDays: next.fsrs_elapsed_days,
+              fsrsScheduledDays: next.fsrs_scheduled_days,
+              fsrsLearningSteps: next.fsrs_learning_steps,
+              fsrsReps: next.fsrs_reps,
+              fsrsLapses: next.fsrs_lapses,
+              fsrsRetrievability: next.fsrs_retrievability,
               reviewIntervalDays: next.review_interval_days,
               nextReviewDate: next.next_review_at,
               lastReviewedDate: next.last_reviewed_at ?? undefined,
+              recognitionScore: next.recognition_score,
+              recallScore: next.recall_score,
+              spellingScore: next.spelling_score,
+              contextScore: next.context_score,
+              wordStructureScore: next.word_structure_score,
+              responseTimeSampleCount: next.response_time_sample_count,
+              responseTimeAverageMs: next.response_time_average_ms,
             }
           : card),
       })));
@@ -406,6 +489,23 @@ function AuthenticatedApp({
       prev.map((w) => (wordIds.includes(w.id) ? { ...w, status } : w))
     );
     showToast(`Đã cập nhật ${wordIds.length} từ sang: ${status}`);
+    return true;
+  };
+
+  const handleDeleteWord = async (word: Word) => {
+    if (!window.confirm(`Xoá vĩnh viễn từ "${word.word}"? Dữ liệu học và nghĩa sẽ bị xoá và không thể khôi phục.`)) return false;
+    if (client && user) {
+      const result = await deleteWord(user.id, word.id, word.privateWordId);
+      if (result.error) {
+        showToast(result.error);
+        return false;
+      }
+      if (word.privateWordId && word.imageObjectKey) {
+        await deleteWordImage(word.imageObjectKey);
+      }
+    }
+    setWords((prev) => prev.filter(({id}) => id !== word.id));
+    showToast(`Đã xoá vĩnh viễn từ "${word.word}".`);
     return true;
   };
 
@@ -545,13 +645,126 @@ function AuthenticatedApp({
     return true;
   };
 
-  const handleConfirmCsvImport = (importedWords: Word[]) => {
-    setWords((prev) => [...importedWords, ...prev]);
-    showToast(`Đã import thành công ${importedWords.length} từ vựng từ CSV!`);
+  const handleConfirmCsvImport = async (
+    importedWords: Word[],
+    importRows: CsvImportRowInput[],
+  ) => {
+    if (!client || !user) {
+      setWords((prev) => [...importedWords, ...prev]);
+      showToast(`Đã import thành công ${importedWords.length} từ vựng từ CSV!`);
+      return;
+    }
+
+    const rows = importRows.map((row) => ({
+      ...row,
+      rawData: row.rawData,
+    }));
+    const existingImportId = rows.find(({importId}) => importId)?.importId;
+    const batch = existingImportId
+      ? {data: {importId: existingImportId, rowIds: rows.map(({id}) => id ?? '')}, error: null}
+      : await createCsvImportBatch(user.id, 'csv-import.csv', rows);
+    if (batch.error || !batch.data) {
+      showToast(batch.error ?? 'Không thể bắt đầu import CSV.');
+      return;
+    }
+
+    await updateCsvImportStatus(user.id, batch.data.importId, 'importing');
+    const persistedWords: Word[] = [];
+    let processedRows = 0;
+    const rowIds = batch.data.rowIds;
+
+    for (const [index, importedWord] of importedWords.entries()) {
+      const wordForPersistence: Word = {
+        ...importedWord,
+        deckId: decks[0]?.id ?? '',
+        tags: [],
+      };
+      const row = rows[index];
+      const route = row
+        ? routeImportedRow(row.rawData, words)
+        : {kind: 'create_private' as const};
+      let result = route.kind === 'create_private'
+        ? await createPrivateWord(user.id, wordForPersistence)
+        : {data: null, error: null};
+
+      if (route.kind === 'duplicate_private') {
+        result = {data: null, error: null};
+      } else if (route.kind === 'link_global' || route.kind === 'edit_suggestion') {
+        const globalMatch = globalWords.find((candidate) =>
+          candidate.word.trim().toLowerCase() === importedWord.word.trim().toLowerCase(),
+        );
+        if (globalMatch) {
+          result = await linkGlobalWord(user.id, globalMatch.id, decks[0]?.id ?? null);
+          if (result.data && route.kind === 'edit_suggestion') {
+            const suggestion = await createEditSuggestion(
+              user.id,
+              globalMatch.id,
+              Object.fromEntries(route.differingFields.map((field) => [
+                field,
+                field === 'vietnameseMeaning'
+                  ? importedWord.meanings[0]?.meaning
+                  : importedWord.meanings[0]?.partOfSpeech,
+              ])),
+            );
+            if (suggestion.error) result = {data: null, error: suggestion.error};
+          }
+        } else {
+          result = {data: null, error: 'Không tìm thấy Global Word để liên kết.'};
+        }
+      }
+      const rowId = rowIds[index];
+      if (result.data && !result.error) {
+        persistedWords.push(result.data);
+        processedRows++;
+        if (rowId) await markCsvImportRow(user.id, batch.data.importId, rowId, 'imported', null);
+      } else if (route.kind === 'duplicate_private' && rowId) {
+        processedRows++;
+        await markCsvImportRow(user.id, batch.data.importId, rowId, 'skipped', {reason: 'duplicate_private'});
+      } else if (rowId) {
+        await markCsvImportRow(user.id, batch.data.importId, rowId, 'failed', {message: result.error});
+      }
+    }
+
+    await updateCsvImportStatus(
+      user.id,
+      batch.data.importId,
+      processedRows === importedWords.length ? 'completed' : 'failed',
+    );
+    setWords((prev) => [...persistedWords, ...prev]);
+    showToast(`Đã lưu ${persistedWords.length}/${importedWords.length} từ CSV vào database.`);
+  };
+
+  const handleResumeCsvImport = async (pendingRows: ResumableCsvImportRow[]) => {
+    const words = pendingRows.map(({raw_data}) => buildImportedWord(raw_data));
+    await handleConfirmCsvImport(
+      words,
+      pendingRows.map(({id, import_id, source_row_number, canonical_key, raw_data}) => ({
+        id,
+        importId: import_id,
+        sourceRowNumber: source_row_number,
+        canonicalKey: canonical_key,
+        rawData: raw_data,
+      })),
+    );
+    setResumableCsvRows([]);
   };
 
   // Admin Approval Handlers
-  const handleApproveWord = (wordId: string) => {
+  const handleApproveWord = async (wordId: string) => {
+    const word = words.find(({id}) => id === wordId);
+    if (client && user && word?.privateWordId) {
+      const result = await moderatePrivateWord(
+        word.privateWordId,
+        'approve',
+        word.submissionVersion ?? 1,
+        null,
+        null,
+      );
+      if (result.error) {
+        showToast(result.error);
+        return;
+      }
+    }
     setWords((prev) =>
       prev.map((w) =>
         w.id === wordId
@@ -566,7 +779,21 @@ function AuthenticatedApp({
     showToast('Đã duyệt và gộp từ vào Global Vocabulary!');
   };
 
-  const handleRejectWord = (wordId: string, reason: string) => {
+  const handleRejectWord = async (wordId: string, reason: string) => {
+    const word = words.find(({id}) => id === wordId);
+    if (client && user && word?.privateWordId) {
+      const result = await moderatePrivateWord(
+        word.privateWordId,
+        'reject',
+        word.submissionVersion ?? 1,
+        null,
+        reason,
+      );
+      if (result.error) {
+        showToast(result.error);
+        return;
+      }
+    }
     setWords((prev) =>
       prev.map((w) =>
         w.id === wordId
@@ -579,6 +806,27 @@ function AuthenticatedApp({
       )
     );
     showToast('Đã từ chối từ vựng.');
+  };
+
+  const handleMergeWithGlobal = async (privateWordId: string, globalWordId: string) => {
+    const word = words.find(({id}) => id === privateWordId);
+    if (client && user && word?.privateWordId) {
+      const result = await moderatePrivateWord(
+        word.privateWordId,
+        'merge',
+        word.submissionVersion ?? 1,
+        globalWordId,
+        null,
+      );
+      if (result.error) {
+        showToast(result.error);
+        return;
+      }
+    }
+    setWords((prev) => prev.map((w) => w.id === privateWordId
+      ? {...w, isGlobal: true, approvalStatus: 'approved'}
+      : w));
+    showToast('Đã gộp từ vào Global Vocabulary.');
   };
 
   // Export Learning Data JSON
@@ -646,6 +894,7 @@ function AuthenticatedApp({
           {currentTab === 'dashboard' && (
             <DashboardView
               words={words}
+              newWordsStartedToday={dailyNewWordsStarted}
               studyScope={studyScope}
               settings={settings}
               isSessionStartPending={isSessionStartPending}
@@ -695,14 +944,10 @@ function AuthenticatedApp({
               }
               geminiApiKey={settings.geminiApiKey}
               onAddWord={async (newWord) => {
-                const saved = await handleAddWord(newWord);
-                if (saved) setCurrentTab('vocabulary');
-                return saved;
+                return handleAddWord(newWord);
               }}
               onLinkExistingGlobalWord={async (id) => {
-                const saved = await handleLinkExistingGlobalWord(id);
-                if (saved) setCurrentTab('vocabulary');
-                return saved;
+                return handleLinkExistingGlobalWord(id);
               }}
               onClose={() => setCurrentTab('vocabulary')}
             />
@@ -711,8 +956,10 @@ function AuthenticatedApp({
           {currentTab === 'import_csv' && (
             <CsvImportModal
               existingWords={words}
-              onConfirmImport={(newWords) => {
-                handleConfirmCsvImport(newWords);
+              resumableRows={resumableCsvRows}
+              onResumeImport={handleResumeCsvImport}
+              onConfirmImport={async (newWords, importRows) => {
+                await handleConfirmCsvImport(newWords, importRows);
                 setCurrentTab('vocabulary');
               }}
               onClose={() => setCurrentTab('vocabulary')}
@@ -730,6 +977,7 @@ function AuthenticatedApp({
               onUpdateWordStatus={handleUpdateWordStatus}
               onBulkUpdateStatus={handleBulkUpdateStatus}
               onBulkMoveDeck={handleMoveWords}
+              onDeleteWord={handleDeleteWord}
             />
           )}
 
@@ -743,7 +991,9 @@ function AuthenticatedApp({
             />
           )}
 
-          {currentTab === 'analytics' && <ProgressView words={words} />}
+          {currentTab === 'analytics' && (
+            <ProgressView words={words} sentenceAnalytics={sentenceAnalytics} />
+          )}
 
           {currentTab === 'settings' && (
             <SettingsView
@@ -759,9 +1009,10 @@ function AuthenticatedApp({
           {currentTab === 'admin' && userRole === 'admin' && (
             <AdminWorkspace
               words={words}
+              creatorEmails={user?.email ? {[user.id]: user.email} : undefined}
               onApproveWord={handleApproveWord}
               onRejectWord={handleRejectWord}
-              onMergeWithGlobal={handleApproveWord}
+              onMergeWithGlobal={handleMergeWithGlobal}
             />
           )}
         </main>

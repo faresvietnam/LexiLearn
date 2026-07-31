@@ -4,19 +4,23 @@ import { Word } from '../types';
 
 interface AdminApprovalViewProps {
   words: Word[];
-  onApproveWord: (wordId: string) => void;
-  onRejectWord: (wordId: string, reason: string) => void;
-  onMergeWithGlobal: (privateWordId: string, globalWordId: string) => void;
+  /** Maps persisted creator user IDs to displayable email addresses. */
+  creatorEmails?: Record<string, string>;
+  onApproveWord: (wordId: string) => void | Promise<void>;
+  onRejectWord: (wordId: string, reason: string) => void | Promise<void>;
+  onMergeWithGlobal: (privateWordId: string, globalWordId: string) => void | Promise<void>;
 }
 
 export const AdminApprovalView: React.FC<AdminApprovalViewProps> = ({
   words,
+  creatorEmails = {},
   onApproveWord,
   onRejectWord,
   onMergeWithGlobal,
 }) => {
   const [activeTab, setActiveTab] = useState<'pending' | 'draft' | 'rejected' | 'global'>('pending');
   const [rejectReasonInput, setRejectReasonInput] = useState<{ [id: string]: string }>({});
+  const [mergeTargetInput, setMergeTargetInput] = useState<{ [id: string]: string }>({});
 
   const pendingWords = words.filter((w) => w.approvalStatus === 'pending');
   const draftWords = words.filter((w) => w.approvalStatus === 'draft');
@@ -112,7 +116,11 @@ export const AdminApprovalView: React.FC<AdminApprovalViewProps> = ({
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-1">
-                    Người tạo: <strong className="text-slate-800">{word.createdBy}</strong> • Ngày gửi: {word.createdAt}
+                    Người tạo:{' '}
+                    <strong className="text-slate-800">
+                      {creatorEmails[word.createdBy] ?? word.createdBy}
+                    </strong>{' '}
+                    • Ngày gửi: {word.createdAt}
                   </p>
                 </div>
 
@@ -120,7 +128,7 @@ export const AdminApprovalView: React.FC<AdminApprovalViewProps> = ({
                 {word.approvalStatus === 'pending' && (
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => onApproveWord(word.id)}
+                      onClick={() => void onApproveWord(word.id)}
                       className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition shadow-xs"
                     >
                       <Check className="w-4 h-4 stroke-[3]" />
@@ -130,13 +138,36 @@ export const AdminApprovalView: React.FC<AdminApprovalViewProps> = ({
                     <button
                       onClick={() => {
                         const reason = rejectReasonInput[word.id] || 'Nội dung chưa đạt tiêu chuẩn.';
-                        onRejectWord(word.id, reason);
+                        void onRejectWord(word.id, reason);
                       }}
                       className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-xl text-xs flex items-center gap-1.5 transition"
                     >
                       <X className="w-4 h-4" />
                       <span>Từ chối (Reject)</span>
                     </button>
+                    {globalWords.length > 0 && (
+                      <>
+                        <select
+                          aria-label={`Global target for ${word.word}`}
+                          value={mergeTargetInput[word.id] || ''}
+                          onChange={(event) => setMergeTargetInput({...mergeTargetInput, [word.id]: event.target.value})}
+                          className="px-2 py-2 rounded-xl border border-slate-200 text-xs"
+                        >
+                          <option value="">Chọn Global để gộp</option>
+                          {globalWords.map((globalWord) => (
+                            <option key={globalWord.id} value={globalWord.id}>{globalWord.word}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          disabled={!mergeTargetInput[word.id]}
+                          onClick={() => void onMergeWithGlobal(word.id, mergeTargetInput[word.id])}
+                          className="px-3 py-2 bg-indigo-600 disabled:bg-slate-300 text-white font-bold rounded-xl text-xs"
+                        >
+                          Gộp
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

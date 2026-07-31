@@ -18,6 +18,9 @@ export interface WordPart {
 
 export type MemoryStrength = 'critical' | 'weak' | 'stable' | 'strong';
 
+export type FsrsState = 0 | 1 | 2 | 3;
+export type LearningStatus = 'new' | 'learning' | 'review' | 'relearning';
+
 export interface LearningHistoryItem {
   id: string;
   date: string;
@@ -51,6 +54,24 @@ export interface MeaningCard {
   // Personal SRS State
   memoryStrength: MemoryStrength;
   memoryScore: number; // 0 to 100%
+  /** Persisted ts-fsrs State enum: 0 New, 1 Learning, 2 Review, 3 Relearning. */
+  fsrsState?: FsrsState;
+  fsrsStability?: number;
+  fsrsDifficulty?: number;
+  fsrsElapsedDays?: number;
+  fsrsScheduledDays?: number;
+  fsrsLearningSteps?: number;
+  fsrsReps?: number;
+  fsrsLapses?: number;
+  fsrsRetrievability?: number;
+  recognitionScore?: number;
+  recallScore?: number;
+  spellingScore?: number;
+  contextScore?: number;
+  wordStructureScore?: number;
+  responseTimeSampleCount?: number;
+  responseTimeAverageMs?: number;
+  learningStatus?: LearningStatus;
   reviewIntervalDays: number;
   nextReviewDate: string; // YYYY-MM-DD or ISO string
   lastReviewedDate?: string;
@@ -64,6 +85,8 @@ export type WordStudyStatus = 'active' | 'paused' | 'archived';
 
 export interface Word {
   id: string;
+  privateWordId?: string;
+  submissionVersion?: number;
   word: string; // normalized English word
   ipa?: string;
   audioUrl?: string;
@@ -129,6 +152,7 @@ export type QuestionType =
   | 'en_to_vn_mc'
   | 'vn_to_en_mc'
   | 'image_question'
+  | 'audio_question'
   | 'sentence_completion'
   | 'word_part_selection'
   | 'word_part_typing'
@@ -158,6 +182,8 @@ export interface Question {
 
   // Expected exact answer string or array of parts
   expectedAnswer: string;
+  /** True when this question consumes the daily new-word quota. */
+  isNewWord?: boolean;
 }
 
 export interface CharDiffToken {
@@ -186,7 +212,8 @@ export type StudyInputMode =
   | 'multiple_choice'
   | 'word_parts'
   | 'typing'
-  | 'image';
+  | 'image'
+  | 'audio';
 
 export interface StudyAttemptInput {
   learningCardId: string;
@@ -200,6 +227,7 @@ export interface StudyAttemptInput {
   hintLevel: number;
   answerRevealed: boolean;
   errorTypes: string[];
+  sentenceKey?: string;
 }
 
 export interface CsvRowRaw {

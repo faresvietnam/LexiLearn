@@ -30,6 +30,7 @@ interface VocabularyLibraryViewProps {
   onUpdateWordStatus: (wordId: string, status: WordStudyStatus) => Promise<boolean>;
   onBulkUpdateStatus: (wordIds: string[], status: WordStudyStatus) => Promise<boolean>;
   onBulkMoveDeck: (wordIds: string[], deckId: string) => Promise<boolean>;
+  onDeleteWord: (word: Word) => Promise<boolean>;
 }
 
 export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
@@ -42,6 +43,7 @@ export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
   onUpdateWordStatus,
   onBulkUpdateStatus,
   onBulkMoveDeck,
+  onDeleteWord,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDeck, setSelectedDeck] = useState<string>('all');
@@ -243,7 +245,7 @@ export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
                 <th className="py-3.5 px-4">Deck</th>
                 <th className="py-3.5 px-4">Memory Strength</th>
                 <th className="py-3.5 px-4">Trạng thái</th>
-                <th className="py-3.5 px-4 text-right">Chi tiết</th>
+                <th className="py-3.5 px-4 text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -314,19 +316,26 @@ export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
                       </td>
                       <td className="py-3.5 px-4">
                         {primaryMeaning && (
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                              primaryMeaning.memoryStrength === 'strong'
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : primaryMeaning.memoryStrength === 'stable'
-                                ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                : primaryMeaning.memoryStrength === 'weak'
-                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                : 'bg-rose-50 text-rose-700 border border-rose-200'
-                            }`}
-                          >
-                            {primaryMeaning.memoryStrength}
-                          </span>
+                          <div className="flex flex-col items-start gap-1">
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                                primaryMeaning.memoryStrength === 'strong'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : primaryMeaning.memoryStrength === 'stable'
+                                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                  : primaryMeaning.memoryStrength === 'weak'
+                                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                  : 'bg-rose-50 text-rose-700 border border-rose-200'
+                              }`}
+                            >
+                              {primaryMeaning.memoryStrength}
+                            </span>
+                            {primaryMeaning.learningStatus && (
+                              <span className="text-[11px] font-semibold text-slate-500">
+                                {{new: 'Mới', learning: 'Đang học', review: 'Review', relearning: 'Học lại'}[primaryMeaning.learningStatus]}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </td>
                       <td className="py-3.5 px-4">
@@ -350,14 +359,25 @@ export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
                         </div>
                       </td>
                       <td className="py-3.5 px-4 text-right">
-                        <button
-                          onClick={() => onOpenWordDetail(word)}
-                          className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 hover:border-indigo-200 text-xs font-semibold transition flex items-center gap-1 ml-auto"
-                          title="Xem & Sửa từ vựng"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>Chi tiết / Edit</span>
-                        </button>
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => onOpenWordDetail(word)}
+                            className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 hover:border-indigo-200 text-xs font-semibold transition flex items-center gap-1"
+                            title="Xem & Sửa từ vựng"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Chi tiết / Edit</span>
+                          </button>
+                          <button
+                            onClick={() => void onDeleteWord(word)}
+                            className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold transition flex items-center gap-1"
+                            title="Xoá vĩnh viễn"
+                            aria-label={`Xoá ${word.word}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Xoá</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

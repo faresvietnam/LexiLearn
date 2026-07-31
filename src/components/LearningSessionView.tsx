@@ -28,6 +28,7 @@ import {
   type AutomaticRating,
 } from '../features/scheduling/automaticRating';
 import type {ScheduledLearningCard} from '../features/scheduling/fsrsScheduler';
+import type {SkillScoreInput} from '../features/scheduling/skillScores';
 import {formatRelativeDueTime} from '../features/scheduling/relativeDueTime';
 import { CharacterDiffComparison } from './CharacterDiffComparison';
 
@@ -45,6 +46,7 @@ interface LearningSessionViewProps {
     learningCardId: string,
     rating: AutomaticRating,
     reviewedAt: Date,
+    skillInput?: SkillScoreInput,
   ) => Promise<ScheduledLearningCard | null>;
   onFinishSession: (stats: SessionStats) => void;
   onExitSession: () => void;
@@ -106,7 +108,9 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
     ) {
       return 'word_parts';
     }
-    return question.type === 'image_question' ? 'image' : 'typing';
+    if (question.type === 'image_question') return 'image';
+    if (question.type === 'audio_question') return 'audio';
+    return 'typing';
   };
 
   useEffect(() => {
@@ -135,6 +139,11 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
   // Play audio pronunciation using Web Speech API synthesis or mock audio
   const handlePlayAudio = () => {
     if (!currentQuestion) return;
+    if (currentQuestion.word.audioUrl) {
+      const audio = new Audio(currentQuestion.word.audioUrl);
+      void audio.play().catch(() => undefined);
+      return;
+    }
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(currentQuestion.word.word);
@@ -159,8 +168,13 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
       userVal = selectedOpt?.label ?? '';
       correct = selectedOpt?.isCorrect || false;
     } else if (currentQuestion.type === 'word_part_selection') {
-      userVal = selectedParts.map((p) => p.text).join('');
-      correct = userVal.toLowerCase() === expected.toLowerCase();
+      if ((currentQuestion.wordParts?.length ?? 0) === 0) {
+        userVal = typingValue;
+        correct = typingValue.trim().toLowerCase() === expected.toLowerCase();
+      } else {
+        userVal = selectedParts.map((p) => p.text).join('');
+        correct = userVal.toLowerCase() === expected.toLowerCase();
+      }
     } else if (currentQuestion.type === 'word_part_typing') {
       const parts = currentQuestion.wordParts || [];
       const typedFull = parts.map((p) => partTypingValues[p.id] || '').join('');
@@ -200,7 +214,8 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
         responseTimeMs,
         hintLevel,
         answerRevealed: hintLevel >= 5,
-        errorTypes: attemptErrorTypes,
+              errorTypes: attemptErrorTypes,
+              sentenceKey: currentQuestion.exampleSentence?.id,
       })).catch(() => undefined);
     } catch {
       // Persistence never interrupts the in-memory learning flow.
@@ -252,6 +267,15 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
             currentQuestion.targetMeaningCard.id,
             rating,
             reviewedAt,
+            {
+              questionType: currentQuestion.type,
+              isCorrect: correct,
+              firstAttempt: isFirstTry,
+              responseTimeMs,
+              hintLevel,
+              answerRevealed: hintLevel >= 5,
+              errorTypes: accumulatedErrorTypes,
+            },
           )).then((schedule) => {
             if (reviewRequestIdRef.current === requestId) {
               setReviewSchedule(schedule);
@@ -465,7 +489,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
           )}
         </div>
 
-        {/* Question Prompt */}
+          {/* Question Prompt */}
         <div className="text-center space-y-2">
           <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
             {currentQuestion.prompt}
@@ -476,6 +500,13 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
             <div className="p-4 rounded-2xl bg-white border border-slate-200 text-lg text-indigo-900 font-medium shadow-xs">
               "{currentQuestion.exampleSentence.sentence}"
             </div>
+          )}
+          {currentQuestion.type === 'image_question' && currentQuestion.word.imageUrl && (
+            <img
+              src={currentQuestion.word.imageUrl}
+              alt={`Hình minh hoạ cho ${currentQuestion.word.word}`}
+              className="max-h-56 max-w-full rounded-2xl object-contain border border-slate-200 shadow-sm"
+            />
           )}
 
           {currentQuestion.type === 'full_word_typing' && (
@@ -532,52 +563,68 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
           {/* WORD-PART SELECTION TYPE */}
           {currentQuestion.type === 'word_part_selection' && (
             <div className="space-y-6">
-              {/* Selected Slots */}
-              <div className="min-h-[60px] p-4 rounded-2xl bg-white border border-slate-200 flex items-center justify-center gap-2 flex-wrap shadow-xs">
-                {selectedParts.length === 0 ? (
-                  <span className="text-slate-400 text-sm">Chọn các thành phần phía dưới...</span>
-                ) : (
-                  selectedParts.map((p, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        if (isChecked && !isCorrect) {
-                          setIsChecked(false);
-                        }
-                        setSelectedParts((prev) => prev.filter((_, i) => i !== idx));
-                      }}
-                      className="px-4 py-2 rounded-xl bg-indigo-50 hover:bg-rose-50 text-indigo-700 hover:text-rose-700 border border-indigo-200 hover:border-rose-300 font-bold text-lg transition"
-                      title="Bấm để xóa phần này"
-                    >
-                      {p.text}
-                    </button>
-                  ))
-                )}
-              </div>
+              {currentQuestion.wordParts?.length ? (
+                <>
+                  {/* Selected Slots */}
+                  <div className="min-h-[60px] p-4 rounded-2xl bg-white border border-slate-200 flex items-center justify-center gap-2 flex-wrap shadow-xs">
+                    {selectedParts.length === 0 ? (
+                      <span className="text-slate-400 text-sm">Chọn các thành phần phía dưới...</span>
+                    ) : (
+                      selectedParts.map((p, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            if (isChecked && !isCorrect) setIsChecked(false);
+                            setSelectedParts((prev) => prev.filter((_, i) => i !== idx));
+                          }}
+                          className="px-4 py-2 rounded-xl bg-indigo-50 hover:bg-rose-50 text-indigo-700 hover:text-rose-700 border border-indigo-200 hover:border-rose-300 font-bold text-lg transition"
+                          title="Bấm để xóa phần này"
+                        >
+                          {p.text}
+                        </button>
+                      ))
+                    )}
+                  </div>
 
-              {/* Pool of Available Parts */}
-              <div className="flex items-center justify-center gap-3 flex-wrap">
-                {currentQuestion.wordParts?.map((part) => (
-                  <button
-                    key={part.id}
-                    onClick={() => {
-                      if (isChecked && !isCorrect) {
-                        setIsChecked(false);
-                      }
-                      setSelectedParts((prev) => [...prev, part]);
-                    }}
-                    className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 font-mono font-bold text-slate-700 transition"
-                  >
-                    {part.text} <span className="text-xs text-slate-400">({part.type})</span>
-                  </button>
-                ))}
-              </div>
+                  {/* Pool of Available Parts */}
+                  <div className="flex items-center justify-center gap-3 flex-wrap">
+                    {currentQuestion.wordParts.map((part) => (
+                      <button
+                        key={part.id}
+                        onClick={() => {
+                          if (isChecked && !isCorrect) setIsChecked(false);
+                          setSelectedParts((prev) => [...prev, part]);
+                        }}
+                        className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 font-mono font-bold text-slate-700 transition"
+                      >
+                        {part.text} <span className="text-xs text-slate-400">({part.type})</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <input
+                  ref={inputRef}
+                  value={typingValue}
+                  onChange={(event) => {
+                    if (isChecked && !isCorrect) setIsChecked(false);
+                    setTypingValue(event.target.value);
+                  }}
+                  placeholder="Gõ toàn bộ từ tại đây..."
+                  className="w-full px-5 py-4 rounded-2xl bg-white border border-slate-200 text-center font-mono font-bold text-2xl text-slate-900 focus:outline-none focus:border-indigo-500"
+                />
+              )}
             </div>
           )}
 
           {/* WORD-PART TYPING TYPE */}
           {currentQuestion.type === 'word_part_typing' && (
             <div className="flex items-center justify-center gap-3 flex-wrap">
+              {currentQuestion.stage === 4 && (
+                <div className="w-full text-center text-sm font-semibold text-amber-700">
+                  Stage 4: hỗ trợ một phần — hãy hoàn thiện các thành phần còn thiếu
+                </div>
+              )}
               {currentQuestion.wordParts?.map((part) => (
                 <div key={part.id} className="flex flex-col items-center gap-1">
                   <span className="text-xs text-slate-500 uppercase font-bold">{part.type}</span>
@@ -590,7 +637,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
                       }
                       setPartTypingValues({ ...partTypingValues, [part.id]: e.target.value });
                     }}
-                    placeholder={part.type}
+                    placeholder={currentQuestion.stage === 4 ? `${part.type}...` : part.type}
                     className="w-32 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-center font-mono font-bold text-lg text-slate-900 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
                   />
                 </div>
@@ -599,7 +646,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
           )}
 
           {/* FULL-WORD TYPING & SENTENCE COMPLETION */}
-          {(currentQuestion.type === 'full_word_typing' || currentQuestion.type === 'sentence_completion') && (
+          {(currentQuestion.type === 'full_word_typing' || currentQuestion.type === 'sentence_completion' || currentQuestion.type === 'image_question' || currentQuestion.type === 'audio_question') && (
             <div className="space-y-4">
               <input
                 ref={inputRef}

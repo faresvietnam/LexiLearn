@@ -2,16 +2,21 @@ import React, { useState } from 'react';
 import { X, Upload, FileText, CheckCircle2, AlertTriangle, ArrowRight, ShieldAlert } from 'lucide-react';
 import { Word, CsvRowRaw, CsvImportConflict, CsvImportReport } from '../types';
 import {parseCsv, CsvInvalidRow} from '../features/import/csvParser';
+import type {CsvImportRowInput, ResumableCsvImportRow} from '../features/persistence/importRepository';
 
 interface CsvImportModalProps {
   existingWords: Word[];
-  onConfirmImport: (newWords: Word[]) => void;
+  onConfirmImport: (newWords: Word[], rows: CsvImportRowInput[]) => void | Promise<void>;
+  resumableRows?: ResumableCsvImportRow[];
+  onResumeImport?: (rows: ResumableCsvImportRow[]) => void | Promise<void>;
   onClose: () => void;
 }
 
 export const CsvImportModal: React.FC<CsvImportModalProps> = ({
   existingWords,
   onConfirmImport,
+  resumableRows = [],
+  onResumeImport,
   onClose,
 }) => {
   const [step, setStep] = useState<
@@ -27,6 +32,7 @@ reconstruction,Sự tái thiết,noun,re,struct,ion`
   );
 
   const [parsedRows, setParsedRows] = useState<CsvRowRaw[]>([]);
+  const [parsedImportRows, setParsedImportRows] = useState<CsvImportRowInput[]>([]);
   const [duplicateReport, setDuplicateReport] = useState<number>(0);
   const [invalidRows, setInvalidRows] = useState<CsvInvalidRow[]>([]);
   const [conflicts, setConflicts] = useState<CsvImportConflict[]>([]);
@@ -37,6 +43,11 @@ reconstruction,Sự tái thiết,noun,re,struct,ion`
     const rows: CsvRowRaw[] = result.rows.map(({rowNumber: _rowNumber, canonicalKey: _canonicalKey, ...row}) => row);
 
     setParsedRows(rows);
+    setParsedImportRows(result.rows.map(({rowNumber, canonicalKey, ...row}) => ({
+      sourceRowNumber: rowNumber,
+      canonicalKey,
+      rawData: row,
+    })));
     setDuplicateReport(result.duplicates.length);
     setInvalidRows(result.invalidRows);
 
@@ -79,7 +90,7 @@ reconstruction,Sự tái thiết,noun,re,struct,ion`
     setConflicts(updated);
   };
 
-  const handleFinalizeImport = () => {
+  const handleFinalizeImport = async () => {
     const createdWords: Word[] = parsedRows.map((row) => {
       const wordId = `word_csv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
       const meaningCardId = `meaning_csv_${Date.now()}`;
@@ -152,7 +163,7 @@ reconstruction,Sự tái thiết,noun,re,struct,ion`
       conflicts,
     });
 
-    onConfirmImport(createdWords);
+    await onConfirmImport(createdWords, parsedImportRows);
     setStep('summary');
   };
 
@@ -169,6 +180,20 @@ reconstruction,Sự tái thiết,noun,re,struct,ion`
         {/* STEP 1: UPLOAD / PASTE CSV */}
         {step === 'upload' && (
           <div className="space-y-4">
+            {resumableRows.length > 0 && onResumeImport && (
+              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 space-y-2">
+                <p className="text-sm font-bold text-amber-900">
+                  Có {resumableRows.length} dòng từ một lần import trước chưa hoàn tất.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void onResumeImport(resumableRows)}
+                  className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition"
+                >
+                  Tiếp tục import cũ
+                </button>
+              </div>
+            )}
             <div className="space-y-1">
               <label htmlFor="csv-file" className="text-xs font-bold text-slate-700">
                 Tải file CSV
