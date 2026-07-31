@@ -252,7 +252,9 @@ function convertQueueToQuestions(queue: SessionQueueItem[], allWords: Word[]): Q
       mcOptions,
       wordParts: word.wordStructure,
       exampleSentence: example,
-      expectedAnswer: word.word,
+      expectedAnswer: qType === 'sentence_completion'
+        ? (example?.expectedAnswer || word.word)
+        : word.word,
       isNewWord: item.isNewWord,
     };
   });

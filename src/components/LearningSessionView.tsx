@@ -30,6 +30,16 @@ import {
 import type {ScheduledLearningCard} from '../features/scheduling/fsrsScheduler';
 import type {SkillScoreInput} from '../features/scheduling/skillScores';
 import {formatRelativeDueTime} from '../features/scheduling/relativeDueTime';
+
+function maskSentenceAnswer(sentence: string, answer: string): string {
+  if (/_{3,}/.test(sentence)) return sentence;
+  const escapedAnswer = answer.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (!escapedAnswer) return sentence;
+  return sentence.replace(
+    new RegExp(`\\b${escapedAnswer}\\b`, 'i'),
+    '_____ ',
+  ).replace(/_____\s+([,.!?;:])/g, '_____$1').trim();
+}
 import { CharacterDiffComparison } from './CharacterDiffComparison';
 
 interface LearningSessionViewProps {
@@ -498,7 +508,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
           {/* Context Display */}
           {currentQuestion.type === 'sentence_completion' && currentQuestion.exampleSentence && (
             <div className="p-4 rounded-2xl bg-white border border-slate-200 text-lg text-indigo-900 font-medium shadow-xs">
-              "{currentQuestion.exampleSentence.sentence}"
+              "{maskSentenceAnswer(currentQuestion.exampleSentence.sentence, currentQuestion.expectedAnswer)}"
             </div>
           )}
           {currentQuestion.type === 'image_question' && currentQuestion.word.imageUrl && (

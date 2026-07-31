@@ -132,6 +132,32 @@ describe('buildSessionQuestions', () => {
     expect(session.questions[2].type).not.toBe('sentence_completion');
   });
 
+  it('masks the expected answer in sentence-completion questions', () => {
+    const card = meaningCard('new', {
+      history: [],
+      exampleSentences: [{
+        id: 'example-new',
+        meaningCardId: 'new',
+        sentence: 'Welcome to your new home!',
+        expectedAnswer: 'new',
+        baseWord: 'new',
+        wordForm: 'base',
+        partOfSpeech: 'adjective',
+        difficulty: 'easy',
+        approvalStatus: 'approved',
+      }],
+    });
+    const session = buildSessionQuestions([
+      word('one', [meaningCard('one', {history: []})]),
+      word('two', [meaningCard('two', {history: []})]),
+      word('three', [meaningCard('three', {history: []})]),
+      word('new', [card]),
+    ], scope, settings);
+
+    expect(session.questions[3].type).toBe('sentence_completion');
+    expect(session.questions[3].expectedAnswer).toBe('new');
+  });
+
   it('falls back to full-word typing when a staged card has no word parts', () => {
     const card = meaningCard('decide', {
       memoryStrength: 'stable',
