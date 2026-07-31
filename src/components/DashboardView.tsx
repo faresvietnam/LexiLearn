@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Word, StudyScope, UserSettings, MemoryStrength } from '../types';
 import { isOverdue } from '../utils/srs';
+import {buildReviewForecast} from '../features/scheduling/reviewForecast';
 
 interface DashboardViewProps {
   words: Word[];
@@ -44,6 +45,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (studyScope.activeDeckIds.length > 0 && !studyScope.activeDeckIds.includes(w.deckId)) return false;
     const hasExcludedTag = w.tags.some((t) => studyScope.excludedTagIds.includes(t));
     if (hasExcludedTag) return false;
+    if (studyScope.pausedWordIds.includes(w.id)) return false;
     return true;
   });
 
@@ -98,38 +100,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const totalMeaningCards = strongCount + stableCount + weakCount + criticalCount;
   const estimatedTimeMinutes = Math.max(1, Math.round(reviewsDueCount * 0.8));
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const localDateKey = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-  const todayKey = localDateKey(today);
-  const forecast = Array.from({length: 7}, (_, offset) => {
-    const date = new Date(today);
-    date.setDate(today.getDate() + offset);
-    const dateKey = localDateKey(date);
-    const count = activeWords.reduce((total, word) => total + word.meanings.filter((meaning) => {
-      const rawNextReview = meaning.nextReviewDate;
-      const nextReview = rawNextReview
-        ? rawNextReview.includes('T')
-          ? localDateKey(new Date(rawNextReview))
-          : rawNextReview.slice(0, 10)
-        : null;
-      if (!nextReview || meaning.fsrsState === 0) return false;
-      // Overdue cards are actionable today; future buckets contain only cards
-      // scheduled for that exact local date.
-      return offset === 0 ? nextReview <= todayKey : nextReview === dateKey;
-    }).length, 0);
-    return {
-      dateKey,
-      day: new Intl.DateTimeFormat('vi-VN', {weekday: 'short'}).format(date).replace('.', ''),
-      count,
-      isToday: offset === 0,
-    };
-  });
+  const forecast = buildReviewForecast(words, studyScope, new Date(), 'Asia/Ho_Chi_Minh');
 
   // Sort frequently forgotten words by error rate descending
   forgottenList.sort((a, b) => b.errorRate - a.errorRate);
