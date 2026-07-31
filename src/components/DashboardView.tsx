@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Play,
   Sparkles,
@@ -15,6 +15,7 @@ import {
 import { Word, StudyScope, UserSettings, MemoryStrength } from '../types';
 import { isOverdue } from '../utils/srs';
 import {buildReviewForecast} from '../features/scheduling/reviewForecast';
+import { findNextReview, formatReviewCountdown } from '../features/scheduling/reviewCountdown';
 
 interface DashboardViewProps {
   words: Word[];
@@ -39,6 +40,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenFilteredVocabulary,
   onPracticeWord,
 }) => {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const refresh = () => setNow(new Date());
+    const interval = window.setInterval(refresh, 60_000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, []);
+
   // Filter active words in Study Scope
   const activeWords = words.filter((w) => {
     if (w.status !== 'active') return false;
@@ -99,8 +112,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   });
 
   const totalMeaningCards = strongCount + stableCount + weakCount + criticalCount;
-  const estimatedTimeMinutes = Math.max(1, Math.round(reviewsDueCount * 0.8));
-  const forecast = buildReviewForecast(words, studyScope, new Date(), 'Asia/Ho_Chi_Minh');
+  const nextReview = findNextReview(activeWords, now, 'Asia/Ho_Chi_Minh');
+  const forecast = buildReviewForecast(words, studyScope, now, 'Asia/Ho_Chi_Minh');
 
   // Sort frequently forgotten words by error rate descending
   forgottenList.sort((a, b) => b.errorRate - a.errorRate);
@@ -152,8 +165,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
               </div>
               <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
-                <div className="text-xs text-slate-500 font-medium">Thời gian ước tính</div>
-                <div className="text-2xl font-bold text-slate-800">~{estimatedTimeMinutes} phút</div>
+                <div className="text-xs text-slate-500 font-medium">Ôn lại sau</div>
+                <div className="text-2xl font-bold text-slate-800">{formatReviewCountdown(nextReview)}</div>
               </div>
             </div>
           </div>

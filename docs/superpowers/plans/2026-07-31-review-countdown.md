@@ -46,11 +46,11 @@
   ): string;
   ```
 
-- [ ] **Step 1: Write failing tests** for: ignore inactive/non-scope words supplied by the caller only through the input list; ignore `fsrsState === 0`; ignore null/invalid dates; return the earliest future timestamp; return `due` when any valid scheduled card is at or before `now`; return `none` when no scheduled card exists; format `45m`, `2h 10m`, `1d 3h`, and `Đã đến lúc ôn`.
-- [ ] **Step 2: Run the focused test** — `npm test -- --run src/features/scheduling/reviewCountdown.test.ts`; expected initial failure because the helper does not exist.
-- [ ] **Step 3: Implement the minimal pure helper** using `Date.parse`, `fsrsState !== 0`, and a minimum non-negative duration. Use minute precision, rounding up so the user never sees `0m` while time remains. The optional timezone defaults to `Asia/Ho_Chi_Minh` and is used only for legacy date-only values.
-- [ ] **Step 4: Run the focused test again** and require all cases to pass.
-- [ ] **Step 5: Commit** with `git add src/features/scheduling/reviewCountdown.ts src/features/scheduling/reviewCountdown.test.ts && git commit -m "feat: calculate next review countdown"`.
+- [x] **Step 1: Write failing tests** for: ignore inactive/non-scope words supplied by the caller only through the input list; ignore `fsrsState === 0`; ignore null/invalid dates; return the earliest future timestamp; return `due` when any valid scheduled card is at or before `now`; return `none` when no scheduled card exists; format `45m`, `2h 10m`, `1d 3h`, and `Đã đến lúc ôn`.
+- [x] **Step 2: Run the focused test** — `npm test -- --run src/features/scheduling/reviewCountdown.test.ts`; expected initial failure because the helper does not exist.
+- [x] **Step 3: Implement the minimal pure helper** using `Date.parse`, `fsrsState !== 0`, and a minimum non-negative duration. Use minute precision, rounding up so the user never sees `0m` while time remains. The optional timezone defaults to `Asia/Ho_Chi_Minh` and is used only for legacy date-only values.
+- [x] **Step 4: Run the focused test again** and require all cases to pass.
+- [x] **Step 5: Commit** with `git add src/features/scheduling/reviewCountdown.ts src/features/scheduling/reviewCountdown.test.ts && git commit -m "feat: calculate next review countdown"` (included in the final feature commit).
 
 ### Task 2: Replace Dashboard estimated duration with live countdown
 
@@ -62,11 +62,11 @@
 - Consumes: `activeWords` already filtered by Study Scope and the Task 1 helper.
 - Produces: a metric card labelled `Ôn lại sau` with a live value.
 
-- [ ] **Step 1: Write failing component tests** asserting: earliest scheduled review displays `Ôn lại sau` and a formatted countdown; an overdue card displays `Đã đến lúc ôn`; only-new/no-schedule cards display `Chưa có lịch ôn`; the old text `Thời gian ước tính` and `~1 phút` are absent.
-- [ ] **Step 2: Run the focused Dashboard test** — `npm test -- --run src/components/DashboardView.test.tsx`; expected failure against the current card.
-- [ ] **Step 3: Implement the minimal UI change**: remove `estimatedTimeMinutes`; compute countdown from `activeWords`; add `useEffect`/`useState` with a 60-second interval that updates `now`, clears on unmount, and refreshes when the tab returns to visibility. Pass the existing `Asia/Ho_Chi_Minh` default because `UserSettings` does not yet expose an IANA timezone. Keep the existing card styling and grid placement.
-- [ ] **Step 4: Run the focused Dashboard test** and require all assertions to pass.
-- [ ] **Step 5: Commit** with `git add src/components/DashboardView.tsx src/components/DashboardView.test.tsx && git commit -m "feat: show next review countdown on dashboard"`.
+- [x] **Step 1: Write failing component tests** asserting: earliest scheduled review displays `Ôn lại sau` and a formatted countdown; an overdue card displays `Đã đến lúc ôn`; only-new/no-schedule cards display `Chưa có lịch ôn`; the old text `Thời gian ước tính` and `~1 phút` are absent.
+- [x] **Step 2: Run the focused Dashboard test** — `npm test -- --run src/components/DashboardView.test.tsx`; expected failure against the current card.
+- [x] **Step 3: Implement the minimal UI change**: remove `estimatedTimeMinutes`; compute countdown from `activeWords`; add `useEffect`/`useState` with a 60-second interval that updates `now`, clears on unmount, and refreshes when the tab returns to visibility. Pass the existing `Asia/Ho_Chi_Minh` default because `UserSettings` does not yet expose an IANA timezone. Keep the existing card styling and grid placement.
+- [x] **Step 4: Run the focused Dashboard test** and require all assertions to pass.
+- [x] **Step 5: Commit** with `git add src/components/DashboardView.tsx src/components/DashboardView.test.tsx && git commit -m "feat: show next review countdown on dashboard"` (included in the final feature commit).
 
 ### Task 3: Validate timezone and regression behavior
 
@@ -79,12 +79,12 @@
 - Consumes: persisted FSRS timestamps from `mappers.ts`; `getStudyDate` for any date-only fallback.
 - Produces: documented UI contract and regression coverage.
 
-- [ ] **Step 1: Add tests** for ISO timestamps crossing midnight in `Asia/Ho_Chi_Minh`, and for legacy date-only values. Date-only values must be interpreted as the user’s next local study-day boundary, not UTC midnight.
-- [ ] **Step 2: Run** `npm test -- --run src/features/scheduling/reviewCountdown.test.ts src/components/DashboardView.test.tsx` and verify the new cases fail before fallback logic is added.
-- [ ] **Step 3: Implement only the required date-only fallback** using the existing `getStudyDate`/timezone convention; do not alter persisted FSRS timestamps.
-- [ ] **Step 4: Update the FSRS spec** to state: Dashboard shows the earliest scheduled card as `Ôn lại sau <countdown>`, overdue as `Đã đến lúc ôn`, and no scheduled cards as `Chưa có lịch ôn`.
-- [ ] **Step 5: Run the full verification** — `npm test -- --run`, `npm run lint`, `npm run build`, and `git diff --check`.
-- [ ] **Step 6: Commit** with `git add src docs/superpowers/specs/2026-07-30-phase-3-fsrs-design.md && git commit -m "test: verify review countdown timezone behavior"`.
+- [x] **Step 1: Add tests** for ISO timestamps crossing midnight in `Asia/Ho_Chi_Minh`, and for legacy date-only values. Date-only values must be interpreted as the user’s next local study-day boundary, not UTC midnight.
+- [x] **Step 2: Run** `npm test -- --run src/features/scheduling/reviewCountdown.test.ts src/components/DashboardView.test.tsx` and verify the new cases fail before fallback logic is added.
+- [x] **Step 3: Implement only the required date-only fallback** using the existing `getStudyDate`/timezone convention; do not alter persisted FSRS timestamps.
+- [x] **Step 4: Update the FSRS spec** to state: Dashboard shows the earliest scheduled card as `Ôn lại sau <countdown>`, overdue as `Đã đến lúc ôn`, and no scheduled cards as `Chưa có lịch ôn`.
+- [x] **Step 5: Run the full verification** — `npm test -- --run`, `npm run lint`, `npm run build`, and `git diff --check`.
+- [x] **Step 6: Commit** with the final feature commit after verification.
 
 ## Verification Gate
 
