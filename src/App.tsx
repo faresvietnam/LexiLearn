@@ -49,13 +49,14 @@ import {
   createStudySession,
   getDailyNewWordUsage,
   getLearningCardSchedule,
-  getSentenceAttemptAnalytics,
+  getStudyAttemptAnalytics,
   pauseStudySession,
   recordStudyAttempt,
   reserveDailyNewWordQuota,
   updateLearningCardSchedule,
 } from './features/persistence/sessionRepository';
-import {aggregateSentenceAnalytics, type SentenceAnalytics} from './features/analytics/sentenceAnalytics';
+import {aggregateSentenceAnalytics} from './features/analytics/sentenceAnalytics';
+import type {ProgressAttemptRow} from './features/analytics/progressAnalytics';
 import type {AutomaticRating} from './features/scheduling/automaticRating';
 import {
   scheduleCard,
@@ -129,7 +130,7 @@ function AuthenticatedApp({
   const [settings, setSettings] = useState<UserSettings | null>(
     () => client ? null : INITIAL_SETTINGS,
   );
-  const [sentenceAnalytics, setSentenceAnalytics] = useState<SentenceAnalytics[]>([]);
+  const [attemptAnalytics, setAttemptAnalytics] = useState<ProgressAttemptRow[]>([]);
   const [dailyNewWordsStarted, setDailyNewWordsStarted] = useState(0);
   const [isHydrating, setIsHydrating] = useState(Boolean(client));
   const [hydrationError, setHydrationError] = useState<string | null>(null);
@@ -169,7 +170,7 @@ function AuthenticatedApp({
     setGlobalWords([]);
     setStudyScope(null);
     setSettings(null);
-    setSentenceAnalytics([]);
+    setAttemptAnalytics([]);
     setDailyNewWordsStarted(0);
 
     void loadLearnerState(user.id).then((result) => {
@@ -189,8 +190,20 @@ function AuthenticatedApp({
     void listResumableCsvImports(user.id).then((result) => {
       if (alive && result.data) setResumableCsvRows(result.data);
     });
-    void getSentenceAttemptAnalytics(user.id).then((result) => {
-      if (alive) setSentenceAnalytics(aggregateSentenceAnalytics(result.data ?? []));
+    void getStudyAttemptAnalytics(user.id).then((result) => {
+      if (alive) {
+        setAttemptAnalytics((result.data ?? []).map((row) => ({
+          learning_card_id: row.learning_card_id ?? '',
+          sentence_key: row.sentence_key,
+          question_type: row.question_type,
+          is_correct: row.is_correct,
+          first_attempt: row.first_attempt,
+          response_time_ms: row.response_time_ms,
+          hint_level: row.hint_level ?? 0,
+          answer_revealed: row.answer_revealed ?? false,
+          created_at: row.created_at,
+        })));
+      }
     });
     const studyDate = getStudyDate(new Date(), 'Asia/Ho_Chi_Minh');
     void getDailyNewWordUsage(user.id, studyDate).then((result) => {
@@ -369,6 +382,19 @@ function AuthenticatedApp({
       attempt,
     );
     if (result.error) showToast(result.error);
+    else {
+      setAttemptAnalytics((previous) => [...previous, {
+        learning_card_id: attempt.learningCardId,
+        sentence_key: attempt.sentenceKey ?? null,
+        question_type: attempt.questionType,
+        is_correct: attempt.isCorrect,
+        first_attempt: attempt.firstAttempt,
+        response_time_ms: attempt.responseTimeMs,
+        hint_level: attempt.hintLevel,
+        answer_revealed: attempt.answerRevealed,
+        created_at: new Date().toISOString(),
+      }]);
+    }
   };
 
   const handleReviewCompleted = async (
@@ -894,7 +920,12 @@ function AuthenticatedApp({
           )}
 
           {currentTab === 'analytics' && (
-            <ProgressView words={words} sentenceAnalytics={sentenceAnalytics} />
+            <ProgressView
+              words={words}
+              studyScope={studyScope}
+              attempts={attemptAnalytics}
+              sentenceAnalytics={aggregateSentenceAnalytics(attemptAnalytics)}
+            />
           )}
 
           {currentTab === 'settings' && (

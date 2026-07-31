@@ -1,8 +1,12 @@
 export type StudyAttemptAnalyticsRow = {
+  learning_card_id?: string;
   sentence_key: string | null;
   is_correct: boolean;
   first_attempt: boolean;
   response_time_ms: number | null;
+  hint_level?: number;
+  answer_revealed?: boolean;
+  question_type?: string | null;
   created_at: string;
 };
 

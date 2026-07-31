@@ -21,7 +21,7 @@ const {
   createStudySession,
   getLearningCardSchedule,
   getDailyNewWordUsage,
-  getSentenceAttemptAnalytics,
+  getStudyAttemptAnalytics,
   loadLearnerState,
   pauseStudySession,
   recordStudyAttempt,
@@ -35,7 +35,7 @@ const {
   createStudySession: vi.fn(),
   getLearningCardSchedule: vi.fn(),
   getDailyNewWordUsage: vi.fn(),
-  getSentenceAttemptAnalytics: vi.fn(),
+  getStudyAttemptAnalytics: vi.fn(),
   loadLearnerState: vi.fn(),
   pauseStudySession: vi.fn(),
   recordStudyAttempt: vi.fn(),
@@ -77,7 +77,7 @@ vi.mock('./features/persistence/sessionRepository', () => ({
   createStudySession,
   getLearningCardSchedule,
   getDailyNewWordUsage,
-  getSentenceAttemptAnalytics,
+  getStudyAttemptAnalytics,
   pauseStudySession,
   recordStudyAttempt,
   reserveDailyNewWordQuota,
@@ -143,7 +143,7 @@ beforeEach(() => {
     },
     error: null,
   });
-  getSentenceAttemptAnalytics.mockResolvedValue({data: [], error: null});
+  getStudyAttemptAnalytics.mockResolvedValue({data: [], error: null});
   updateLearningCardSchedule.mockResolvedValue({data: null, error: null});
 });
 

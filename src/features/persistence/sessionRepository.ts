@@ -25,6 +25,9 @@ const NEW_WORD_QUOTA_ERROR =
 const LEARNING_CARD_SCHEDULE_COLUMNS =
   'id, next_review_at, last_reviewed_at, fsrs_state_version, fsrs_state, fsrs_stability, fsrs_difficulty, fsrs_elapsed_days, fsrs_scheduled_days, fsrs_learning_steps, fsrs_reps, fsrs_lapses, fsrs_retrievability, recognition_score, recall_score, spelling_score, context_score, word_structure_score, response_time_sample_count, response_time_average_ms';
 
+const STUDY_ATTEMPT_ANALYTICS_COLUMNS =
+  'learning_card_id, sentence_key, is_correct, first_attempt, response_time_ms, hint_level, answer_revealed, question_type, created_at';
+
 export async function createStudySession(
   userId: string,
   input: StudySessionInput,
@@ -90,15 +93,23 @@ export async function recordStudyAttempt(
 export async function getSentenceAttemptAnalytics(
   userId: string,
 ): Promise<PersistenceResult<StudyAttemptAnalyticsRow[]>> {
+  const result = await getStudyAttemptAnalytics(userId);
+  return result.error
+    ? result
+    : {data: (result.data ?? []).filter((row) => row.sentence_key !== null), error: null};
+}
+
+export async function getStudyAttemptAnalytics(
+  userId: string,
+): Promise<PersistenceResult<StudyAttemptAnalyticsRow[]>> {
   const client = getSupabaseClient();
   if (!client) return {data: null, error: ANALYTICS_READ_ERROR};
 
   try {
     const {data, error} = await client
       .from('study_attempts')
-      .select('sentence_key, is_correct, first_attempt, response_time_ms, created_at')
+      .select(STUDY_ATTEMPT_ANALYTICS_COLUMNS)
       .eq('user_id', userId)
-      .not('sentence_key', 'is', null)
       .order('created_at', {ascending: false});
     return error
       ? {data: null, error: ANALYTICS_READ_ERROR}

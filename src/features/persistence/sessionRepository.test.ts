@@ -150,8 +150,7 @@ describe('session persistence repository', () => {
       }],
       error: null,
     });
-    const withoutSentence = vi.fn(() => ({order}));
-    const filterUser = vi.fn(() => ({not: withoutSentence}));
+    const filterUser = vi.fn(() => ({order}));
     const select = vi.fn(() => ({eq: filterUser}));
     from.mockReturnValue({select});
 
@@ -166,7 +165,6 @@ describe('session persistence repository', () => {
       error: null,
     });
     expect(filterUser).toHaveBeenCalledWith('user_id', 'user-1');
-    expect(withoutSentence).toHaveBeenCalledWith('sentence_key', 'is', null);
     expect(order).toHaveBeenCalledWith('created_at', {ascending: false});
   });
 
