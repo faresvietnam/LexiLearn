@@ -13,6 +13,8 @@ interface ProgressViewProps {
 }
 
 const percentLabel = (value: number | null) => value === null ? '—' : `${value}%`;
+type SentenceDetail = {sentence: string; word: string; meaning: string};
+type CardDetail = {word: string; meaning: string};
 
 export const ProgressView: React.FC<ProgressViewProps> = ({
   words,
@@ -35,10 +37,25 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
     }
     return streak;
   })();
-  const sentenceText = new Map(
+  const sentenceDetails = new Map<string, SentenceDetail>(
     words.flatMap((word) => word.meanings.flatMap((meaning) => (
-      meaning.exampleSentences.map((example) => [example.id, example.sentence] as const)
+      meaning.exampleSentences.map((example) => [example.id, {
+        sentence: example.sentence,
+        word: word.word,
+        meaning: meaning.meaning,
+      }] as const)
     )))
+  );
+  const cardDetails = new Map<string, CardDetail>(words.flatMap((word) => word.meanings.map((meaning) => [meaning.id, {
+    word: word.word,
+    meaning: meaning.meaning,
+  }] as const)));
+  const sentenceCardDetails = new Map<string, CardDetail>(
+    attempts.flatMap((attempt) => {
+      if (!attempt.sentence_key || !attempt.learning_card_id) return [];
+      const detail = cardDetails.get(attempt.learning_card_id);
+      return detail ? [[attempt.sentence_key, detail] as const] : [];
+    }),
   );
 
   return (
@@ -99,8 +116,30 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
       </div>
 
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
-        <div><h2 className="text-lg font-bold text-slate-900">Hiệu suất theo câu</h2><p className="text-xs text-slate-500">Các câu khó nhất được xếp trước dựa trên tỷ lệ trả lời đúng.</p></div>
-        {sentenceAnalytics.length === 0 ? <p className="text-sm text-slate-500">Chưa có dữ liệu câu để thống kê.</p> : <div className="space-y-3">{sentenceAnalytics.slice(0, 5).map((item) => <div key={item.sentenceKey} className="rounded-xl border border-slate-100 bg-slate-50 p-3"><div className="flex items-start justify-between gap-4"><p className="text-sm font-medium text-slate-800">{sentenceText.get(item.sentenceKey) ?? item.sentenceKey}</p><span className="shrink-0 text-sm font-bold text-rose-600">{item.accuracy}%</span></div><p className="mt-1 text-xs text-slate-500">{item.attempts} lần trả lời · Lần đầu đúng {item.firstAttemptCorrect}%{item.averageResponseTimeMs !== null ? ` · Trung bình ${Math.round(item.averageResponseTimeMs / 100) / 10}s` : ''}</p></div>)}</div>}
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">Câu cần luyện thêm</h2>
+          <p className="text-xs text-slate-500">Xếp theo độ chính xác thấp nhất để bạn biết nên ôn lại ngữ cảnh nào.</p>
+        </div>
+        {sentenceAnalytics.length === 0 ? <p className="text-sm text-slate-500">Chưa có dữ liệu câu để thống kê.</p> : <div className="space-y-3">{sentenceAnalytics.slice(0, 5).map((item) => {
+          const detail = sentenceDetails.get(item.sentenceKey);
+          const cardDetail = sentenceCardDetails.get(item.sentenceKey);
+          const sentence = detail?.sentence?.trim() || `Bài luyện tập từ “${detail?.word ?? cardDetail?.word ?? 'chưa xác định'}”`;
+          const status = item.accuracy < 70 ? 'Cần ôn lại' : item.accuracy < 90 ? 'Đang cải thiện' : 'Đã ổn định';
+          const statusClass = item.accuracy < 70 ? 'bg-rose-50 text-rose-700' : item.accuracy < 90 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700';
+          return <div key={item.sentenceKey} className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-800">{sentence}</p>
+                {(detail?.word || cardDetail?.word) && <p className="mt-1 text-xs text-slate-500">Từ: <strong>{detail?.word ?? cardDetail?.word}</strong>{(detail?.meaning || cardDetail?.meaning) ? ` · ${detail?.meaning ?? cardDetail?.meaning}` : ''}</p>}
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <span className={`rounded-full px-2 py-1 text-xs font-bold ${statusClass}`}>{status}</span>
+                <span className="text-sm font-extrabold text-slate-900">{item.accuracy}% đúng</span>
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-slate-500">{item.correctAttempts}/{item.attempts} lần đúng · Lần đầu đúng {item.firstAttemptCorrect}%{item.averageResponseTimeMs !== null ? ` · Trung bình ${(item.averageResponseTimeMs / 1000).toFixed(1)} giây` : ''}</p>
+          </div>;
+        })}</div>}
       </div>
 
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
