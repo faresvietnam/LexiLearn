@@ -593,6 +593,9 @@ describe('successful learner persistence', () => {
           })),
         };
       }
+      if (table === 'private_word_parts' || table === 'private_examples') {
+        return {insert: vi.fn().mockResolvedValue({data: [], error: null})};
+      }
       if (table === 'personal_vocabulary') {
         return {
           insert: vi.fn(() => ({

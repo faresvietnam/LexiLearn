@@ -58,7 +58,10 @@ const VOCABULARY_SELECT = `
   private_words(
     id, owner_user_id, word, ipa, audio_url, image_url, image_object_key,
     status, admin_comment, submission_version, created_at,
-    private_meanings(id, meaning_vi, part_of_speech, display_order)
+    private_word_parts(id, text, type, meaning, position),
+    private_meanings(id, meaning_vi, part_of_speech, display_order,
+      private_examples(id, sentence, expected_answer, word_form, difficulty)
+    )
   )
 `;
 
@@ -364,6 +367,40 @@ export async function createPrivateWord(
   if (meaningError || !meanings) {
     await removePrivateWord(client, userId, privateWord.id);
     return {data: null, error: WORD_ERROR};
+  }
+
+  const parts = word.wordStructure
+    .filter((part) => part.text.trim())
+    .map((part, position) => ({
+      private_word_id: privateWord.id,
+      text: part.text.trim(),
+      type: part.type,
+      meaning: part.meaning ?? null,
+      position,
+    }));
+  if (parts.length > 0) {
+    const {error: partError} = await client.from('private_word_parts').insert(parts);
+    if (partError) {
+      await removePrivateWord(client, userId, privateWord.id);
+      return {data: null, error: WORD_ERROR};
+    }
+  }
+
+  const examples = word.meanings.flatMap((meaning, meaningIndex) =>
+    (meaning.exampleSentences ?? []).filter((example) => example.sentence.trim()).map((example) => ({
+      private_meaning_id: meanings[meaningIndex].id,
+      sentence: example.sentence.trim(),
+      expected_answer: example.expectedAnswer || word.word,
+      word_form: example.wordForm || 'base',
+      difficulty: example.difficulty || 'medium',
+    })),
+  );
+  if (examples.length > 0) {
+    const {error: exampleError} = await client.from('private_examples').insert(examples);
+    if (exampleError) {
+      await removePrivateWord(client, userId, privateWord.id);
+      return {data: null, error: WORD_ERROR};
+    }
   }
 
   const {data: vocabulary, error: vocabularyError} = await client

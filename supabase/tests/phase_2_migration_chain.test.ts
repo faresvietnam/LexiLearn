@@ -39,6 +39,7 @@ describe('database migration chain', () => {
       '20260730162148_daily_new_word_usage.sql',
       '20260731094000_normalize_fsrs_card_consistency.sql',
       '20260731101500_remove_private_word_moderation.sql',
+      '20260731102825_add_private_word_learning_content.sql',
       '20260731160000_add_admin_user_stats.sql',
     ]);
   });

@@ -97,6 +97,15 @@ type PrivateMeaningRow = {
   meaning_vi: string;
   part_of_speech: string;
   display_order: number;
+  private_examples?: PrivateExampleRow[] | null;
+};
+
+type PrivateExampleRow = {
+  id: string;
+  sentence: string;
+  expected_answer: string;
+  word_form: string;
+  difficulty: 'easy' | 'medium' | 'hard';
 };
 
 type GlobalWordRow = {
@@ -131,6 +140,13 @@ type PrivateWordRow = {
   admin_comment: string | null;
   created_at: string;
   private_meanings: PrivateMeaningRow[] | null;
+  private_word_parts?: Array<{
+    id: string;
+    text: string;
+    type: WordPartType;
+    meaning: string | null;
+    position: number;
+  }> | null;
 };
 
 export type VocabularyRow = {
@@ -209,7 +225,19 @@ function mapMeaning(
           difficulty: example.difficulty,
           approvalStatus: 'approved',
         }))
-    : [];
+    : ('private_examples' in row
+      ? (row.private_examples ?? []).map<ExampleSentence>((example) => ({
+          id: example.id,
+          meaningCardId: id,
+          sentence: example.sentence,
+          expectedAnswer: example.expected_answer,
+          baseWord: word,
+          wordForm: example.word_form,
+          partOfSpeech: row.part_of_speech,
+          difficulty: example.difficulty,
+          approvalStatus: 'approved',
+        }))
+      : []);
 
   return {
     id,
@@ -303,7 +331,15 @@ export function mapVocabularyRow(row: VocabularyRow): Word | null {
             ...(part.meaning ? {meaning: part.meaning} : {}),
             order: part.position,
           }))
-      : [],
+      : [...(privateWord?.private_word_parts ?? [])]
+          .sort((a, b) => a.position - b.position)
+          .map((part) => ({
+            id: part.id,
+            text: part.text,
+            type: part.type,
+            ...(part.meaning ? {meaning: part.meaning} : {}),
+            order: part.position,
+          })),
     wordFamily: [],
     isGlobal,
     approvalStatus,
