@@ -75,7 +75,6 @@ import {
 } from './features/persistence/vocabularyRepository';
 import {
   createCsvImportBatch,
-  createEditSuggestion,
   listResumableCsvImports,
   markCsvImportRow,
   updateCsvImportStatus,
@@ -84,7 +83,6 @@ import {
 } from './features/persistence/importRepository';
 import {routeImportedRow} from './features/import/importRouting';
 import {buildImportedWord} from './features/import/csvWordBuilder';
-import {moderatePrivateWord} from './features/admin/moderationRepository';
 import {getStudyDate} from './lib/studyDate';
 
 export default function App() {
@@ -689,25 +687,12 @@ function AuthenticatedApp({
 
       if (route.kind === 'duplicate_private') {
         result = {data: null, error: null};
-      } else if (route.kind === 'link_global' || route.kind === 'edit_suggestion') {
+      } else if (route.kind === 'link_global') {
         const globalMatch = globalWords.find((candidate) =>
           candidate.word.trim().toLowerCase() === importedWord.word.trim().toLowerCase(),
         );
         if (globalMatch) {
           result = await linkGlobalWord(user.id, globalMatch.id, decks[0]?.id ?? null);
-          if (result.data && route.kind === 'edit_suggestion') {
-            const suggestion = await createEditSuggestion(
-              user.id,
-              globalMatch.id,
-              Object.fromEntries(route.differingFields.map((field) => [
-                field,
-                field === 'vietnameseMeaning'
-                  ? importedWord.meanings[0]?.meaning
-                  : importedWord.meanings[0]?.partOfSpeech,
-              ])),
-            );
-            if (suggestion.error) result = {data: null, error: suggestion.error};
-          }
         } else {
           result = {data: null, error: 'Không tìm thấy Global Word để liên kết.'};
         }
@@ -749,86 +734,6 @@ function AuthenticatedApp({
     setResumableCsvRows([]);
   };
 
-  // Admin Approval Handlers
-  const handleApproveWord = async (wordId: string) => {
-    const word = words.find(({id}) => id === wordId);
-    if (client && user && word?.privateWordId) {
-      const result = await moderatePrivateWord(
-        word.privateWordId,
-        'approve',
-        word.submissionVersion ?? 1,
-        null,
-        null,
-      );
-      if (result.error) {
-        showToast(result.error);
-        return;
-      }
-    }
-    setWords((prev) =>
-      prev.map((w) =>
-        w.id === wordId
-          ? {
-              ...w,
-              isGlobal: true,
-              approvalStatus: 'approved',
-            }
-          : w
-      )
-    );
-    showToast('Đã duyệt và gộp từ vào Global Vocabulary!');
-  };
-
-  const handleRejectWord = async (wordId: string, reason: string) => {
-    const word = words.find(({id}) => id === wordId);
-    if (client && user && word?.privateWordId) {
-      const result = await moderatePrivateWord(
-        word.privateWordId,
-        'reject',
-        word.submissionVersion ?? 1,
-        null,
-        reason,
-      );
-      if (result.error) {
-        showToast(result.error);
-        return;
-      }
-    }
-    setWords((prev) =>
-      prev.map((w) =>
-        w.id === wordId
-          ? {
-              ...w,
-              approvalStatus: 'rejected',
-              rejectionReason: reason,
-            }
-          : w
-      )
-    );
-    showToast('Đã từ chối từ vựng.');
-  };
-
-  const handleMergeWithGlobal = async (privateWordId: string, globalWordId: string) => {
-    const word = words.find(({id}) => id === privateWordId);
-    if (client && user && word?.privateWordId) {
-      const result = await moderatePrivateWord(
-        word.privateWordId,
-        'merge',
-        word.submissionVersion ?? 1,
-        globalWordId,
-        null,
-      );
-      if (result.error) {
-        showToast(result.error);
-        return;
-      }
-    }
-    setWords((prev) => prev.map((w) => w.id === privateWordId
-      ? {...w, isGlobal: true, approvalStatus: 'approved'}
-      : w));
-    showToast('Đã gộp từ vào Global Vocabulary.');
-  };
-
   // Export Learning Data JSON
   const handleExportData = () => {
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(words, null, 2));
@@ -840,8 +745,6 @@ function AuthenticatedApp({
     downloadAnchor.remove();
     showToast('Đã xuất file dữ liệu cá nhân thành công!');
   };
-
-  const pendingSubmissionsCount = words.filter((w) => w.approvalStatus === 'pending').length;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans antialiased selection:bg-indigo-500 selection:text-white">
@@ -867,7 +770,6 @@ function AuthenticatedApp({
           isSessionStartPending={isSessionStartPending}
           userRole={userRole}
           onOpenStudyScope={() => setShowStudyScopeModal(true)}
-          pendingSubmissionsCount={pendingSubmissionsCount}
           userProfile={{
             name: (user?.user_metadata.full_name || user?.user_metadata.name || user?.email || 'Learner') as string,
             email: user?.email || '',
@@ -1008,11 +910,6 @@ function AuthenticatedApp({
 
           {currentTab === 'admin' && userRole === 'admin' && (
             <AdminWorkspace
-              words={words}
-              creatorEmails={user?.email ? {[user.id]: user.email} : undefined}
-              onApproveWord={handleApproveWord}
-              onRejectWord={handleRejectWord}
-              onMergeWithGlobal={handleMergeWithGlobal}
             />
           )}
         </main>

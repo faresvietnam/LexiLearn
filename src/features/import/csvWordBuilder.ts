@@ -20,7 +20,7 @@ export function buildImportedWord(
     wordStructure: wordParts,
     wordFamily: [row.word.toLowerCase()],
     isGlobal: false,
-    approvalStatus: 'pending',
+    approvalStatus: 'approved',
     createdBy: 'user_csv_import',
     createdAt: new Date().toISOString().split('T')[0],
     deckId: '',
@@ -47,7 +47,7 @@ export function buildImportedWord(
         wordForm: 'base',
         partOfSpeech: row.partOfSpeech || 'noun',
         difficulty: 'medium',
-        approvalStatus: 'pending',
+        approvalStatus: 'approved',
       }],
     }],
   };

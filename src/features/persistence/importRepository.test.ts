@@ -22,7 +22,6 @@ vi.mock('../../lib/supabase', () => ({getSupabaseClient}));
 
 import {
   createCsvImportBatch,
-  createEditSuggestion,
   listResumableCsvImports,
   markCsvImportRow,
 } from './importRepository';
@@ -71,22 +70,6 @@ describe('CSV import persistence', () => {
       error_details: null,
     }));
     expect(eq).toHaveBeenCalledWith('id', 'row-1');
-  });
-
-  it('creates an owner-scoped Edit Suggestion without changing Global content', async () => {
-    single.mockResolvedValue({data: {id: 'suggestion-1'}, error: null});
-
-    await expect(createEditSuggestion('user-1', 'global-1', {
-      vietnameseMeaning: 'sức khỏe',
-    })).resolves.toEqual({data: {id: 'suggestion-1'}, error: null});
-
-    expect(from).toHaveBeenCalledWith('edit_suggestions');
-    expect(insert).toHaveBeenCalledWith({
-      user_id: 'user-1',
-      global_word_id: 'global-1',
-      suggested_changes: {vietnameseMeaning: 'sức khỏe'},
-      status: 'pending',
-    });
   });
 
   it('reads only the owner\'s unfinished imports and pending rows', async () => {

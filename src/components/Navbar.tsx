@@ -24,7 +24,6 @@ interface NavbarProps {
   isSessionStartPending: boolean;
   userRole: UserRole;
   onOpenStudyScope: () => void;
-  pendingSubmissionsCount: number;
   userProfile: {
     name: string;
     email: string;
@@ -47,7 +46,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   isSessionStartPending,
   userRole,
   onOpenStudyScope,
-  pendingSubmissionsCount,
   userProfile,
   onSignOut,
 }) => {
@@ -66,12 +64,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   ];
 
   if (userRole === 'admin') {
-    navItems.push({
-      id: 'admin',
-      label: 'Admin',
-      icon: ShieldCheck,
-      badge: pendingSubmissionsCount || undefined,
-    });
+    navItems.push({id: 'admin', label: 'Admin', icon: ShieldCheck});
   }
 
   const handleNavClick = (tabId: string) => {

@@ -18,7 +18,7 @@ import {
   Tag as TagIcon,
   Folder,
 } from 'lucide-react';
-import { Word, Deck, Tag, MemoryStrength, WordApprovalStatus, WordStudyStatus } from '../types';
+import { Word, Deck, Tag, MemoryStrength, WordStudyStatus } from '../types';
 
 interface VocabularyLibraryViewProps {
   words: Word[];
@@ -49,7 +49,6 @@ export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
   const [selectedDeck, setSelectedDeck] = useState<string>('all');
   const [selectedTag, setSelectedTag] = useState<string>('all');
   const [memoryFilter, setMemoryFilter] = useState<string>(initialMemoryFilter || 'all');
-  const [approvalFilter, setApprovalFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   // Bulk selection
@@ -70,9 +69,6 @@ export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
 
     // Tag
     if (selectedTag !== 'all' && !word.tags.includes(selectedTag)) return false;
-
-    // Approval
-    if (approvalFilter !== 'all' && word.approvalStatus !== approvalFilter) return false;
 
     // Status
     if (statusFilter !== 'all' && word.status !== statusFilter) return false;
@@ -179,18 +175,6 @@ export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
             <option value="critical">Critical</option>
           </select>
 
-          {/* Approval Select */}
-          <select
-            value={approvalFilter}
-            onChange={(e) => setApprovalFilter(e.target.value)}
-            className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-indigo-500"
-          >
-            <option value="all">Trạng thái duyệt</option>
-            <option value="approved">Approved Global</option>
-            <option value="draft">Draft Private</option>
-            <option value="pending">Pending Approval</option>
-            <option value="rejected">Rejected</option>
-          </select>
         </div>
 
         {/* Bulk Action Controls */}
@@ -355,7 +339,6 @@ export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
                           >
                             {word.status === 'active' ? 'Active' : 'Paused'}
                           </button>
-                          <span className="text-[11px] text-slate-400 uppercase font-medium">{word.approvalStatus}</span>
                         </div>
                       </td>
                       <td className="py-3.5 px-4 text-right">

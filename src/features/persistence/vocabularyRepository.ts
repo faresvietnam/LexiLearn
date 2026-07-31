@@ -340,8 +340,8 @@ export async function createPrivateWord(
       audio_url: word.audioUrl ?? null,
       image_url: word.imageUrl ?? null,
       image_object_key: word.imageObjectKey ?? null,
-      status: word.approvalStatus === 'rejected' ? 'rejected' : 'pending',
-      admin_comment: word.rejectionReason ?? null,
+      status: 'approved',
+      admin_comment: null,
     })
     .select(`
       id, owner_user_id, word, ipa, audio_url, image_url, image_object_key,

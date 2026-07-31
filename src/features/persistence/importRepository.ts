@@ -45,34 +45,6 @@ export async function listResumableCsvImports(
   }
 }
 
-export async function createEditSuggestion(
-  userId: string,
-  globalWordId: string,
-  suggestedChanges: Record<string, unknown>,
-): Promise<PersistenceResult<{id: string}>> {
-  const client = getSupabaseClient();
-  if (!client) return {data: null, error: IMPORT_ERROR};
-
-  try {
-    const {data, error} = await client
-      .from('edit_suggestions')
-      .insert({
-        user_id: userId,
-        global_word_id: globalWordId,
-        suggested_changes: suggestedChanges,
-        status: 'pending',
-      })
-      .select('id')
-      .single();
-
-    return error || !data
-      ? {data: null, error: IMPORT_ERROR}
-      : {data: {id: data.id}, error: null};
-  } catch {
-    return {data: null, error: IMPORT_ERROR};
-  }
-}
-
 export async function createCsvImportBatch(
   userId: string,
   sourceFilename: string,

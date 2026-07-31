@@ -1,8 +1,8 @@
-# LexiLearn — Phase 4: CSV and Moderation
+# LexiLearn — Phase 4: CSV persistence and private vocabulary
 
 ## Goal
 
-Replace the prototype CSV path with a safe, resumable import pipeline and complete the Admin moderation workflow without overwriting Global content.
+Persist CSV imports safely while keeping the learner flow simple: new vocabulary belongs to the importing user, is immediately studyable, and never requires an approval queue.
 
 ## Scope
 
@@ -10,25 +10,20 @@ Replace the prototype CSV path with a safe, resumable import pipeline and comple
 - Normalize headers and values, validate required fields, and report invalid rows.
 - Keep the first canonical duplicate row and report later duplicates without merging them.
 - Match Global and Private Words before import.
-- Create new words as pending Private Words; link identical Global Words.
-- Convert differences against approved Global Words into Edit Suggestions.
+- Link an exact Global match; otherwise create an approved Private Word owned by the current user.
 - Persist import status and row outcomes so an interrupted import can resume.
-- Add transactional approve, reject, merge, Edit & Approve, submission versions, optimistic locking, and Admin audit logs.
+- Keep FSRS state as the only source of learning status (`0 = Mới`, `1 = Đang học`, `2 = Review`, `3 = Học lại`).
 
 ## Non-goals
 
-- No direct learner writes to Global Vocabulary.
-- No CSV overwrite of approved Global content.
-- No adaptive Stage 4, FSRS recalibration, or analytics dashboard work.
+- Learners never write to Global Vocabulary.
+- CSV never overwrites approved Global content.
+- No approval, rejection, merge, edit-suggestion, submission-version, or moderation-audit workflow.
 
 ## Import statuses
 
 `uploaded → validating → ready → importing → completed | failed`.
 
-## Safety rules
+## Compatibility note
 
-- Duplicate key uses normalized spelling plus lexical type; punctuation and whitespace are normalized, but homographs with different lexical types remain reviewable.
-- A row is only persisted after validation and ownership checks.
-- Every Admin mutation checks the current `submission_version` and records an audit event.
-- A stale version returns a conflict and cannot overwrite newer moderation work.
-
+The legacy `private_word_submissions`, `edit_suggestions`, and moderation RPC/migrations remain in Supabase history for migration replay and old-environment compatibility. The application no longer reads or writes them. Existing private rows are normalized to `approved`; `approved` and `archived` are the only active private-word statuses.

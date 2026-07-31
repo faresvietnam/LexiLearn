@@ -281,11 +281,7 @@ export function mapVocabularyRow(row: VocabularyRow): Word | null {
     ? (globalWord?.global_meanings ?? [])
         .filter(({status}) => status === 'active')
     : (privateWord?.private_meanings ?? []);
-  const approvalStatus: WordApprovalStatus = isGlobal
-    ? 'approved'
-    : privateWord?.status === 'approved' || privateWord?.status === 'rejected'
-      ? privateWord.status
-      : 'pending';
+  const approvalStatus: WordApprovalStatus = 'approved';
 
   return {
     id: row.id,
@@ -311,9 +307,6 @@ export function mapVocabularyRow(row: VocabularyRow): Word | null {
     wordFamily: [],
     isGlobal,
     approvalStatus,
-    ...(!isGlobal && privateWord?.admin_comment
-      ? {rejectionReason: privateWord.admin_comment}
-      : {}),
     createdBy: isGlobal
       ? globalWord?.created_by_admin_id ?? 'system'
       : privateWord?.owner_user_id ?? 'system',

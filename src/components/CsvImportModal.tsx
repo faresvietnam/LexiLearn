@@ -115,7 +115,7 @@ reconstruction,Sự tái thiết,noun,re,struct,ion`
         wordStructure: wordParts,
         wordFamily: [row.word.toLowerCase()],
         isGlobal: false,
-        approvalStatus: 'pending',
+        approvalStatus: 'approved',
         createdBy: 'user_csv_import',
         createdAt: new Date().toISOString().split('T')[0],
         deckId: 'deck_general',
@@ -144,7 +144,7 @@ reconstruction,Sự tái thiết,noun,re,struct,ion`
                 wordForm: 'base',
                 partOfSpeech: row.partOfSpeech || 'noun',
                 difficulty: 'medium',
-                approvalStatus: 'pending',
+                approvalStatus: 'approved',
               },
             ],
           },
@@ -360,7 +360,7 @@ reconstruction,Sự tái thiết,noun,re,struct,ion`
             </div>
 
             <p className="text-xs text-slate-500">
-              Các từ vừa import đã được tự động đưa vào Từ vựng cá nhân và đang ở trạng thái Pending Approval.
+              Các từ vừa import đã được tự động đưa vào Từ vựng cá nhân và có thể học ngay.
             </p>
 
             <button

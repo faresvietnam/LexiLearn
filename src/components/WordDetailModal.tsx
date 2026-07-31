@@ -228,7 +228,7 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
                 </span>
               ) : (
                 <span className="flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-bold">
-                  <Lock className="w-3 h-3" /> Private ({word.approvalStatus})
+                  <Lock className="w-3 h-3" /> Private Word
                 </span>
               )}
             </div>

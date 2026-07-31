@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest';
 import {buildImportedWord} from './csvWordBuilder';
 
 describe('buildImportedWord', () => {
-  it('builds a pending studyable word from a persisted CSV row', () => {
+  it('builds a studyable private word from a persisted CSV row', () => {
     const word = buildImportedWord({
       word: 'transportation',
       vietnameseMeaning: 'giao thông vận tải',
@@ -14,7 +14,7 @@ describe('buildImportedWord', () => {
 
     expect(word).toMatchObject({
       word: 'transportation',
-      approvalStatus: 'pending',
+      approvalStatus: 'approved',
       status: 'active',
       meanings: [{meaning: 'giao thông vận tải', partOfSpeech: 'noun'}],
     });

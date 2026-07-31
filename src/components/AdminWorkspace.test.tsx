@@ -1,4 +1,4 @@
-import {act, cleanup, fireEvent, render, screen} from '@testing-library/react';
+import {act, cleanup, render, screen} from '@testing-library/react';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {AdminWorkspace} from './AdminWorkspace';
 import type {AdminUser} from '../features/admin/adminUsersRepository';
@@ -6,29 +6,20 @@ import type {AdminUser} from '../features/admin/adminUsersRepository';
 afterEach(cleanup);
 
 const approvalProps = {
-  words: [],
-  onApproveWord: vi.fn(),
-  onRejectWord: vi.fn(),
-  onMergeWithGlobal: vi.fn(),
 };
 
 describe('AdminWorkspace', () => {
-  it('shows the existing approval portal on the default submissions tab', () => {
-    const loadUsers = vi.fn();
+  it('shows the user directory without a moderation tab', () => {
+    const loadUsers = vi.fn().mockResolvedValue({data: [], error: null});
 
     render(<AdminWorkspace {...approvalProps} loadUsers={loadUsers} />);
 
-    expect(
-      screen.getByRole('heading', {name: 'Admin Word Submission Approval Portal'})
-    ).toBeInTheDocument();
-    expect(screen.getByRole('tab', {name: 'Duyệt bài'})).toHaveAttribute(
-      'aria-selected',
-      'true'
-    );
-    expect(loadUsers).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', {name: 'Admin'})).toBeInTheDocument();
+    expect(screen.queryByText('Duyệt bài')).not.toBeInTheDocument();
+    expect(loadUsers).toHaveBeenCalledOnce();
   });
 
-  it('loads and renders the user directory only after its tab is selected', async () => {
+  it('loads and renders the user directory', async () => {
     let resolveUsers:
       | ((result: {data: AdminUser[]; error: null}) => void)
       | undefined;
@@ -40,7 +31,6 @@ describe('AdminWorkspace', () => {
     );
 
     render(<AdminWorkspace {...approvalProps} loadUsers={loadUsers} />);
-    fireEvent.click(screen.getByRole('tab', {name: 'Người dùng'}));
 
     expect(screen.getByText('Đang tải danh sách người dùng...')).toBeInTheDocument();
     expect(loadUsers).toHaveBeenCalledOnce();
@@ -72,7 +62,6 @@ describe('AdminWorkspace', () => {
     const loadUsers = vi.fn().mockResolvedValue({data: [], error: null});
 
     render(<AdminWorkspace {...approvalProps} loadUsers={loadUsers} />);
-    fireEvent.click(screen.getByRole('tab', {name: 'Người dùng'}));
 
     expect(await screen.findByText('Chưa có người dùng nào.')).toBeInTheDocument();
   });
@@ -84,7 +73,6 @@ describe('AdminWorkspace', () => {
     });
 
     render(<AdminWorkspace {...approvalProps} loadUsers={loadUsers} />);
-    fireEvent.click(screen.getByRole('tab', {name: 'Người dùng'}));
 
     expect(
       await screen.findByText('Không thể tải danh sách người dùng.')

@@ -332,7 +332,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
 
       onFinishSession({
         reviewsCompleted: questions.length,
-        newWordsLearned: questions.filter((q) => q.word.approvalStatus === 'pending').length,
+        newWordsLearned: questions.filter((q) => q.targetMeaningCard.fsrsState === 0).length,
         firstAttemptAccuracy: accuracy,
         studyTimeSeconds: Math.round((Date.now() - sessionStartTimeRef.current) / 1000),
         retriesTotal: retriesTotalRef.current,
@@ -492,9 +492,9 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
           <span className="px-3.5 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
             Stage {currentQuestion.stage}: {currentQuestion.type.replace(/_/g, ' ')}
           </span>
-          {currentQuestion.word.approvalStatus !== 'approved' && (
+          {!currentQuestion.word.isGlobal && (
             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-              Private Word ({currentQuestion.word.approvalStatus})
+              Private Word
             </span>
           )}
         </div>

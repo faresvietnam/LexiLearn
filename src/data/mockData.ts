@@ -348,7 +348,7 @@ export const INITIAL_WORDS: Word[] = [
       }
     ]
   },
-  // Submissions created by learner (Draft, Pending, Rejected)
+  // Private words are immediately studyable; FSRS state controls learning progress.
   {
     id: 'word_misunderstand',
     word: 'misunderstand',
@@ -360,7 +360,7 @@ export const INITIAL_WORDS: Word[] = [
     ],
     wordFamily: ['understand', 'misunderstanding'],
     isGlobal: false,
-    approvalStatus: 'draft',
+    approvalStatus: 'approved',
     createdBy: 'user_learner',
     createdAt: '2026-07-28',
     deckId: 'deck_general',
@@ -389,7 +389,7 @@ export const INITIAL_WORDS: Word[] = [
             wordForm: 'base',
             partOfSpeech: 'verb',
             difficulty: 'easy',
-            approvalStatus: 'pending',
+            approvalStatus: 'approved',
           }
         ]
       }
@@ -408,7 +408,7 @@ export const INITIAL_WORDS: Word[] = [
     ],
     wordFamily: ['precedent', 'precede'],
     isGlobal: false,
-    approvalStatus: 'pending',
+    approvalStatus: 'approved',
     createdBy: 'user_learner',
     createdAt: '2026-07-27',
     deckId: 'deck_academic',
@@ -439,7 +439,7 @@ export const INITIAL_WORDS: Word[] = [
             wordForm: 'adjective',
             partOfSpeech: 'adjective',
             difficulty: 'hard',
-            approvalStatus: 'pending',
+            approvalStatus: 'approved',
           }
         ]
       }
@@ -456,7 +456,7 @@ export const INITIAL_WORDS: Word[] = [
     ],
     wordFamily: ['activity', 'activate', 'hyperactivity'],
     isGlobal: false,
-    approvalStatus: 'rejected',
+    approvalStatus: 'approved',
     rejectionReason: 'Thiếu ví dụ câu ngữ cảnh tiêu chuẩn và cấu trúc từ chưa rõ ràng.',
     createdBy: 'user_learner',
     createdAt: '2026-07-25',
@@ -486,7 +486,7 @@ export const INITIAL_WORDS: Word[] = [
             wordForm: 'adjective',
             partOfSpeech: 'adjective',
             difficulty: 'easy',
-            approvalStatus: 'rejected',
+            approvalStatus: 'approved',
           }
         ]
       }

@@ -30,19 +30,18 @@ describe('routeImportedRow', () => {
     expect(routeImportedRow(row, [existingWord()])).toMatchObject({kind: 'link_global', existingWordId: 'word-1'});
   });
 
-  it('creates an Edit Suggestion for differing approved Global content', () => {
-    expect(routeImportedRow({...row, vietnameseMeaning: 'sức khỏe'}, [existingWord()])).toMatchObject({
-      kind: 'edit_suggestion', existingWordId: 'word-1', differingFields: ['vietnameseMeaning'],
-    });
+  it('creates a private word for differing Global content', () => {
+    expect(routeImportedRow({...row, vietnameseMeaning: 'sức khỏe'}, [existingWord()]))
+      .toEqual({kind: 'create_private'});
   });
 
   it('reports an existing Private duplicate without creating another word', () => {
-    expect(routeImportedRow(row, [existingWord({isGlobal: false, approvalStatus: 'pending'})])).toMatchObject({
+    expect(routeImportedRow(row, [existingWord({isGlobal: false, approvalStatus: 'approved'})])).toMatchObject({
       kind: 'duplicate_private', existingWordId: 'word-1',
     });
   });
 
-  it('routes an unknown word to a new pending Private Word', () => {
+  it('routes an unknown word to a new private Word', () => {
     expect(routeImportedRow({...row, word: 'new word'}, [])).toEqual({kind: 'create_private'});
   });
 });

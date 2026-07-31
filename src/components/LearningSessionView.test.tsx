@@ -26,6 +26,7 @@ const meaningCard: MeaningCard = {
   memoryScore: 60,
   reviewIntervalDays: 4,
   nextReviewDate: '2026-07-29',
+  fsrsState: 0,
   firstAttemptErrorRate: 0,
   forgottenWordParts: [],
   history: [],

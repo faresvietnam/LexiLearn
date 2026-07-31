@@ -54,7 +54,7 @@ function createWordFromDraft(draft: WordDraft): Word {
     wordForm: 'base',
     partOfSpeech: draft.partOfSpeech,
     difficulty: 'medium',
-    approvalStatus: 'pending',
+    approvalStatus: 'approved',
   }));
 
   return {
@@ -64,7 +64,7 @@ function createWordFromDraft(draft: WordDraft): Word {
     wordStructure: draft.wordParts.filter((part) => part.text.trim() !== ''),
     wordFamily: draft.wordFamily?.length ? draft.wordFamily : [normalizedWord],
     isGlobal: false,
-    approvalStatus: 'pending',
+    approvalStatus: 'approved',
     createdBy: 'user_learner',
     createdAt: new Date().toISOString().split('T')[0],
     deckId: draft.deckId,

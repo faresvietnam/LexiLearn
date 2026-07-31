@@ -3,7 +3,6 @@ import type {CsvRowRaw} from '../../types';
 
 export type ImportRoute =
   | {kind: 'link_global'; existingWordId: string}
-  | {kind: 'edit_suggestion'; existingWordId: string; differingFields: string[]}
   | {kind: 'duplicate_private'; existingWordId: string}
   | {kind: 'create_private'};
 
@@ -21,10 +20,14 @@ export function routeImportedRow(row: Pick<CsvRowRaw, 'word' | 'vietnameseMeanin
   if (!match.isGlobal) return {kind: 'duplicate_private', existingWordId: match.id};
 
   const meaning = match.meanings[0];
-  const differingFields: string[] = [];
-  if (normalize(meaning?.meaning ?? '') !== normalize(row.vietnameseMeaning)) differingFields.push('vietnameseMeaning');
-  if (normalize(meaning?.partOfSpeech ?? 'noun') !== normalize(row.partOfSpeech ?? 'noun')) differingFields.push('partOfSpeech');
-  return differingFields.length === 0
-    ? {kind: 'link_global', existingWordId: match.id}
-    : {kind: 'edit_suggestion', existingWordId: match.id, differingFields};
+  if (
+    normalize(meaning?.meaning ?? '') === normalize(row.vietnameseMeaning)
+    && normalize(meaning?.partOfSpeech ?? 'noun') === normalize(row.partOfSpeech ?? 'noun')
+  ) {
+    return {kind: 'link_global', existingWordId: match.id};
+  }
+
+  // A conflicting import remains a separate private word; there is no
+  // moderation or Global edit-suggestion workflow anymore.
+  return {kind: 'create_private'};
 }
