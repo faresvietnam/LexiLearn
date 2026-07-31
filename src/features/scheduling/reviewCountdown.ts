@@ -5,9 +5,7 @@ export type ReviewCountdownState =
   | {kind: 'scheduled'; target: Date; remainingMs: number}
   | {kind: 'none'};
 
-const MINUTE = 60_000;
-const HOUR = 60 * MINUTE;
-const DAY = 24 * HOUR;
+const HOUR = 60 * 60_000;
 
 const timeZoneParts = (date: Date, timezone: string) => {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -59,16 +57,18 @@ export function findNextReview(
   return {kind: 'scheduled', target: earliest, remainingMs: Math.max(0, earliest.getTime() - now.getTime())};
 }
 
+export function isReviewDue(
+  nextReviewDate: string | undefined,
+  now = new Date(),
+  timezone = 'Asia/Ho_Chi_Minh',
+): boolean {
+  const target = parseReviewDate(nextReviewDate, timezone);
+  return target !== null && target.getTime() <= now.getTime();
+}
+
 export function formatReviewCountdown(state: ReviewCountdownState): string {
-  if (state.kind === 'due') return 'Đã đến lúc ôn';
-  if (state.kind === 'none') return 'Chưa có lịch ôn';
-  const minutes = Math.max(1, Math.ceil(state.remainingMs / MINUTE));
-  if (minutes < 60) return `${minutes}m`;
-  if (state.remainingMs < DAY) {
-    const hours = Math.floor(minutes / 60);
-    return `${hours}h${minutes % 60 ? ` ${minutes % 60}m` : ''}`;
-  }
-  const days = Math.floor(state.remainingMs / DAY);
-  const hours = Math.floor((state.remainingMs % DAY) / HOUR);
-  return `${days}d${hours ? ` ${hours}h` : ''}`;
+  if (state.kind === 'due') return '0 giờ';
+  if (state.kind === 'none') return '—';
+  const hours = Math.max(1, Math.ceil(state.remainingMs / HOUR));
+  return `${hours} giờ`;
 }

@@ -35,7 +35,7 @@ describe('Dashboard review countdown', () => {
     vi.setSystemTime(new Date('2026-07-31T05:00:00.000Z'));
     renderDashboard([makeWord(2, '2026-07-31T06:45:00.000Z')]);
     expect(screen.getByText('Ôn lại sau')).toBeInTheDocument();
-    expect(screen.getByText('1h 45m')).toBeInTheDocument();
+    expect(screen.getByText('2 giờ')).toBeInTheDocument();
     expect(screen.queryByText('Thời gian ước tính')).not.toBeInTheDocument();
   });
 
@@ -43,9 +43,9 @@ describe('Dashboard review countdown', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-31T05:00:00.000Z'));
     renderDashboard([makeWord(2, '2026-07-31T04:59:00.000Z')]);
-    expect(screen.getByText('Đã đến lúc ôn')).toBeInTheDocument();
+    expect(screen.getByText('0 giờ')).toBeInTheDocument();
     cleanup();
     renderDashboard([makeWord(0, '2026-07-31T06:00:00.000Z')]);
-    expect(screen.getByText('Chưa có lịch ôn')).toBeInTheDocument();
+    expect(screen.getByText('—')).toBeInTheDocument();
   });
 });

@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import type {Word} from '../../types';
-import {findNextReview, formatReviewCountdown} from './reviewCountdown';
+import {findNextReview, formatReviewCountdown, isReviewDue} from './reviewCountdown';
 
 const word = (id: string, state: 0 | 1 | 2 | 3, nextReviewDate: string): Word => ({
   id, word: id, wordStructure: [], wordFamily: [], isGlobal: false, approvalStatus: 'approved',
@@ -35,12 +35,17 @@ describe('review countdown', () => {
     expect(findNextReview([word('new', 0, '2026-07-31T06:00:00.000Z')], now)).toEqual({kind: 'none'});
   });
 
-  it('formats countdowns without exposing seconds or negative values', () => {
-    expect(formatReviewCountdown({kind: 'scheduled', target: new Date(), remainingMs: 45 * 60_000})).toBe('45m');
-    expect(formatReviewCountdown({kind: 'scheduled', target: new Date(), remainingMs: (2 * 60 + 10) * 60_000})).toBe('2h 10m');
-    expect(formatReviewCountdown({kind: 'scheduled', target: new Date(), remainingMs: (24 + 3) * 60 * 60_000})).toBe('1d 3h');
-    expect(formatReviewCountdown({kind: 'due'})).toBe('Đã đến lúc ôn');
-    expect(formatReviewCountdown({kind: 'none'})).toBe('Chưa có lịch ôn');
+  it('formats the next review as a whole number of hours', () => {
+    expect(formatReviewCountdown({kind: 'scheduled', target: new Date(), remainingMs: 45 * 60_000})).toBe('1 giờ');
+    expect(formatReviewCountdown({kind: 'scheduled', target: new Date(), remainingMs: (2 * 60 + 10) * 60_000})).toBe('3 giờ');
+    expect(formatReviewCountdown({kind: 'scheduled', target: new Date(), remainingMs: (24 + 3) * 60 * 60_000})).toBe('27 giờ');
+    expect(formatReviewCountdown({kind: 'due'})).toBe('0 giờ');
+    expect(formatReviewCountdown({kind: 'none'})).toBe('—');
+  });
+
+  it('treats ISO timestamps as due at their exact instant', () => {
+    expect(isReviewDue('2026-07-31T05:00:00.000Z', new Date('2026-07-31T05:00:00.000Z'))).toBe(true);
+    expect(isReviewDue('2026-07-31T05:01:00.000Z', new Date('2026-07-31T05:00:00.000Z'))).toBe(false);
   });
 
   it('interprets legacy date-only values at the local 04:00 study boundary', () => {

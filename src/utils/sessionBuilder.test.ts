@@ -93,6 +93,25 @@ describe('buildSessionQuestions', () => {
     expect(session.totalAvailableReviews).toBe(0);
   });
 
+  it('includes persisted non-new FSRS cards even when legacy history is empty', () => {
+    const scheduledCard = meaningCard('scheduled', {
+      fsrsState: 2,
+      history: [],
+      lastReviewedDate: undefined,
+      nextReviewDate: '2000-01-01T00:00:00.000Z',
+    });
+
+    const session = buildSessionQuestions(
+      [word('scheduled', [scheduledCard])],
+      scope,
+      settings,
+    );
+
+    expect(session.questions).toHaveLength(1);
+    expect(session.questions[0].isNewWord).toBe(false);
+    expect(session.totalAvailableReviews).toBe(1);
+  });
+
   it('treats FSRS state 0 as new even when legacy history exists', () => {
     const newCard = meaningCard('new-fsrs-card', {
       fsrsState: 0,

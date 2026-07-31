@@ -13,9 +13,8 @@ import {
   BrainCircuit,
 } from 'lucide-react';
 import { Word, StudyScope, UserSettings, MemoryStrength } from '../types';
-import { isOverdue } from '../utils/srs';
 import {buildReviewForecast} from '../features/scheduling/reviewForecast';
-import { findNextReview, formatReviewCountdown } from '../features/scheduling/reviewCountdown';
+import { findNextReview, formatReviewCountdown, isReviewDue } from '../features/scheduling/reviewCountdown';
 
 interface DashboardViewProps {
   words: Word[];
@@ -88,7 +87,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       // persisted FSRS state continue through the existing review/at-risk flow.
       if (m.fsrsState === 0) {
       } else {
-        if (isOverdue(m.nextReviewDate)) {
+        if (isReviewDue(m.nextReviewDate, now, 'Asia/Ho_Chi_Minh')) {
           reviewsDueCount++;
         }
         if (isWeakOrCritical || (m.firstAttemptErrorRate && m.firstAttemptErrorRate >= 25)) {

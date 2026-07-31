@@ -1,6 +1,6 @@
 import { Word, MeaningCard, Question, StudyScope, UserSettings } from '../types';
-import { isOverdue } from './srs';
 import {calculateForgettingRisk} from '../features/scheduling/forgettingRisk';
+import { isReviewDue } from '../features/scheduling/reviewCountdown';
 
 export interface SessionQueueItem {
   word: Word;
@@ -16,7 +16,7 @@ export function buildSessionQuestions(
   isExtraReview: boolean = false,
   newWordsLimitOverride?: number,
 ): { questions: Question[]; totalAvailableReviews: number; limitReached: boolean } {
-  const todayStr = new Date().toISOString().split('T')[0];
+  const now = new Date();
 
   // 1. Filter words in Study Scope & Active status
   const activeWords = words.filter((w) => {
@@ -43,12 +43,13 @@ export function buildSessionQuestions(
     word.meanings.forEach((meaningCard) => {
       // Persisted FSRS state is authoritative. A card in state 0 is new even
       // when legacy analytics/history fields were populated during import.
-      const isFsrsNew = meaningCard.fsrsState === 0;
-      const hasBeenReviewed = !isFsrsNew && (
-        Boolean(meaningCard.lastReviewedDate)
-        || Boolean(meaningCard.history && meaningCard.history.length > 0)
-      );
-      const isDue = isOverdue(meaningCard.nextReviewDate) || meaningCard.nextReviewDate <= todayStr;
+      const hasLegacyReview = Boolean(meaningCard.lastReviewedDate)
+        || Boolean(meaningCard.history && meaningCard.history.length > 0);
+      // Explicit FSRS state is authoritative. Legacy cards without a state
+      // retain the old history-based fallback until they are migrated.
+      const isFsrsNew = meaningCard.fsrsState === 0
+        || (meaningCard.fsrsState === undefined && !hasLegacyReview);
+      const isDue = isReviewDue(meaningCard.nextReviewDate, now, 'Asia/Ho_Chi_Minh');
 
       // Determine initial stage based on memory strength
       let stage: 1 | 2 | 3 | 4 | 5 = 1;
@@ -61,12 +62,10 @@ export function buildSessionQuestions(
         && meaningCard.wordStructureScore < 50
       ) stage = 4;
 
-      if (hasBeenReviewed) {
-        if (isDue || isExtraReview) {
-          reviewCards.push({ word, meaningCard, isNewWord: false, stage });
-        }
-      } else {
+      if (isFsrsNew) {
         newCards.push({ word, meaningCard, isNewWord: true, stage: 1 });
+      } else if (isDue || isExtraReview) {
+        reviewCards.push({ word, meaningCard, isNewWord: false, stage });
       }
     });
   });
