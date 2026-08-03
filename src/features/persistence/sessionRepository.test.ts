@@ -158,7 +158,20 @@ describe('session persistence repository', () => {
       p_session_id: 'session-1',
       p_learning_card_id: 'card-1',
       p_idempotency_key: 'session-1:card-1:1',
-      p_attempts: [attemptInput],
+      p_attempts: [{
+        learning_card_id: 'card-1',
+        question_type: 'full_word_typing',
+        input_mode: 'typing',
+        attempt_number: 2,
+        submitted_answer: 'remember',
+        is_correct: true,
+        first_attempt: false,
+        response_time_ms: 12_000,
+        hint_level: 1,
+        answer_revealed: false,
+        error_types: [],
+        sentence_key: null,
+      }],
       p_schedule: cardSchedule,
     });
   });

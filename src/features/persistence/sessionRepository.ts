@@ -28,6 +28,23 @@ const LEARNING_CARD_SCHEDULE_COLUMNS =
 const STUDY_ATTEMPT_ANALYTICS_COLUMNS =
   'learning_card_id, sentence_key, is_correct, first_attempt, response_time_ms, hint_level, answer_revealed, question_type, created_at';
 
+function serializeStudyAttempt(input: StudyAttemptInput) {
+  return {
+    learning_card_id: input.learningCardId,
+    question_type: input.questionType,
+    input_mode: input.inputMode,
+    attempt_number: input.attemptNumber,
+    submitted_answer: input.submittedAnswer,
+    is_correct: input.isCorrect,
+    first_attempt: input.firstAttempt,
+    response_time_ms: input.responseTimeMs,
+    hint_level: input.hintLevel,
+    answer_revealed: input.answerRevealed,
+    error_types: input.errorTypes,
+    sentence_key: input.sentenceKey ?? null,
+  };
+}
+
 export async function createStudySession(
   userId: string,
   input: StudySessionInput,
@@ -68,18 +85,7 @@ export async function recordStudyAttempt(
     const {error} = await client.from('study_attempts').insert({
       user_id: userId,
       session_id: sessionId,
-      learning_card_id: input.learningCardId,
-      question_type: input.questionType,
-      input_mode: input.inputMode,
-      attempt_number: input.attemptNumber,
-      submitted_answer: input.submittedAnswer,
-      is_correct: input.isCorrect,
-      first_attempt: input.firstAttempt,
-      response_time_ms: input.responseTimeMs,
-      hint_level: input.hintLevel,
-      answer_revealed: input.answerRevealed,
-      error_types: input.errorTypes,
-      sentence_key: input.sentenceKey ?? null,
+      ...serializeStudyAttempt(input),
     });
 
     return error
@@ -106,7 +112,7 @@ export async function submitLearningReview(input: {
       p_session_id: input.sessionId,
       p_learning_card_id: input.learningCardId,
       p_idempotency_key: input.idempotencyKey,
-      p_attempts: input.attempts,
+      p_attempts: input.attempts.map(serializeStudyAttempt),
       p_schedule: input.schedule,
     });
     return error ? {data: null, error: ATTEMPT_ERROR} : {data: null, error: null};
