@@ -90,6 +90,31 @@ export async function recordStudyAttempt(
   }
 }
 
+export async function submitLearningReview(input: {
+  userId: string;
+  sessionId: string;
+  learningCardId: string;
+  idempotencyKey: string;
+  attempts: StudyAttemptInput[];
+  schedule: LearningCardScheduleUpdate;
+}): Promise<PersistenceResult<null>> {
+  const client = getSupabaseClient();
+  if (!client) return {data: null, error: ATTEMPT_ERROR};
+
+  try {
+    const {error} = await client.rpc('submit_learning_review', {
+      p_session_id: input.sessionId,
+      p_learning_card_id: input.learningCardId,
+      p_idempotency_key: input.idempotencyKey,
+      p_attempts: input.attempts,
+      p_schedule: input.schedule,
+    });
+    return error ? {data: null, error: ATTEMPT_ERROR} : {data: null, error: null};
+  } catch {
+    return {data: null, error: ATTEMPT_ERROR};
+  }
+}
+
 export async function getSentenceAttemptAnalytics(
   userId: string,
 ): Promise<PersistenceResult<StudyAttemptAnalyticsRow[]>> {

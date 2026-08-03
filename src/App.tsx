@@ -51,9 +51,8 @@ import {
   getLearningCardSchedule,
   getStudyAttemptAnalytics,
   pauseStudySession,
-  recordStudyAttempt,
   reserveDailyNewWordQuota,
-  updateLearningCardSchedule,
+  submitLearningReview,
 } from './features/persistence/sessionRepository';
 import {aggregateSentenceAnalytics} from './features/analytics/sentenceAnalytics';
 import type {ProgressAttemptRow} from './features/analytics/progressAnalytics';
@@ -147,6 +146,7 @@ function AuthenticatedApp({
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isSessionStartPending, setIsSessionStartPending] = useState(false);
   const sessionStartPendingRef = useRef(false);
+  const pendingAttemptsRef = useRef(new Map<string, StudyAttemptInput[]>());
 
   // Modals & Overlay States
   const [showStudyScopeModal, setShowStudyScopeModal] = useState<boolean>(false);
@@ -263,6 +263,7 @@ function AuthenticatedApp({
     isExtraReview: boolean,
   ) => {
     if (sessionStartPendingRef.current) return;
+    pendingAttemptsRef.current.clear();
     sessionStartPendingRef.current = true;
     setIsSessionStartPending(true);
     let sessionId: string | null = null;
@@ -384,25 +385,8 @@ function AuthenticatedApp({
 
   const handleAttempt = async (attempt: StudyAttemptInput) => {
     if (!client || !user || !activeSessionId) return;
-    const result = await recordStudyAttempt(
-      user.id,
-      activeSessionId,
-      attempt,
-    );
-    if (result.error) showToast(result.error);
-    else {
-      setAttemptAnalytics((previous) => [...previous, {
-        learning_card_id: attempt.learningCardId,
-        sentence_key: attempt.sentenceKey ?? null,
-        question_type: attempt.questionType,
-        is_correct: attempt.isCorrect,
-        first_attempt: attempt.firstAttempt,
-        response_time_ms: attempt.responseTimeMs,
-        hint_level: attempt.hintLevel,
-        answer_revealed: attempt.answerRevealed,
-        created_at: new Date().toISOString(),
-      }]);
-    }
+    const current = pendingAttemptsRef.current.get(attempt.learningCardId) ?? [];
+    pendingAttemptsRef.current.set(attempt.learningCardId, [...current, attempt]);
   };
 
   const handleReviewCompleted = async (
@@ -425,49 +409,67 @@ function AuthenticatedApp({
         ...scheduled.persistence,
         ...(skillInput ? updateSkillScores(current.data, skillInput) : {}),
       };
+      const attempts = pendingAttemptsRef.current.get(learningCardId) ?? [];
+      if (attempts.length === 0 || !activeSessionId) {
+        showToast('Không tìm thấy lần trả lời đang chờ lưu. Vui lòng thử lại.');
+        return null;
+      }
+
+      const idempotencyKey = `${activeSessionId}:${learningCardId}:${attempts.map(({attemptNumber}) => attemptNumber).join('-')}`;
+      const result = await submitLearningReview({
+        userId: user.id,
+        sessionId: activeSessionId,
+        learningCardId,
+        idempotencyKey,
+        attempts,
+        schedule: next,
+      });
+      if (result.error) {
+        showToast(result.error);
+        return null;
+      }
+
+      pendingAttemptsRef.current.delete(learningCardId);
+      setAttemptAnalytics((previous) => [...previous, ...attempts.map((attempt) => ({
+        learning_card_id: attempt.learningCardId,
+        sentence_key: attempt.sentenceKey ?? null,
+        question_type: attempt.questionType,
+        is_correct: attempt.isCorrect,
+        first_attempt: attempt.firstAttempt,
+        response_time_ms: attempt.responseTimeMs,
+        hint_level: attempt.hintLevel,
+        answer_revealed: attempt.answerRevealed,
+        created_at: new Date().toISOString(),
+      }))]);
       setWords((previous) => previous.map((word) => ({
         ...word,
         meanings: word.meanings.map((card) => card.id === learningCardId
-              ? {
-              ...card,
-              memoryScore: next.memory_score,
-              memoryStrength: next.memory_strength,
-              fsrsState: next.fsrs_state,
-              fsrsStability: next.fsrs_stability,
-              fsrsDifficulty: next.fsrs_difficulty,
-              fsrsElapsedDays: next.fsrs_elapsed_days,
-              fsrsScheduledDays: next.fsrs_scheduled_days,
-              fsrsLearningSteps: next.fsrs_learning_steps,
-              fsrsReps: next.fsrs_reps,
-              fsrsLapses: next.fsrs_lapses,
-              fsrsRetrievability: next.fsrs_retrievability,
-              reviewIntervalDays: next.review_interval_days,
-              nextReviewDate: next.next_review_at,
-              lastReviewedDate: next.last_reviewed_at ?? undefined,
-              recognitionScore: next.recognition_score,
-              recallScore: next.recall_score,
-              spellingScore: next.spelling_score,
-              contextScore: next.context_score,
-              wordStructureScore: next.word_structure_score,
-              responseTimeSampleCount: next.response_time_sample_count,
-              responseTimeAverageMs: next.response_time_average_ms,
-            }
+          ? {
+            ...card,
+            memoryScore: next.memory_score,
+            memoryStrength: next.memory_strength,
+            fsrsState: next.fsrs_state,
+            fsrsStability: next.fsrs_stability,
+            fsrsDifficulty: next.fsrs_difficulty,
+            fsrsElapsedDays: next.fsrs_elapsed_days,
+            fsrsScheduledDays: next.fsrs_scheduled_days,
+            fsrsLearningSteps: next.fsrs_learning_steps,
+            fsrsReps: next.fsrs_reps,
+            fsrsLapses: next.fsrs_lapses,
+            fsrsRetrievability: next.fsrs_retrievability,
+            reviewIntervalDays: next.review_interval_days,
+            nextReviewDate: next.next_review_at,
+            lastReviewedDate: next.last_reviewed_at ?? undefined,
+            recognitionScore: next.recognition_score,
+            recallScore: next.recall_score,
+            spellingScore: next.spelling_score,
+            contextScore: next.context_score,
+            wordStructureScore: next.word_structure_score,
+            responseTimeSampleCount: next.response_time_sample_count,
+            responseTimeAverageMs: next.response_time_average_ms,
+          }
           : card),
       })));
-
-      try {
-        void updateLearningCardSchedule(
-          user.id,
-          learningCardId,
-          next,
-        ).then((result) => {
-          if (result.error) showToast(result.error);
-        }).catch(() => {
-          showToast('Không thể lưu lịch ôn tập. Tiến trình cục bộ vẫn được giữ.');
-        });
-      } catch {
-        showToast('Không thể lưu lịch ôn tập. Tiến trình cục bộ vẫn được giữ.');
-      }
 
       return scheduled;
     } catch {

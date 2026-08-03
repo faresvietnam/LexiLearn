@@ -93,6 +93,8 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
   const [showAnswerReview, setShowAnswerReview] = useState<boolean>(false);
   const [reviewSchedule, setReviewSchedule] =
     useState<ScheduledLearningCard | null>(null);
+  const [isReviewSaving, setIsReviewSaving] = useState(false);
+  const [reviewSaveError, setReviewSaveError] = useState(false);
 
   // Question timing & stats
   const sessionStartTimeRef = useRef<number>(Date.now());
@@ -101,6 +103,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
   const firstAttemptSuccessesRef = useRef<number>(0);
   const totalAttemptedQuestionsRef = useRef<number>(0);
   const reviewRequestIdRef = useRef(0);
+  const reviewRetryRef = useRef<(() => void) | null>(null);
 
   // Focus ref for input
   const inputRef = useRef<HTMLInputElement>(null);
@@ -142,6 +145,8 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
     setAccumulatedErrorTypes([]);
     setShowAnswerReview(false);
     setReviewSchedule(null);
+    setIsReviewSaving(false);
+    setReviewSaveError(false);
     reviewRequestIdRef.current += 1;
     setTimeout(() => inputRef.current?.focus(), 100);
   };
@@ -272,28 +277,39 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
         });
         const requestId = ++reviewRequestIdRef.current;
 
-        try {
-          void Promise.resolve(onReviewCompleted(
-            currentQuestion.targetMeaningCard.id,
-            rating,
-            reviewedAt,
-            {
-              questionType: currentQuestion.type,
-              isCorrect: correct,
-              firstAttempt: isFirstTry,
-              responseTimeMs,
-              hintLevel,
-              answerRevealed: hintLevel >= 5,
-              errorTypes: accumulatedErrorTypes,
-            },
-          )).then((schedule) => {
-            if (reviewRequestIdRef.current === requestId) {
+        const saveReview = () => {
+          setIsReviewSaving(true);
+          setReviewSaveError(false);
+          try {
+            void Promise.resolve(onReviewCompleted(
+              currentQuestion.targetMeaningCard.id,
+              rating,
+              reviewedAt,
+              {
+                questionType: currentQuestion.type,
+                isCorrect: correct,
+                firstAttempt: isFirstTry,
+                responseTimeMs,
+                hintLevel,
+                answerRevealed: hintLevel >= 5,
+                errorTypes: accumulatedErrorTypes,
+              },
+            )).then((schedule) => {
+              if (reviewRequestIdRef.current !== requestId) return;
               setReviewSchedule(schedule);
-            }
-          }).catch(() => undefined);
-        } catch {
-          // Scheduling persistence never interrupts Answer Review or Continue.
-        }
+              setIsReviewSaving(false);
+              setReviewSaveError(!schedule);
+            }).catch(() => {
+              setIsReviewSaving(false);
+              setReviewSaveError(true);
+            });
+          } catch {
+            setIsReviewSaving(false);
+            setReviewSaveError(true);
+          }
+        };
+        saveReview();
+        reviewRetryRef.current = saveReview;
       }
 
       // Autoplay audio if enabled
@@ -318,6 +334,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
 
   // Continue to Next Question
   const handleContinueNext = () => {
+    if (onReviewCompleted && (isReviewSaving || !reviewSchedule)) return;
     setShowAnswerReview(false);
     if (currentIndex + 1 < questions.length) {
       setCurrentIndex((prev) => prev + 1);
@@ -797,6 +814,19 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
               </div>
             )}
 
+            {reviewSaveError && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 space-y-2">
+                <p>Chưa lưu được tiến trình ôn tập. Hãy thử lại trước khi tiếp tục.</p>
+                <button
+                  type="button"
+                  onClick={() => reviewRetryRef.current?.()}
+                  className="rounded-lg bg-rose-600 px-3 py-2 font-semibold text-white"
+                >
+                  Thử lưu lại
+                </button>
+              </div>
+            )}
+
             {/* All OTHER Meanings Display (Requirement Section 3.4) */}
             {currentQuestion.word.meanings.length > 1 && (
               <div className="space-y-2">
@@ -846,9 +876,10 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
             <button
               id="btn-continue-overlay"
               onClick={handleContinueNext}
-              className="w-full py-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-lg shadow-md shadow-indigo-100 flex items-center justify-center gap-2 transition"
+              disabled={Boolean(onReviewCompleted && (isReviewSaving || !reviewSchedule))}
+              className="w-full py-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 text-white font-bold text-lg shadow-md shadow-indigo-100 flex items-center justify-center gap-2 transition"
             >
-              <span>Tiếp tục (Continue ↵)</span>
+              <span>{isReviewSaving ? 'Đang lưu...' : 'Tiếp tục (Continue ↵)'}</span>
               <CornerDownLeft className="w-5 h-5" />
             </button>
           </div>

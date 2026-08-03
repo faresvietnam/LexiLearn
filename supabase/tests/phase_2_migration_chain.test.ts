@@ -41,6 +41,9 @@ describe('database migration chain', () => {
       '20260731101500_remove_private_word_moderation.sql',
       '20260731102825_add_private_word_learning_content.sql',
       '20260731160000_add_admin_user_stats.sql',
+      '20260803090000_reset_dev_review_history.sql',
+      '20260803090100_add_review_idempotency.sql',
+      '20260803090200_add_submit_learning_review_rpc.sql',
     ]);
   });
 

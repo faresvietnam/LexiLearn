@@ -24,11 +24,10 @@ const {
   getStudyAttemptAnalytics,
   loadLearnerState,
   pauseStudySession,
-  recordStudyAttempt,
   reserveDailyNewWordQuota,
   signOut,
   supabaseClient,
-  updateLearningCardSchedule,
+  submitLearningReview,
   authState,
 } = vi.hoisted(() => ({
   completeStudySession: vi.fn(),
@@ -38,11 +37,10 @@ const {
   getStudyAttemptAnalytics: vi.fn(),
   loadLearnerState: vi.fn(),
   pauseStudySession: vi.fn(),
-  recordStudyAttempt: vi.fn(),
   reserveDailyNewWordQuota: vi.fn(),
   signOut: vi.fn(),
   supabaseClient: {},
-  updateLearningCardSchedule: vi.fn(),
+  submitLearningReview: vi.fn(),
   authState: {
     userId: 'user-1',
   },
@@ -79,9 +77,8 @@ vi.mock('./features/persistence/sessionRepository', () => ({
   getDailyNewWordUsage,
   getStudyAttemptAnalytics,
   pauseStudySession,
-  recordStudyAttempt,
   reserveDailyNewWordQuota,
-  updateLearningCardSchedule,
+  submitLearningReview,
 }));
 
 import App from './App';
@@ -104,10 +101,9 @@ beforeEach(() => {
   completeStudySession.mockReset();
   getLearningCardSchedule.mockReset();
   pauseStudySession.mockReset();
-  recordStudyAttempt.mockReset();
   getDailyNewWordUsage.mockReset();
   reserveDailyNewWordQuota.mockReset();
-  updateLearningCardSchedule.mockReset();
+  submitLearningReview.mockReset();
   loadLearnerState.mockReset();
   loadLearnerState.mockResolvedValue({
     data: {
@@ -122,7 +118,6 @@ beforeEach(() => {
   });
   completeStudySession.mockResolvedValue({data: null, error: null});
   pauseStudySession.mockResolvedValue({data: null, error: null});
-  recordStudyAttempt.mockResolvedValue({data: null, error: null});
   getDailyNewWordUsage.mockResolvedValue({data: 0, error: null});
   reserveDailyNewWordQuota.mockImplementation(async (_userId: string, _date: string, _limit: number, count: number) => ({data: count, error: null}));
   getLearningCardSchedule.mockResolvedValue({
@@ -144,7 +139,7 @@ beforeEach(() => {
     error: null,
   });
   getStudyAttemptAnalytics.mockResolvedValue({data: [], error: null});
-  updateLearningCardSchedule.mockResolvedValue({data: null, error: null});
+  submitLearningReview.mockResolvedValue({data: null, error: null});
 });
 
 afterEach(() => {
@@ -247,7 +242,7 @@ describe('App authenticated identity state', () => {
 describe('App FSRS review scheduling', () => {
   it('updates the existing MeaningCard strength from a successful FSRS review', async () => {
     createStudySession.mockResolvedValue({data: 'session-1', error: null});
-    updateLearningCardSchedule.mockResolvedValue({data: null, error: null});
+    submitLearningReview.mockResolvedValue({data: null, error: null});
     render(<App />);
 
     fireEvent.click(
@@ -262,19 +257,20 @@ describe('App FSRS review scheduling', () => {
     expect(
       await screen.findByText('Predicted recall: 95%'),
     ).toBeInTheDocument();
-    expect(updateLearningCardSchedule).toHaveBeenCalledWith(
-      'user-1',
-      'meaning_unprecedented_1',
-      expect.objectContaining({
+    expect(submitLearningReview).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'user-1',
+      sessionId: 'session-1',
+      learningCardId: 'meaning_unprecedented_1',
+      schedule: expect.objectContaining({
         memory_score: 95,
         memory_strength: 'strong',
       }),
-    );
+    }));
   });
 
   it('persists a completed retry schedule while a rejected write leaves Answer Review usable', async () => {
     createStudySession.mockResolvedValue({data: 'session-1', error: null});
-    updateLearningCardSchedule.mockRejectedValue(new Error('offline'));
+    submitLearningReview.mockResolvedValue({data: null, error: 'Không thể lưu lần trả lời. Tiến trình cục bộ vẫn được giữ.'});
     render(<App />);
 
     fireEvent.click(
@@ -292,26 +288,13 @@ describe('App FSRS review scheduling', () => {
     }));
     fireEvent.click(screen.getByRole('button', {name: /Check/i}));
 
-    expect(
-      await screen.findByText('Predicted recall: 100%'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Review again: in 10 minutes')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', {name: /Tiếp tục/i}),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Không thể lưu lần trả lời. Tiến trình cục bộ vẫn được giữ.')).toBeInTheDocument();
+    expect(screen.getByText('Chưa lưu được tiến trình ôn tập. Hãy thử lại trước khi tiếp tục.')).toBeInTheDocument();
 
     expect(getLearningCardSchedule).toHaveBeenCalledWith(
       'user-1',
       'meaning_unprecedented_1',
     );
-    expect(updateLearningCardSchedule).toHaveBeenCalledWith(
-      'user-1',
-      'meaning_unprecedented_1',
-      expect.objectContaining({
-        fsrs_state_version: 1,
-        fsrs_reps: 1,
-        memory_score: 100,
-      }),
-    );
+    expect(submitLearningReview).toHaveBeenCalled();
   });
 });

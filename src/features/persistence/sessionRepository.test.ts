@@ -1,8 +1,9 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {StudyAttemptInput, StudySessionInput} from '../../types';
 
-const {from, getSupabaseClient} = vi.hoisted(() => ({
+const {from, rpc, getSupabaseClient} = vi.hoisted(() => ({
   from: vi.fn(),
+  rpc: vi.fn(),
   getSupabaseClient: vi.fn(),
 }));
 
@@ -15,6 +16,7 @@ import {
   getSentenceAttemptAnalytics,
   pauseStudySession,
   recordStudyAttempt,
+  submitLearningReview,
   updateLearningCardSchedule,
 } from './sessionRepository';
 
@@ -63,8 +65,9 @@ const cardSchedule = {
 describe('session persistence repository', () => {
   beforeEach(() => {
     from.mockReset();
+    rpc.mockReset();
     getSupabaseClient.mockReset();
-    getSupabaseClient.mockReturnValue({from});
+    getSupabaseClient.mockReturnValue({from, rpc});
   });
 
   it('creates an active session from an immutable scope snapshot', async () => {
@@ -137,6 +140,27 @@ describe('session persistence repository', () => {
     );
     expect(filterId).toHaveBeenCalledWith('id', 'card-1');
     expect(filterUser).toHaveBeenCalledWith('user_id', 'user-1');
+  });
+
+  it('submits attempts and the FSRS schedule through one RPC', async () => {
+    rpc.mockResolvedValue({data: {event_id: 'event-1'}, error: null});
+
+    await expect(submitLearningReview({
+      userId: 'user-1',
+      sessionId: 'session-1',
+      learningCardId: 'card-1',
+      idempotencyKey: 'session-1:card-1:1',
+      attempts: [attemptInput],
+      schedule: cardSchedule,
+    })).resolves.toEqual({data: null, error: null});
+
+    expect(rpc).toHaveBeenCalledWith('submit_learning_review', {
+      p_session_id: 'session-1',
+      p_learning_card_id: 'card-1',
+      p_idempotency_key: 'session-1:card-1:1',
+      p_attempts: [attemptInput],
+      p_schedule: cardSchedule,
+    });
   });
 
   it('loads only the authenticated user sentence attempts', async () => {
