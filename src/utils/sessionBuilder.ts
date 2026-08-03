@@ -64,7 +64,11 @@ export function buildSessionQuestions(
 
       if (isFsrsNew) {
         newCards.push({ word, meaningCard, isNewWord: true, stage: 1 });
-      } else if (isDue || isExtraReview) {
+      } else if (
+        isDue
+        || meaningCard.memoryStrength === 'critical'
+        || isExtraReview
+      ) {
         reviewCards.push({ word, meaningCard, isNewWord: false, stage });
       }
     });

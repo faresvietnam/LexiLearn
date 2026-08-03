@@ -93,6 +93,48 @@ describe('buildSessionQuestions', () => {
     expect(session.totalAvailableReviews).toBe(0);
   });
 
+  it('includes an already-started critical card before its due time in a normal session', () => {
+    const criticalCard = meaningCard('critical-future', {
+      fsrsState: 2,
+      memoryStrength: 'critical',
+      memoryScore: 10,
+      nextReviewDate: '2099-01-01T00:00:00.000Z',
+    });
+
+    const session = buildSessionQuestions(
+      [word('critical-future', [criticalCard])],
+      scope,
+      settings,
+    );
+
+    expect(session.questions).toHaveLength(1);
+    expect(session.questions[0].word.id).toBe('critical-future');
+    expect(session.questions[0].isNewWord).toBe(false);
+    expect(session.totalAvailableReviews).toBe(1);
+  });
+
+  it.each([
+    ['weak', 30],
+    ['stable', 60],
+    ['strong', 90],
+  ] as const)('keeps a future-due %s card out of a normal session', (memoryStrength, memoryScore) => {
+    const futureCard = meaningCard(`${memoryStrength}-future`, {
+      fsrsState: 2,
+      memoryStrength,
+      memoryScore,
+      nextReviewDate: '2099-01-01T00:00:00.000Z',
+    });
+
+    const session = buildSessionQuestions(
+      [word(`${memoryStrength}-future`, [futureCard])],
+      scope,
+      settings,
+    );
+
+    expect(session.questions).toEqual([]);
+    expect(session.totalAvailableReviews).toBe(0);
+  });
+
   it('includes persisted non-new FSRS cards even when legacy history is empty', () => {
     const scheduledCard = meaningCard('scheduled', {
       fsrsState: 2,
