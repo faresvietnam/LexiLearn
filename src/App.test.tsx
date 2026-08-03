@@ -24,7 +24,6 @@ const {
   getStudyAttemptAnalytics,
   loadLearnerState,
   pauseStudySession,
-  reserveDailyNewWordQuota,
   signOut,
   supabaseClient,
   submitLearningReview,
@@ -37,7 +36,6 @@ const {
   getStudyAttemptAnalytics: vi.fn(),
   loadLearnerState: vi.fn(),
   pauseStudySession: vi.fn(),
-  reserveDailyNewWordQuota: vi.fn(),
   signOut: vi.fn(),
   supabaseClient: {},
   submitLearningReview: vi.fn(),
@@ -77,7 +75,6 @@ vi.mock('./features/persistence/sessionRepository', () => ({
   getDailyNewWordUsage,
   getStudyAttemptAnalytics,
   pauseStudySession,
-  reserveDailyNewWordQuota,
   submitLearningReview,
 }));
 
@@ -102,7 +99,6 @@ beforeEach(() => {
   getLearningCardSchedule.mockReset();
   pauseStudySession.mockReset();
   getDailyNewWordUsage.mockReset();
-  reserveDailyNewWordQuota.mockReset();
   submitLearningReview.mockReset();
   loadLearnerState.mockReset();
   loadLearnerState.mockResolvedValue({
@@ -119,7 +115,6 @@ beforeEach(() => {
   completeStudySession.mockResolvedValue({data: null, error: null});
   pauseStudySession.mockResolvedValue({data: null, error: null});
   getDailyNewWordUsage.mockResolvedValue({data: 0, error: null});
-  reserveDailyNewWordQuota.mockImplementation(async (_userId: string, _date: string, _limit: number, count: number) => ({data: count, error: null}));
   getLearningCardSchedule.mockResolvedValue({
     data: {
       id: 'meaning_unprecedented_1',
@@ -261,6 +256,7 @@ describe('App FSRS review scheduling', () => {
       userId: 'user-1',
       sessionId: 'session-1',
       learningCardId: 'meaning_unprecedented_1',
+      isNewWord: false,
       schedule: expect.objectContaining({
         memory_score: 95,
         memory_strength: 'strong',

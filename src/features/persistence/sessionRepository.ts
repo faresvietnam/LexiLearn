@@ -20,8 +20,7 @@ const CARD_UPDATE_ERROR =
 const ANALYTICS_READ_ERROR =
   'Không thể tải thống kê câu. Tiến trình học vẫn được giữ.';
 const NEW_WORD_QUOTA_ERROR =
-  'Không thể cập nhật quota từ mới hôm nay.';
-
+  'Không thể tải quota từ mới. Tiến trình học vẫn được giữ.';
 const LEARNING_CARD_SCHEDULE_COLUMNS =
   'id, next_review_at, last_reviewed_at, fsrs_state_version, fsrs_state, fsrs_stability, fsrs_difficulty, fsrs_elapsed_days, fsrs_scheduled_days, fsrs_learning_steps, fsrs_reps, fsrs_lapses, fsrs_retrievability, recognition_score, recall_score, spelling_score, context_score, word_structure_score, response_time_sample_count, response_time_average_ms';
 
@@ -101,6 +100,9 @@ export async function submitLearningReview(input: {
   sessionId: string;
   learningCardId: string;
   idempotencyKey: string;
+  isNewWord: boolean;
+  studyDate: string;
+  dailyLimit: number;
   attempts: StudyAttemptInput[];
   schedule: LearningCardScheduleUpdate;
 }): Promise<PersistenceResult<null>> {
@@ -112,6 +114,9 @@ export async function submitLearningReview(input: {
       p_session_id: input.sessionId,
       p_learning_card_id: input.learningCardId,
       p_idempotency_key: input.idempotencyKey,
+      p_is_new_word: input.isNewWord,
+      p_study_date: input.studyDate,
+      p_daily_limit: input.dailyLimit,
       p_attempts: input.attempts.map(serializeStudyAttempt),
       p_schedule: input.schedule,
     });
@@ -159,36 +164,13 @@ export async function getDailyNewWordUsage(
   try {
     const {data, error} = await client
       .from('daily_new_word_usage')
-      .select('reserved_count')
+      .select('completed_count')
       .eq('user_id', userId)
       .eq('study_date', studyDate)
       .maybeSingle();
     return error
       ? {data: null, error: NEW_WORD_QUOTA_ERROR}
-      : {data: data?.reserved_count ?? 0, error: null};
-  } catch {
-    return {data: null, error: NEW_WORD_QUOTA_ERROR};
-  }
-}
-
-export async function reserveDailyNewWordQuota(
-  userId: string,
-  studyDate: string,
-  dailyLimit: number,
-  requestedCount: number,
-): Promise<PersistenceResult<number>> {
-  const client = getSupabaseClient();
-  if (!client) return {data: requestedCount, error: null};
-  try {
-    const {data, error} = await client.rpc('reserve_new_word_quota', {
-      requested_user_id: userId,
-      requested_study_date: studyDate,
-      daily_limit: dailyLimit,
-      requested_count: requestedCount,
-    });
-    return error || data !== requestedCount
-      ? {data: null, error: NEW_WORD_QUOTA_ERROR}
-      : {data, error: null};
+      : {data: data?.completed_count ?? 0, error: null};
   } catch {
     return {data: null, error: NEW_WORD_QUOTA_ERROR};
   }

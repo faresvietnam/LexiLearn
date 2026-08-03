@@ -2,6 +2,9 @@ create or replace function public.submit_learning_review(
   p_session_id uuid,
   p_learning_card_id uuid,
   p_idempotency_key text,
+  p_is_new_word boolean,
+  p_study_date date,
+  p_daily_limit integer,
   p_attempts jsonb,
   p_schedule jsonb
 )
@@ -16,6 +19,7 @@ declare
   v_existing_result jsonb;
   v_card jsonb;
   v_attempt jsonb;
+  v_previous_state smallint;
 begin
   if v_user_id is null then
     raise exception 'not authenticated' using errcode = '42501';
@@ -28,6 +32,9 @@ begin
   end if;
   if jsonb_typeof(p_schedule) <> 'object' then
     raise exception 'schedule must be an object' using errcode = '22023';
+  end if;
+  if p_daily_limit < 0 then
+    raise exception 'daily limit must be non-negative' using errcode = '22023';
   end if;
 
   perform 1
@@ -49,6 +56,10 @@ begin
     raise exception 'learning card not found' using errcode = '42501';
   end if;
 
+  select fsrs_state into v_previous_state
+  from public.learning_cards
+  where id = p_learning_card_id and user_id = v_user_id;
+
   insert into public.review_events (
     user_id, session_id, learning_card_id, idempotency_key
   ) values (
@@ -64,6 +75,22 @@ begin
       raise exception 'review is already being submitted' using errcode = '40001';
     end if;
     return v_existing_result;
+  end if;
+
+  if p_is_new_word and v_previous_state = 0 then
+    insert into public.daily_new_word_usage(user_id, study_date, completed_count)
+    values (v_user_id, p_study_date, 0)
+    on conflict (user_id, study_date) do nothing;
+
+    update public.daily_new_word_usage
+    set completed_count = completed_count + 1,
+        updated_at = now()
+    where user_id = v_user_id
+      and study_date = p_study_date
+      and completed_count + 1 <= p_daily_limit;
+    if not found then
+      raise exception 'daily new word limit reached' using errcode = '22023';
+    end if;
   end if;
 
   for v_attempt in select value from jsonb_array_elements(p_attempts)
@@ -142,5 +169,5 @@ begin
 end;
 $$;
 
-revoke all on function public.submit_learning_review(uuid, uuid, text, jsonb, jsonb) from public, anon;
-grant execute on function public.submit_learning_review(uuid, uuid, text, jsonb, jsonb) to authenticated;
+revoke all on function public.submit_learning_review(uuid, uuid, text, boolean, date, integer, jsonb, jsonb) from public, anon;
+grant execute on function public.submit_learning_review(uuid, uuid, text, boolean, date, integer, jsonb, jsonb) to authenticated;

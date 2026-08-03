@@ -51,7 +51,6 @@ import {
   getLearningCardSchedule,
   getStudyAttemptAnalytics,
   pauseStudySession,
-  reserveDailyNewWordQuota,
   submitLearningReview,
 } from './features/persistence/sessionRepository';
 import {aggregateSentenceAnalytics} from './features/analytics/sentenceAnalytics';
@@ -314,23 +313,6 @@ function AuthenticatedApp({
       showToast('Không có từ vựng nào cần học trong Study Scope hiện tại!');
       return;
     }
-    const newWordsInSession = isExtraReview
-      ? 0
-      : questions.filter((question) => question.isNewWord).length;
-    if (newWordsInSession > 0 && client && user) {
-      const studyDate = getStudyDate(new Date(), 'Asia/Ho_Chi_Minh');
-      const reservation = await reserveDailyNewWordQuota(
-        user.id,
-        studyDate,
-        settings.newWordsPerDay,
-        newWordsInSession,
-      );
-      if (reservation.error) {
-        showToast(reservation.error);
-        return;
-      }
-      setDailyNewWordsStarted((current) => current + newWordsInSession);
-    }
     await activateLearningSession(questions, isExtraReview);
   };
 
@@ -416,11 +398,17 @@ function AuthenticatedApp({
       }
 
       const idempotencyKey = `${activeSessionId}:${learningCardId}:${attempts.map(({attemptNumber}) => attemptNumber).join('-')}`;
+      const reviewedQuestion = activeQuestions.find(
+        (question) => question.targetMeaningCard.id === learningCardId,
+      );
       const result = await submitLearningReview({
         userId: user.id,
         sessionId: activeSessionId,
         learningCardId,
         idempotencyKey,
+        isNewWord: reviewedQuestion?.isNewWord ?? false,
+        studyDate: getStudyDate(reviewedAt, 'Asia/Ho_Chi_Minh'),
+        dailyLimit: settings.newWordsPerDay,
         attempts,
         schedule: next,
       });
@@ -430,6 +418,10 @@ function AuthenticatedApp({
       }
 
       pendingAttemptsRef.current.delete(learningCardId);
+      if (reviewedQuestion?.isNewWord) {
+        setDailyNewWordsStarted((current) => current + 1);
+        void refreshDailyNewWordUsage();
+      }
       setAttemptAnalytics((previous) => [...previous, ...attempts.map((attempt) => ({
         learning_card_id: attempt.learningCardId,
         sentence_key: attempt.sentenceKey ?? null,

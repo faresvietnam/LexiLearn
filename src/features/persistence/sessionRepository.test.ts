@@ -150,6 +150,9 @@ describe('session persistence repository', () => {
       sessionId: 'session-1',
       learningCardId: 'card-1',
       idempotencyKey: 'session-1:card-1:1',
+      isNewWord: true,
+      studyDate: '2026-08-03',
+      dailyLimit: 10,
       attempts: [attemptInput],
       schedule: cardSchedule,
     })).resolves.toEqual({data: null, error: null});
@@ -158,6 +161,9 @@ describe('session persistence repository', () => {
       p_session_id: 'session-1',
       p_learning_card_id: 'card-1',
       p_idempotency_key: 'session-1:card-1:1',
+      p_is_new_word: true,
+      p_study_date: '2026-08-03',
+      p_daily_limit: 10,
       p_attempts: [{
         learning_card_id: 'card-1',
         question_type: 'full_word_typing',

@@ -45,6 +45,7 @@ describe('database migration chain', () => {
       '20260803090100_add_review_idempotency.sql',
       '20260803090200_add_submit_learning_review_rpc.sql',
       '20260803090300_harden_admin_user_stats.sql',
+      '20260803090400_complete_new_word_quota.sql',
     ]);
   });
 
