@@ -393,6 +393,38 @@ describe('LearningSessionView attempt persistence contract', () => {
     ).toBeInTheDocument();
   });
 
+  it('continues with Enter after the asynchronous FSRS review finishes saving', async () => {
+    const onFinishSession = vi.fn();
+
+    render(
+      <LearningSessionView
+        questions={[question]}
+        settings={settings}
+        isExtraReview={false}
+        onMeaningCardUpdated={() => undefined}
+        onAttempt={() => undefined}
+        onReviewCompleted={async (_cardId, rating, reviewedAt) =>
+          scheduleCard(newCardRow, rating, reviewedAt)}
+        onFinishSession={onFinishSession}
+        onExitSession={() => undefined}
+      />
+    );
+
+    fireEvent.change(screen.getByPlaceholderText(
+      'Gõ từ tiếng Anh tại đây...',
+    ), {target: {value: 'remember'}});
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', {name: /Check/i}));
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText(/Predicted recall:/i)).toBeInTheDocument();
+    fireEvent.keyDown(window, {key: 'Enter'});
+
+    expect(onFinishSession).toHaveBeenCalledOnce();
+  });
+
   it('emits two ordered immutable attempt records for a retry', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-29T13:00:00.000Z'));

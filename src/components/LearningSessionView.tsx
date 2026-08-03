@@ -436,6 +436,8 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
     showPauseMenu,
     showHintModal,
     hintLevel,
+    isReviewSaving,
+    reviewSchedule,
     currentQuestion,
     selectedMcOption,
     selectedParts,
