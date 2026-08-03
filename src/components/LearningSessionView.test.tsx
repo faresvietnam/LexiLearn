@@ -241,6 +241,25 @@ describe('LearningSessionView session completion', () => {
     expect(updatedCard?.history[0].hintLevelUsed).toBe(1);
   });
 
+  it('does not intercept the H key while typing an answer', () => {
+    render(
+      <LearningSessionView
+        questions={[question]}
+        settings={settings}
+        isExtraReview={false}
+        onMeaningCardUpdated={() => undefined}
+        onAttempt={() => undefined}
+        onFinishSession={() => undefined}
+        onExitSession={() => undefined}
+      />
+    );
+
+    const answerInput = screen.getByPlaceholderText('Gõ từ tiếng Anh tại đây...');
+    fireEvent.keyDown(answerInput, {key: 'h'});
+
+    expect(screen.queryByText(/Gợi ý - Level/)).not.toBeInTheDocument();
+  });
+
   it('accepts outer whitespace in word-part typing like the character diff normalizer', () => {
     const wordPartQuestion: Question = {
       ...question,

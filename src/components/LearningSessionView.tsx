@@ -349,6 +349,11 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
         || target instanceof HTMLTextAreaElement
         || target?.isContentEditable === true;
 
+      // Typing owns the keyboard while an answer field is focused. Enter is
+      // intentionally kept as the check/continue action; every other session
+      // shortcut must pass through to the input unchanged.
+      if (isEditableTarget && e.key !== 'Enter') return;
+
       // Escape for Pause Menu
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -376,6 +381,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
 
       // 'H' key for Hint
       if ((e.key === 'h' || e.key === 'H') && !isChecked) {
+        if (isEditableTarget) return;
         e.preventDefault();
         setShowHintModal((prev) => !prev);
         setHintLevel((prev) => Math.min(5, prev + 1));
