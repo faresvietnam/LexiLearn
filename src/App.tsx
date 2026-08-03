@@ -220,6 +220,13 @@ function AuthenticatedApp({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  const refreshDailyNewWordUsage = async () => {
+    if (!client || !user) return;
+    const studyDate = getStudyDate(new Date(), 'Asia/Ho_Chi_Minh');
+    const usage = await getDailyNewWordUsage(user.id, studyDate);
+    if (usage.data !== null) setDailyNewWordsStarted(usage.data);
+  };
+
   if (client && (isHydrating || !settings || !studyScope)) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-6">
@@ -363,6 +370,7 @@ function AuthenticatedApp({
       `Hoàn thành Session! Độ chính xác lần đầu: ${stats.firstAttemptAccuracy}% • Đã ôn ${stats.reviewsCompleted} card(s).`
     );
     setCurrentTab('dashboard');
+    void refreshDailyNewWordUsage();
     if (client && user && sessionId) {
       void completeStudySession(
         user.id,
