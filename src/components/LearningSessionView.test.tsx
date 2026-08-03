@@ -272,7 +272,9 @@ describe('LearningSessionView session completion', () => {
       />
     );
 
-    fireEvent.change(screen.getByPlaceholderText('root'), {
+    const rootInput = screen.getByPlaceholderText('root');
+    expect(rootInput).toHaveFocus();
+    fireEvent.change(rootInput, {
       target: { value: ' remember ' },
     });
     fireEvent.click(screen.getByRole('button', { name: /Check/i }));

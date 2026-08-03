@@ -21,6 +21,8 @@ Use a maintained TypeScript FSRS library with `desired_retention = 0.90`. The sc
 
 Learning/relearning steps remain `10 minutes → 1 day → FSRS review`. The current retry remains in-session and does not erase the failed rating.
 
+Stage 2 word-part selection asks for the English word from its Vietnamese meaning and is generated only when the word has at least two stored parts. Root-only words use full-word typing instead of a word-part selection/typing question.
+
 ## Persistence and UI
 
 - Add versioned FSRS-compatible columns/state to `learning_cards` through a forward migration.

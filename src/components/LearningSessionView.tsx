@@ -344,6 +344,11 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
   // Keyboard Navigation Listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isEditableTarget = target instanceof HTMLInputElement
+        || target instanceof HTMLTextAreaElement
+        || target?.isContentEditable === true;
+
       // Escape for Pause Menu
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -379,6 +384,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
 
       // 'P' key for Audio
       if (e.key === 'p' || e.key === 'P') {
+        if (isEditableTarget) return;
         e.preventDefault();
         handlePlayAudio();
         return;
@@ -635,12 +641,13 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
                   Stage 4: hỗ trợ một phần — hãy hoàn thiện các thành phần còn thiếu
                 </div>
               )}
-              {currentQuestion.wordParts?.map((part) => (
+              {currentQuestion.wordParts?.map((part, partIndex) => (
                 <div key={part.id} className="flex flex-col items-center gap-1">
                   <span className="text-xs text-slate-500 uppercase font-bold">{part.type}</span>
                   <input
                     type="text"
                     value={partTypingValues[part.id] || ''}
+                    autoFocus={partIndex === 0}
                     onChange={(e) => {
                       if (isChecked && !isCorrect) {
                         setIsChecked(false);

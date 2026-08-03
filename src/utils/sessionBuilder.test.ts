@@ -193,6 +193,46 @@ describe('buildSessionQuestions', () => {
     expect(session.questions[0].wordParts).toEqual([]);
   });
 
+  it('uses Vietnamese meaning for word-part selection and requires multiple parts', () => {
+    const compound = word('repair', [meaningCard('repair', {
+      meaning: 'sửa chữa',
+      memoryStrength: 'weak',
+      nextReviewDate: '2000-01-01',
+    })]);
+    compound.wordStructure = [
+      {id: 're', text: 're', type: 'prefix', order: 0},
+      {id: 'pair', text: 'pair', type: 'root', order: 1},
+    ];
+    const compoundSession = buildSessionQuestions([compound], scope, settings);
+    expect(compoundSession.questions[0].type).toBe('word_part_selection');
+    expect(compoundSession.questions[0].prompt).toContain('sửa chữa');
+    expect(compoundSession.questions[0].prompt).not.toContain('repair');
+
+    const typingCard = meaningCard('typing', {
+      meaning: 'đi vào',
+      memoryStrength: 'stable',
+      nextReviewDate: '2000-01-01',
+    });
+    const typingWord = word('come', [typingCard]);
+    typingWord.wordStructure = [
+      {id: 'com', text: 'com', type: 'root', order: 0},
+      {id: 'e', text: 'e', type: 'suffix', order: 1},
+    ];
+    const typingSession = buildSessionQuestions([typingWord], scope, settings);
+    expect(typingSession.questions[0].type).toBe('word_part_typing');
+    expect(typingSession.questions[0].prompt).toContain('đi vào');
+    expect(typingSession.questions[0].prompt).not.toContain('come');
+
+    const rootOnly = word('remain', [meaningCard('remain', {
+      meaning: 'còn lại',
+      memoryStrength: 'weak',
+      nextReviewDate: '2000-01-01',
+    })]);
+    rootOnly.wordStructure = [{id: 'remain', text: 'remain', type: 'root', order: 0}];
+    const rootOnlySession = buildSessionQuestions([rootOnly], scope, settings);
+    expect(rootOnlySession.questions[0].type).toBe('full_word_typing');
+  });
+
   it('spaces adjacent cards from the same word when another word is available in extra review', () => {
     const words = [
       word('alpha', [

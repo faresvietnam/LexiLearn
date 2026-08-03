@@ -179,9 +179,9 @@ function convertQueueToQuestions(queue: SessionQueueItem[], allWords: Word[]): Q
       else if (rand <= 1) qType = 'en_to_vn_mc';
       else if (rand === 2) qType = 'vn_to_en_mc';
       else qType = meaningCard.exampleSentences.length > 0 ? 'sentence_completion' : 'en_to_vn_mc';
-    } else if (stage === 2 && word.wordStructure.length > 0) {
+    } else if (stage === 2 && word.wordStructure.length >= 2) {
       qType = 'word_part_selection';
-    } else if ((stage === 3 || stage === 4) && word.wordStructure.length > 0) {
+    } else if ((stage === 3 || stage === 4) && word.wordStructure.length >= 2) {
       qType = 'word_part_typing'; // Stage 4 keeps partial assistance when parts exist
     } else {
       qType = 'full_word_typing';
@@ -238,9 +238,9 @@ function convertQueueToQuestions(queue: SessionQueueItem[], allWords: Word[]): Q
           : qType === 'vn_to_en_mc'
           ? `Chọn từ Tiếng Anh tương ứng với nghĩa: "${meaningCard.meaning}"`
           : qType === 'word_part_selection'
-          ? `Chọn và ghép các thành phần cấu tạo của từ "${word.word}"`
+          ? `Chọn và ghép các thành phần để tạo từ có nghĩa: "${meaningCard.meaning}"`
           : qType === 'word_part_typing'
-          ? `Gõ từng thành phần (Prefix, Root, Suffix) của từ "${word.word}"`
+          ? `Viết các thành phần tiếng Anh của từ có nghĩa: "${meaningCard.meaning}"`
           : qType === 'image_question'
           ? `Nhìn hình và gõ từ Tiếng Anh tương ứng`
           : qType === 'audio_question'
