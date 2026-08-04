@@ -3,6 +3,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import imagePresignFunction from "./api/images/presign";
+import analyzeFunction from "./api/ai/analyze";
 
 dotenv.config({ path: ".env.local" });
 dotenv.config();
@@ -35,6 +36,23 @@ async function forwardImageRequest(req: express.Request, res: express.Response) 
 
 app.post("/api/images/presign", forwardImageRequest);
 app.delete("/api/images/presign", forwardImageRequest);
+
+async function forwardAnalyzeRequest(req: express.Request, res: express.Response) {
+  const response = await analyzeFunction.fetch(new Request(
+    "http://localhost:3000/api/ai/analyze",
+    {
+      method: req.method,
+      headers: {
+        authorization: req.header("authorization") ?? "",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(req.body),
+    },
+  ));
+  res.status(response.status).send(await response.text());
+}
+
+app.post("/api/ai/analyze", forwardAnalyzeRequest);
 
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {

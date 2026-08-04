@@ -24,15 +24,19 @@ export type AiProviderSettings = Pick<
   | 'aiProvider'
   | 'geminiApiKey'
   | 'openAICompatibleBaseUrl'
-  | 'openAICompatibleToken'
+  | 'openAICompatibleTokenConfigured'
   | 'openAICompatibleModel'
 >;
+
+export type SaveAiProviderSettingsInput = AiProviderSettings & {
+  openAICompatibleToken?: string | null;
+};
 
 type AiProviderSettingsRow = {
   ai_provider: AiProviderSettings['aiProvider'];
   gemini_api_key: string | null;
   openai_compatible_base_url: string | null;
-  openai_compatible_token: string | null;
+  openai_compatible_token_configured: boolean;
   openai_compatible_model: string | null;
 };
 
@@ -43,14 +47,15 @@ function mapAiProviderSettingsRow(
     aiProvider: row.ai_provider,
     geminiApiKey: row.gemini_api_key,
     openAICompatibleBaseUrl: row.openai_compatible_base_url ?? '',
-    openAICompatibleToken: row.openai_compatible_token,
+    openAICompatibleTokenConfigured:
+      row.openai_compatible_token_configured,
     openAICompatibleModel: row.openai_compatible_model ?? '',
   };
 }
 
 export async function saveAiProviderSettings(
   userId: string,
-  settings: AiProviderSettings,
+  settings: SaveAiProviderSettingsInput,
 ): Promise<PersistenceResult<AiProviderSettings>> {
   const client = getSupabaseClient();
   if (!client) return {data: null, error: AI_PROVIDER_SAVE_ERROR};
@@ -61,23 +66,30 @@ export async function saveAiProviderSettings(
     openAICompatibleBaseUrl: settings.openAICompatibleBaseUrl
       .trim()
       .replace(/\/+$/, ''),
-    openAICompatibleToken: settings.openAICompatibleToken?.trim() || null,
+    openAICompatibleTokenConfigured:
+      settings.openAICompatibleTokenConfigured,
     openAICompatibleModel: settings.openAICompatibleModel.trim(),
+  };
+  const updatePayload = {
+    ai_provider: normalized.aiProvider,
+    gemini_api_key: normalized.geminiApiKey,
+    openai_compatible_base_url:
+      normalized.openAICompatibleBaseUrl || null,
+    openai_compatible_model: normalized.openAICompatibleModel || null,
+    ...('openAICompatibleToken' in settings
+      ? {
+          openai_compatible_token:
+            settings.openAICompatibleToken?.trim() || null,
+        }
+      : {}),
   };
   const {data, error} = (await client
     .from('user_settings')
-    .update({
-      ai_provider: normalized.aiProvider,
-      gemini_api_key: normalized.geminiApiKey,
-      openai_compatible_base_url:
-        normalized.openAICompatibleBaseUrl || null,
-      openai_compatible_token: normalized.openAICompatibleToken,
-      openai_compatible_model: normalized.openAICompatibleModel || null,
-    })
+    .update(updatePayload)
     .eq('user_id', userId)
     .select(
       'ai_provider, gemini_api_key, openai_compatible_base_url, '
-      + 'openai_compatible_token, openai_compatible_model',
+      + 'openai_compatible_token_configured, openai_compatible_model',
     )
     .single()) as {
       data: AiProviderSettingsRow | null;

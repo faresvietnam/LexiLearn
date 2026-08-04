@@ -45,7 +45,10 @@ import {
   saveSettings,
   saveStudyScope,
 } from './features/persistence/settingsRepository';
-import type {AiProviderSettings} from './features/persistence/settingsRepository';
+import type {
+  AiProviderSettings,
+  SaveAiProviderSettingsInput,
+} from './features/persistence/settingsRepository';
 import {
   completeStudySession,
   createStudySession,
@@ -659,9 +662,17 @@ function AuthenticatedApp({
   };
 
   const handleSaveAiProviderSettings = async (
-    providerSettings: AiProviderSettings,
+    providerSettings: SaveAiProviderSettingsInput,
   ) => {
-    let savedSettings = providerSettings;
+    let savedSettings: AiProviderSettings = {
+      aiProvider: providerSettings.aiProvider,
+      geminiApiKey: providerSettings.geminiApiKey,
+      openAICompatibleBaseUrl:
+        providerSettings.openAICompatibleBaseUrl,
+      openAICompatibleTokenConfigured:
+        providerSettings.openAICompatibleTokenConfigured,
+      openAICompatibleModel: providerSettings.openAICompatibleModel,
+    };
     if (client && user) {
       const result = await saveAiProviderSettings(user.id, providerSettings);
       if (result.error || !result.data) {
@@ -897,9 +908,8 @@ function AuthenticatedApp({
               aiSettings={{
                 aiProvider: settings.aiProvider,
                 geminiApiKey: settings.geminiApiKey,
-                openAICompatibleBaseUrl: settings.openAICompatibleBaseUrl,
-                openAICompatibleToken: settings.openAICompatibleToken,
-                openAICompatibleModel: settings.openAICompatibleModel,
+                openAICompatibleTokenConfigured:
+                  settings.openAICompatibleTokenConfigured,
               }}
               onAddWord={async (newWord) => {
                 return handleAddWord(newWord);

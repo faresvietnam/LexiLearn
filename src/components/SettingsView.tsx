@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Settings as SettingsIcon, Sliders, Download, Keyboard, KeyRound, Volume2 } from 'lucide-react';
 import { UserSettings, StudyScope, Word } from '../types';
-import type {AiProviderSettings} from '../features/persistence/settingsRepository';
+import type {
+  SaveAiProviderSettingsInput,
+} from '../features/persistence/settingsRepository';
 import {normalizeOpenAICompatibleBaseUrl} from '../features/openai/openAICompatibleClient';
 
 interface SettingsViewProps {
@@ -11,7 +13,7 @@ interface SettingsViewProps {
   onUpdateSettings: (newSettings: UserSettings) => Promise<boolean>;
   onSaveGeminiApiKey?: (apiKey: string | null) => Promise<boolean>;
   onSaveAiProviderSettings?: (
-    providerSettings: AiProviderSettings,
+    providerSettings: SaveAiProviderSettingsInput,
   ) => Promise<boolean>;
   onExportData: () => void;
 }
@@ -39,9 +41,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [openAIBaseUrl, setOpenAIBaseUrl] = useState(
     settings.openAICompatibleBaseUrl,
   );
-  const [openAIToken, setOpenAIToken] = useState(
-    settings.openAICompatibleToken ?? '',
-  );
+  const [openAIToken, setOpenAIToken] = useState('');
   const [openAIModel, setOpenAIModel] = useState(
     settings.openAICompatibleModel,
   );
@@ -57,7 +57,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             aiProvider: 'gemini',
             geminiApiKey: normalizedKey,
             openAICompatibleBaseUrl: openAIBaseUrl,
-            openAICompatibleToken: openAIToken.trim() || null,
+            openAICompatibleTokenConfigured:
+              settings.openAICompatibleTokenConfigured,
             openAICompatibleModel: openAIModel,
           })
         : await onSaveGeminiApiKey?.(normalizedKey);
@@ -75,7 +76,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             aiProvider: 'gemini',
             geminiApiKey: null,
             openAICompatibleBaseUrl: openAIBaseUrl,
-            openAICompatibleToken: openAIToken.trim() || null,
+            openAICompatibleTokenConfigured:
+              settings.openAICompatibleTokenConfigured,
             openAICompatibleModel: openAIModel,
           })
         : await onSaveGeminiApiKey?.(null);
@@ -98,7 +100,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
     const token = openAIToken.trim();
     const model = openAIModel.trim();
-    if (!token || !model) {
+    if ((!token && !settings.openAICompatibleTokenConfigured) || !model) {
       setProviderError('Vui lòng nhập đầy đủ token và model.');
       return;
     }
@@ -108,13 +110,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         aiProvider: 'openai-compatible',
         geminiApiKey: geminiApiKey.trim() || null,
         openAICompatibleBaseUrl: normalizedBaseUrl,
-        openAICompatibleToken: token,
+        openAICompatibleTokenConfigured:
+          settings.openAICompatibleTokenConfigured,
+        ...(token ? {openAICompatibleToken: token} : {}),
         openAICompatibleModel: model,
       });
       if (saved) {
         setAiProvider('openai-compatible');
         setOpenAIBaseUrl(normalizedBaseUrl);
-        setOpenAIToken(token);
+        setOpenAIToken('');
         setOpenAIModel(model);
       }
     } finally {
@@ -129,6 +133,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         aiProvider,
         geminiApiKey: geminiApiKey.trim() || null,
         openAICompatibleBaseUrl: openAIBaseUrl.trim().replace(/\/+$/, ''),
+        openAICompatibleTokenConfigured:
+          settings.openAICompatibleTokenConfigured,
         openAICompatibleToken: null,
         openAICompatibleModel: openAIModel.trim(),
       });
@@ -338,6 +344,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   placeholder="https://openai.com/v1"
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono"
                 />
+                {settings.openAICompatibleTokenConfigured && (
+                  <p className="text-xs text-emerald-700">
+                    Đã lưu token. Nhập token mới chỉ khi muốn thay thế.
+                  </p>
+                )}
               </div>
               <div className="space-y-1">
                 <label htmlFor="openai-token" className="text-xs font-bold text-slate-700">
@@ -381,7 +392,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </button>
                 <button
                   type="button"
-                  disabled={isGeminiSaving || !settings.openAICompatibleToken}
+                  disabled={
+                    isGeminiSaving
+                    || !settings.openAICompatibleTokenConfigured
+                  }
                   onClick={() => void handleRemoveOpenAIToken()}
                   className="px-4 py-2 bg-rose-50 text-rose-700 border border-rose-200 font-bold rounded-xl text-xs disabled:opacity-60"
                 >

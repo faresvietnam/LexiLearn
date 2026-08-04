@@ -32,6 +32,14 @@ const WORD_ERROR = 'Không thể lưu từ vựng. Vui lòng thử lại.';
 const LINK_ERROR = 'Không thể liên kết từ Global. Vui lòng thử lại.';
 const DELETE_ERROR = 'Không thể xoá từ vựng. Vui lòng thử lại.';
 
+export const SETTINGS_SELECT = `
+  user_id, new_words_per_day, review_limit_per_day, hint_behavior,
+  audio_autoplay, theme, language, reduced_motion,
+  char_diff_accessibility, ai_provider, gemini_api_key,
+  openai_compatible_base_url, openai_compatible_token_configured,
+  openai_compatible_model
+`;
+
 const VOCABULARY_SELECT = `
   id, deck_id, study_status, added_at,
   personal_word_tags(tag_id),
@@ -82,13 +90,7 @@ export async function loadLearnerState(
     await Promise.all([
       client
         .from('user_settings')
-        .select(`
-          user_id, new_words_per_day, review_limit_per_day, hint_behavior,
-          audio_autoplay, theme, language, reduced_motion,
-          char_diff_accessibility, ai_provider, gemini_api_key,
-          openai_compatible_base_url, openai_compatible_token,
-          openai_compatible_model
-        `)
+        .select(SETTINGS_SELECT)
         .eq('user_id', userId)
         .single(),
       client

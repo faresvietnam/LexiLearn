@@ -14,7 +14,7 @@ const settings: UserSettings = {
   aiProvider: 'gemini',
   geminiApiKey: null,
   openAICompatibleBaseUrl: '',
-  openAICompatibleToken: null,
+  openAICompatibleTokenConfigured: false,
   openAICompatibleModel: '',
 };
 

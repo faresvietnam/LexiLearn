@@ -14,7 +14,9 @@ const {
   const singleAfterUpdate = vi.fn();
   const eq = vi.fn(() => ({single: singleAfterSelect}));
   const selectFromTable = vi.fn(() => ({eq}));
-  const selectAfterUpdate = vi.fn(() => ({single: singleAfterUpdate}));
+  const selectAfterUpdate = vi.fn((_fields: string) => ({
+    single: singleAfterUpdate,
+  }));
   const updateEq = vi.fn(() => ({select: selectAfterUpdate}));
   const update = vi.fn(() => ({eq: updateEq}));
   const from = vi.fn(() => ({
@@ -132,7 +134,7 @@ describe('AI provider settings persistence', () => {
         ai_provider: 'openai-compatible',
         gemini_api_key: 'gemini-key',
         openai_compatible_base_url: 'https://integrate.8686.vn/v1',
-        openai_compatible_token: 'compat-token',
+        openai_compatible_token_configured: true,
         openai_compatible_model: 'deepseek-ai/deepseek-v4-flash',
       },
       error: null,
@@ -142,6 +144,7 @@ describe('AI provider settings persistence', () => {
       aiProvider: 'openai-compatible',
       geminiApiKey: ' gemini-key ',
       openAICompatibleBaseUrl: ' https://integrate.8686.vn/v1/// ',
+      openAICompatibleTokenConfigured: false,
       openAICompatibleToken: ' compat-token ',
       openAICompatibleModel: ' deepseek-ai/deepseek-v4-flash ',
     })).resolves.toEqual({
@@ -149,7 +152,7 @@ describe('AI provider settings persistence', () => {
         aiProvider: 'openai-compatible',
         geminiApiKey: 'gemini-key',
         openAICompatibleBaseUrl: 'https://integrate.8686.vn/v1',
-        openAICompatibleToken: 'compat-token',
+        openAICompatibleTokenConfigured: true,
         openAICompatibleModel: 'deepseek-ai/deepseek-v4-flash',
       },
       error: null,
@@ -164,6 +167,33 @@ describe('AI provider settings persistence', () => {
     });
     expect(update.mock.results[0].value.eq)
       .toHaveBeenCalledWith('user_id', 'owner-user');
+    expect(selectAfterUpdate.mock.calls[0][0])
+      .not.toMatch(/openai_compatible_token(?:,|\s*$)/m);
+  });
+
+  it('preserves a stored token when the token field is omitted', async () => {
+    singleAfterUpdate.mockResolvedValue({
+      data: {
+        ai_provider: 'openai-compatible',
+        gemini_api_key: null,
+        openai_compatible_base_url: 'https://api.openai.com/v1',
+        openai_compatible_token_configured: true,
+        openai_compatible_model: 'gpt-5.5',
+      },
+      error: null,
+    });
+
+    await saveAiProviderSettings('owner-user', {
+      aiProvider: 'openai-compatible',
+      geminiApiKey: null,
+      openAICompatibleBaseUrl: 'https://api.openai.com/v1',
+      openAICompatibleTokenConfigured: true,
+      openAICompatibleModel: 'gpt-5.5',
+    });
+
+    expect(update).toHaveBeenCalledWith(expect.not.objectContaining({
+      openai_compatible_token: expect.anything(),
+    }));
   });
 
   it('clears the compatible token without leaking it in persistence errors', async () => {
@@ -176,6 +206,7 @@ describe('AI provider settings persistence', () => {
       aiProvider: 'openai-compatible',
       geminiApiKey: null,
       openAICompatibleBaseUrl: 'https://integrate.8686.vn/v1',
+      openAICompatibleTokenConfigured: true,
       openAICompatibleToken: null,
       openAICompatibleModel: 'deepseek-ai/deepseek-v4-flash',
     });

@@ -8,6 +8,7 @@ import {
   uploadWordImage,
 } from '../features/images/r2ImageUpload';
 import type {UploadedImage} from '../features/images/r2ImageUpload';
+import {getSupabaseClient} from '../lib/supabase';
 
 interface AddWordModalProps {
   decks: Deck[];
@@ -19,10 +20,9 @@ interface AddWordModalProps {
     UserSettings,
     | 'aiProvider'
     | 'geminiApiKey'
-    | 'openAICompatibleBaseUrl'
-    | 'openAICompatibleToken'
-    | 'openAICompatibleModel'
+    | 'openAICompatibleTokenConfigured'
   >;
+  getAccessToken?: () => Promise<string | null>;
   onAddWord: (newWord: Word) => Promise<boolean>;
   onLinkExistingGlobalWord: (wordId: string) => Promise<boolean>;
   onClose: () => void;
@@ -167,9 +167,12 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
   aiSettings = {
     aiProvider: 'gemini' as const,
     geminiApiKey,
-    openAICompatibleBaseUrl: '',
-    openAICompatibleToken: null,
-    openAICompatibleModel: '',
+    openAICompatibleTokenConfigured: false,
+  },
+  getAccessToken = async () => {
+    const {data} = await getSupabaseClient()?.auth.getSession()
+      ?? {data: {session: null}};
+    return data.session?.access_token ?? null;
   },
   onAddWord,
   onLinkExistingGlobalWord,
@@ -291,14 +294,10 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
     provider: aiSettings.aiProvider,
     word: inputWord,
     geminiApiKey: aiSettings.geminiApiKey,
-    openAICompatible: {
-      baseUrl: aiSettings.openAICompatibleBaseUrl,
-      token: aiSettings.openAICompatibleToken,
-      model: aiSettings.openAICompatibleModel,
-    },
+    getAccessToken,
   });
 
-  // The authenticated browser calls the selected provider directly.
+  // Gemini stays browser-direct; OpenAI-compatible uses our authenticated proxy.
   const handleAiAutoFill = async () => {
     if (!word.trim()) return;
     setAiError(null);

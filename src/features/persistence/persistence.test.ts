@@ -36,6 +36,7 @@ import {
   createPrivateWord,
   linkGlobalWord,
   loadLearnerState,
+  SETTINGS_SELECT,
   moveWordsToDeck,
   saveDeck,
   saveTag,
@@ -105,7 +106,7 @@ describe('persistence mappers', () => {
     expect(INITIAL_SETTINGS).toMatchObject({
       aiProvider: 'gemini',
       openAICompatibleBaseUrl: '',
-      openAICompatibleToken: null,
+      openAICompatibleTokenConfigured: false,
       openAICompatibleModel: '',
     });
 
@@ -122,7 +123,7 @@ describe('persistence mappers', () => {
       gemini_api_key: 'owner-key',
       ai_provider: 'openai-compatible',
       openai_compatible_base_url: 'https://integrate.8686.vn/v1',
-      openai_compatible_token: 'compat-token',
+      openai_compatible_token_configured: true,
       openai_compatible_model: 'deepseek-ai/deepseek-v4-flash',
     })).toEqual({
       newWordsPerDay: 12,
@@ -136,9 +137,12 @@ describe('persistence mappers', () => {
       geminiApiKey: 'owner-key',
       aiProvider: 'openai-compatible',
       openAICompatibleBaseUrl: 'https://integrate.8686.vn/v1',
-      openAICompatibleToken: 'compat-token',
+      openAICompatibleTokenConfigured: true,
       openAICompatibleModel: 'deepseek-ai/deepseek-v4-flash',
     });
+
+    expect(SETTINGS_SELECT).toContain('openai_compatible_token_configured');
+    expect(SETTINGS_SELECT).not.toMatch(/openai_compatible_token(?:,|\s*$)/m);
 
     expect(mapStudyScopeRow({
       user_id: 'user-1',
@@ -468,6 +472,10 @@ describe('successful learner persistence', () => {
                 reduced_motion: false,
                 char_diff_accessibility: false,
                 gemini_api_key: null,
+                ai_provider: 'gemini',
+                openai_compatible_base_url: null,
+                openai_compatible_token_configured: false,
+                openai_compatible_model: null,
               })),
             })),
           })),

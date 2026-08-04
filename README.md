@@ -34,20 +34,20 @@ source code hoặc cấu hình frontend.
 
 Mỗi người dùng có thể chọn Gemini hoặc OpenAI-compatible trong trang Cài
 đặt. `user_settings` dùng RLS chỉ-chủ-sở-hữu để đồng bộ provider, base URL,
-token và model. Ứng dụng không dùng AI service key hay proxy phía máy chủ.
+token và model. Riêng token OpenAI-compatible bị thu hồi quyền đọc của
+frontend; giao diện chỉ nhận cờ “đã lưu token”.
 
-OpenAI-compatible nhận base URL như
-`https://integrate.8686.vn/v1`; ứng dụng tự gọi `/chat/completions` bằng
-Bearer token và gửi `response_format: {"type":"json_object"}`. Endpoint
-phải hỗ trợ Chat Completions, JSON response format và CORS cho origin của
-ứng dụng.
+OpenAI-compatible nhận base URL như `https://integrate.8686.vn/v1`.
+Frontend chỉ gửi từ cần phân tích và Supabase access token tới Vercel
+Function `/api/ai/analyze`. Function xác thực người dùng, đọc cấu hình bằng
+`SUPABASE_SECRET_KEY`, chặn URL nội bộ/redirect để giảm rủi ro SSRF, rồi gọi
+`/chat/completions` với Bearer token và
+`response_format: {"type":"json_object"}`. Provider không cần bật CORS.
 
-Auto-Fill gửi yêu cầu trực tiếp từ trình duyệt tới provider đã chọn. Vì vậy
-credential phải tồn tại trong bộ nhớ trình duyệt và xuất hiện trong request
-header; người dùng có thể xem credential bằng công cụ phát triển hoặc mã
-chạy trong cùng origin. Đây không tương đương với bảo vệ secret phía máy
-chủ. Chỉ sử dụng token có thể thu hồi, giới hạn quyền/hạn mức, tránh máy dùng
-chung, và xóa token trong Cài đặt khi không còn sử dụng.
+Đặt `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` và `SUPABASE_SECRET_KEY`
+trong Vercel Environment Variables. Không đặt `SUPABASE_SECRET_KEY` dưới
+tên có tiền tố `VITE_`, trong source code, hoặc trong biến môi trường của
+frontend.
 
 ## Ảnh từ vựng trên Cloudflare R2
 

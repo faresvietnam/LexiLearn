@@ -18,9 +18,7 @@ function renderModal(
     UserSettings,
     | 'aiProvider'
     | 'geminiApiKey'
-    | 'openAICompatibleBaseUrl'
-    | 'openAICompatibleToken'
-    | 'openAICompatibleModel'
+    | 'openAICompatibleTokenConfigured'
   >,
 ) {
   const onAddWord = vi.fn().mockResolvedValue(true);
@@ -33,6 +31,7 @@ function renderModal(
         createdAt: '2026-07-30',
       }]}
       tags={[]}
+      getAccessToken={vi.fn().mockResolvedValue('user-jwt')}
       globalWords={[]}
       linkedGlobalWords={[]}
       geminiApiKey={geminiApiKey}
@@ -64,6 +63,14 @@ async function openAIResponse() {
     model: 'deepseek-ai/deepseek-v4-flash',
     object: 'chat.completion',
   }), {status: 200});
+}
+
+async function proxyAnalysisResponse() {
+  const response = await openAIResponse();
+  const payload = await response.json() as {
+    choices: Array<{message: {content: string}}>;
+  };
+  return Response.json(JSON.parse(payload.choices[0].message.content));
 }
 
 function geminiResponse({
@@ -288,14 +295,12 @@ describe('AddWordModal OpenAI-compatible Auto-Fill', () => {
     vi.unstubAllGlobals();
   });
 
-  it('uses the selected compatible endpoint and fills the form', async () => {
-    vi.mocked(fetch).mockResolvedValue(await openAIResponse());
+  it('uses the authenticated same-origin proxy and fills the form', async () => {
+    vi.mocked(fetch).mockResolvedValue(await proxyAnalysisResponse());
     renderModal(null, {
       aiProvider: 'openai-compatible',
       geminiApiKey: 'unused-gemini-key',
-      openAICompatibleBaseUrl: 'https://integrate.8686.vn/v1',
-      openAICompatibleToken: 'compat-token',
-      openAICompatibleModel: 'deepseek-ai/deepseek-v4-flash',
+      openAICompatibleTokenConfigured: true,
     });
     fireEvent.change(screen.getByPlaceholderText('e.g. transportation'), {
       target: {value: 'transportation'},
@@ -309,19 +314,18 @@ describe('AddWordModal OpenAI-compatible Auto-Fill', () => {
       )).toHaveValue('sự vận chuyển');
     });
     expect(fetch).toHaveBeenCalledWith(
-      'https://integrate.8686.vn/v1/chat/completions',
-      expect.objectContaining({
+      '/api/ai/analyze',
+      {
+        method: 'POST',
         headers: {
-          Authorization: 'Bearer compat-token',
+          Authorization: 'Bearer user-jwt',
           'Content-Type': 'application/json',
         },
-      }),
+        body: JSON.stringify({word: 'transportation'}),
+      },
     );
     const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string);
-    expect(body).toMatchObject({
-      model: 'deepseek-ai/deepseek-v4-flash',
-      response_format: {type: 'json_object'},
-    });
+    expect(body).toEqual({word: 'transportation'});
     expect(JSON.stringify(vi.mocked(fetch).mock.calls[0]))
       .not.toContain('unused-gemini-key');
   });

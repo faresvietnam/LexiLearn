@@ -144,7 +144,7 @@ export interface UserSettings {
   aiProvider: AiProvider;
   geminiApiKey: string | null;
   openAICompatibleBaseUrl: string;
-  openAICompatibleToken: string | null;
+  openAICompatibleTokenConfigured: boolean;
   openAICompatibleModel: string;
 }
 

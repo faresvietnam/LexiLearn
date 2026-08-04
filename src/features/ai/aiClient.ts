@@ -12,32 +12,25 @@ export async function analyzeWordWithAI({
   provider,
   word,
   geminiApiKey,
-  openAICompatible,
+  getAccessToken,
   fetchImpl,
 }: {
   provider: AiProvider;
   word: string;
   geminiApiKey: string | null;
-  openAICompatible: {
-    baseUrl: string;
-    token: string | null;
-    model: string;
-  };
+  getAccessToken?: () => Promise<string | null>;
   fetchImpl?: typeof fetch;
 }): Promise<WordAnalysis> {
   if (provider === 'openai-compatible') {
-    if (!openAICompatible.token) {
+    const accessToken = await getAccessToken?.();
+    if (!accessToken) {
       throw new AiRequestError(
         'missing-config',
-        'Chưa có token OpenAI-compatible. Hãy lưu trong Cài đặt.',
+        'Bạn cần đăng nhập để dùng OpenAI-compatible.',
       );
     }
     return analyzeWordWithOpenAICompatible({
-      config: {
-        baseUrl: openAICompatible.baseUrl,
-        token: openAICompatible.token,
-        model: openAICompatible.model,
-      },
+      accessToken,
       word,
       fetchImpl,
     });

@@ -51,7 +51,7 @@ export const INITIAL_SETTINGS: UserSettings = {
   aiProvider: 'gemini',
   geminiApiKey: null,
   openAICompatibleBaseUrl: '',
-  openAICompatibleToken: null,
+  openAICompatibleTokenConfigured: false,
   openAICompatibleModel: '',
 };
 

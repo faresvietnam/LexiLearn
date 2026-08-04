@@ -12,35 +12,12 @@ const ANALYSIS = {
   partOfSpeech: 'verb',
   vietnameseMeaning: 'chạy',
   wordStructure: [],
-  meanings: [{
-    meaningVi: 'chạy',
-    definitionEn: 'to move quickly on foot',
-    partOfSpeech: 'verb',
-    examples: [
-      {sentence: 'I run every morning.'},
-      {sentence: 'They run around the park.'},
-      {sentence: 'We run to catch the bus.'},
-    ],
-  }],
+  meanings: [],
   wordFamily: ['runner'],
 };
 
-function chatResponse(content = JSON.stringify(ANALYSIS), status = 200) {
-  return new Response(JSON.stringify({
-    id: 'chatcmpl-test',
-    choices: [{
-      index: 0,
-      message: {content, role: 'assistant', reasoning_content: null},
-      finish_reason: 'stop',
-      logprobs: null,
-    }],
-    model: 'deepseek-ai/deepseek-v4-flash',
-    object: 'chat.completion',
-  }), {status});
-}
-
 describe('OpenAI-compatible client', () => {
-  it('normalizes only safe HTTPS base URLs', () => {
+  it('normalizes only safe HTTPS base URLs for the settings form', () => {
     expect(normalizeOpenAICompatibleBaseUrl(
       ' https://integrate.8686.vn/v1/// ',
     )).toBe('https://integrate.8686.vn/v1');
@@ -57,88 +34,39 @@ describe('OpenAI-compatible client', () => {
     }
   });
 
-  it('sends the verified Chat Completions contract and parses its JSON content', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(chatResponse());
+  it('sends only the word and Supabase access token to the same-origin proxy', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(Response.json(ANALYSIS));
 
     const result = await analyzeWordWithOpenAICompatible({
-      config: {
-        baseUrl: 'https://integrate.8686.vn/v1/',
-        token: 'compat-secret',
-        model: 'deepseek-ai/deepseek-v4-flash',
-      },
-      word: 'running',
+      accessToken: 'user-jwt',
+      word: ' running ',
       fetchImpl,
     });
 
     expect(result.canonicalWord).toBe('run');
-    expect(fetchImpl).toHaveBeenCalledWith(
-      'https://integrate.8686.vn/v1/chat/completions',
-      expect.objectContaining({
-        method: 'POST',
-        headers: {
-          Authorization: 'Bearer compat-secret',
-          'Content-Type': 'application/json',
-        },
-      }),
-    );
-    const body = JSON.parse(fetchImpl.mock.calls[0][1].body);
-    expect(body).toMatchObject({
-      model: 'deepseek-ai/deepseek-v4-flash',
-      response_format: {type: 'json_object'},
+    expect(fetchImpl).toHaveBeenCalledWith('/api/ai/analyze', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer user-jwt',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({word: 'running'}),
     });
-    expect(body).not.toHaveProperty('temperature');
+    expect(JSON.stringify(vi.mocked(fetchImpl).mock.calls))
+      .not.toContain('provider');
   });
 
   it.each([
     [401, 'invalid-key'],
-    [403, 'invalid-key'],
     [429, 'quota'],
-    [408, 'temporary'],
-    [425, 'temporary'],
-    [500, 'temporary'],
     [502, 'temporary'],
     [503, 'temporary'],
-    [504, 'temporary'],
-    [422, 'http'],
-  ] as const)('maps HTTP %s to a safe %s error', async (status, kind) => {
-    const token = 'never-leak-this-token';
-    const fetchImpl = vi.fn().mockResolvedValue(chatResponse('{}', status));
-
-    const promise = analyzeWordWithOpenAICompatible({
-      config: {
-        baseUrl: 'https://integrate.8686.vn/v1',
-        token,
-        model: 'deepseek-ai/deepseek-v4-flash',
-      },
-      word: 'run',
-      fetchImpl,
-    });
-
-    await expect(promise).rejects.toMatchObject({kind});
-    await promise.catch((error: Error) => {
-      expect(error.message).not.toContain(token);
-      expect(JSON.stringify(error)).not.toContain(token);
-    });
-  });
-
-  it('reports malformed content and network failures without exposing config', async () => {
-    const input = {
-      config: {
-        baseUrl: 'https://integrate.8686.vn/v1',
-        token: 'compat-secret',
-        model: 'deepseek-ai/deepseek-v4-flash',
-      },
-      word: 'run',
-    };
-
+    [422, 'invalid-response'],
+  ] as const)('maps proxy HTTP %s to %s', async (status, kind) => {
     await expect(analyzeWordWithOpenAICompatible({
-      ...input,
-      fetchImpl: vi.fn().mockResolvedValue(chatResponse('not-json')),
-    })).rejects.toMatchObject({kind: 'invalid-response'});
-
-    await expect(analyzeWordWithOpenAICompatible({
-      ...input,
-      fetchImpl: vi.fn().mockRejectedValue(new TypeError('Failed to fetch')),
-    })).rejects.toMatchObject({kind: 'network'});
+      accessToken: 'user-jwt',
+      word: 'run',
+      fetchImpl: vi.fn().mockResolvedValue(new Response(null, {status})),
+    })).rejects.toMatchObject({kind});
   });
 });

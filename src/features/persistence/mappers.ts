@@ -26,7 +26,7 @@ export type SettingsRow = {
   ai_provider: UserSettings['aiProvider'];
   gemini_api_key: string | null;
   openai_compatible_base_url: string | null;
-  openai_compatible_token: string | null;
+  openai_compatible_token_configured: boolean;
   openai_compatible_model: string | null;
 };
 
@@ -179,7 +179,8 @@ export function mapSettingsRow(row: SettingsRow): UserSettings {
     aiProvider: row.ai_provider,
     geminiApiKey: row.gemini_api_key,
     openAICompatibleBaseUrl: row.openai_compatible_base_url ?? '',
-    openAICompatibleToken: row.openai_compatible_token,
+    openAICompatibleTokenConfigured:
+      row.openai_compatible_token_configured,
     openAICompatibleModel: row.openai_compatible_model ?? '',
   };
 }

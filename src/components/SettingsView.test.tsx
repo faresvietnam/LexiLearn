@@ -12,7 +12,9 @@ import {
   INITIAL_STUDY_SCOPE,
 } from '../data/mockData';
 import {SettingsView} from './SettingsView';
-import type {AiProviderSettings} from '../features/persistence/settingsRepository';
+import type {
+  SaveAiProviderSettingsInput,
+} from '../features/persistence/settingsRepository';
 
 afterEach(cleanup);
 
@@ -24,7 +26,7 @@ function renderSettings({
   geminiApiKey?: string | null;
   onSaveGeminiApiKey?: (apiKey: string | null) => Promise<boolean>;
   onSaveAiProviderSettings?: (
-    settings: AiProviderSettings,
+    settings: SaveAiProviderSettingsInput,
   ) => Promise<boolean>;
 } = {}) {
   render(
@@ -141,6 +143,36 @@ describe('SettingsView OpenAI-compatible provider', () => {
       );
     });
     expect(screen.getByLabelText('Token')).toHaveAttribute('type', 'password');
+    expect(screen.getByLabelText('Token')).toHaveValue('');
+  });
+
+  it('keeps an existing backend token when the token field is blank', async () => {
+    const onSaveAiProviderSettings = vi.fn().mockResolvedValue(true);
+    render(
+      <SettingsView
+        settings={{
+          ...INITIAL_SETTINGS,
+          aiProvider: 'openai-compatible',
+          openAICompatibleTokenConfigured: true,
+          openAICompatibleBaseUrl: 'https://integrate.8686.vn/v1',
+          openAICompatibleModel: 'deepseek-ai/deepseek-v4-flash',
+        }}
+        studyScope={INITIAL_STUDY_SCOPE}
+        words={[]}
+        onUpdateSettings={vi.fn().mockResolvedValue(true)}
+        onSaveAiProviderSettings={onSaveAiProviderSettings}
+        onExportData={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText(/Đã lưu token/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Lưu cấu hình OpenAI-compatible',
+    }));
+
+    await waitFor(() => expect(onSaveAiProviderSettings).toHaveBeenCalled());
+    expect(onSaveAiProviderSettings.mock.calls[0][0])
+      .not.toHaveProperty('openAICompatibleToken');
   });
 
   it('rejects a non-HTTPS compatible base URL before saving', async () => {
