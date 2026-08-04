@@ -113,6 +113,30 @@ meanings, components, examples, deck, tags, and study status. It maps the RPC
 response back to the existing `Word` shape so `AddWordModal` and its caller
 retain their current interface.
 
+The add-word form replaces its single meaning fields with an ordered list of
+meaning sections. Every section contains:
+
+- required Vietnamese meaning
+- required part of speech
+- optional English definition
+- zero or more example sentences belonging to that meaning
+
+The form starts with one meaning section, permits adding and removing
+sections, and never permits removing the final section. Submission requires a
+non-empty word and requires every remaining meaning section to have a
+non-empty Vietnamese meaning and part of speech. Meaning and example order in
+the form becomes `display_order` and the returned UI order.
+
+`MeaningCard` gains an optional `definitionEn` property. Private persistence
+writes it to `private_meanings.definition_en`, selects it when loading learner
+state, and maps it back to `definitionEn`. Global meanings use the same
+property when `definition_en` is present so the shared UI model remains
+consistent.
+
+An empty IPA input remains absent on the `Word` object and is persisted as
+`null`. The application must not synthesize `/${normalizedWord}/`, because
+that string is not a verified phonetic transcription.
+
 The generic Vietnamese error remains as a user-facing fallback. Development
 logging records the Supabase error code and message without credentials or
 personal data, making future permission failures diagnosable.
@@ -159,6 +183,12 @@ Automated tests cover:
 - Boundary-hyphen and case normalization.
 - Preserving a non-empty stored meaning during reuse.
 - Rolling back the complete private-word save after invalid input.
+- Creating multiple meanings with independent parts of speech, definitions,
+  example associations, and stable display order.
+- Rejecting submission when any meaning section lacks its required values.
+- Persisting and reloading optional English definitions.
+- Keeping IPA absent through form creation, persistence, and reload when the
+  learner leaves it blank.
 - Repository payload mapping and returned `Word` mapping.
 - Existing persistence and production build suites.
 
