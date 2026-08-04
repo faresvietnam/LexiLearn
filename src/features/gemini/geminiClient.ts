@@ -69,7 +69,7 @@ type AnalyzeWordInput = {
 };
 
 function buildPrompt(word: string) {
-  return `Analyze the English word "${word}" for a Vietnamese learner. Return JSON only. For each distinct common meaning, put a concise Vietnamese translation in meaningVi and an English dictionary-style definition in definitionEn; never put English text in meaningVi. Include the correct part of speech and 1-2 natural English example sentences for each meaning. Use accurate IPA, up to 5 morphology parts, and up to 5 word-family items. If morphology is unclear, return an empty list; do not guess.`;
+  return `Analyze the English word "${word}" for a Vietnamese learner. Return JSON only. For each distinct common meaning, put a concise Vietnamese translation in meaningVi and an English dictionary-style definition in definitionEn; never put English text in meaningVi. Include the correct part of speech and 1-2 natural English example sentences for each meaning. Use accurate IPA and up to 5 word-family items. Every wordStructure.text must be an exact consecutive surface substring of "${word}", in order; after removing boundary hyphens, concatenating all parts must equal "${word}" exactly. Do not restore dropped letters or use underlying dictionary forms. If an exact morphology split is unclear or affected by a spelling change, return an empty wordStructure; do not guess.`;
 }
 
 const RESPONSE_SCHEMA = {
@@ -85,7 +85,10 @@ const RESPONSE_SCHEMA = {
       items: {
         type: 'object',
           properties: {
-          text: {type: 'string'},
+          text: {
+            type: 'string',
+            description: 'Exact consecutive surface substring of the analyzed word.',
+          },
           type: {
             type: 'string',
             enum: [...WORD_PART_TYPES],
@@ -178,6 +181,13 @@ function isMeaning(
     && value.examples.every(isExample);
 }
 
+function normalizeMorphologyText(value: string): string {
+  return value
+    .normalize('NFKC')
+    .toLocaleLowerCase('en-US')
+    .replace(/[\s\u2010-\u2015-]+/g, '');
+}
+
 function parseAnalysis(value: unknown): GeminiWordAnalysis {
   if (
     !isRecord(value)
@@ -201,17 +211,26 @@ function parseAnalysis(value: unknown): GeminiWordAnalysis {
 
   const word = value.word as string;
   const defaultPartOfSpeech = value.partOfSpeech as string;
+  const parsedWordStructure =
+    (value.wordStructure as Array<Record<string, unknown>>).map((part, index) => ({
+      text: part.text as string,
+      type: part.type as WordPartType,
+      meaning: part.meaning as string,
+      order: Number.isInteger(part.order) ? part.order as number : index + 1,
+    }));
+  const joinedStructure = parsedWordStructure
+    .map((part) => normalizeMorphologyText(part.text))
+    .join('');
+  const wordStructure = joinedStructure === normalizeMorphologyText(word)
+    ? parsedWordStructure
+    : [];
+
   return {
     word,
     ipa: value.ipa as string,
     partOfSpeech: defaultPartOfSpeech,
     vietnameseMeaning: value.vietnameseMeaning as string,
-    wordStructure: (value.wordStructure as Array<Record<string, unknown>>).map((part, index) => ({
-      text: part.text as string,
-      type: part.type as WordPartType,
-      meaning: part.meaning as string,
-      order: Number.isInteger(part.order) ? part.order as number : index + 1,
-    })),
+    wordStructure,
     meanings: (value.meanings as Array<Record<string, unknown>>).map((meaning) => {
       const meaningPartOfSpeech = meaning.partOfSpeech as string;
       return {

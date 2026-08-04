@@ -48,6 +48,11 @@ function geminiResponse() {
               type: 'root',
               meaning: 'carry',
               order: 1,
+            }, {
+              text: 'ation',
+              type: 'suffix',
+              meaning: 'action or process',
+              order: 2,
             }],
             meanings: [{
               meaningVi: 'sự vận chuyển',

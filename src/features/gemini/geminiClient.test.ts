@@ -16,6 +16,12 @@ const ANALYSIS = {
       meaning: 'carry',
       order: 1,
     },
+    {
+      text: 'ation',
+      type: 'suffix',
+      meaning: 'action or process',
+      order: 2,
+    },
   ],
   meanings: [
     {
@@ -147,6 +153,29 @@ describe('analyzeWordWithGemini', () => {
       definitionEn: 'able to be used again or multiple times',
       partOfSpeech: 'adjective',
     })]);
+  });
+
+  it('discards morphology parts that do not concatenate to the analyzed word', async () => {
+    const analysis = {
+      ...ANALYSIS,
+      word: 'reusable',
+      wordStructure: [
+        {text: 're-', type: 'prefix', meaning: 'lại'},
+        {text: 'use', type: 'root', meaning: 'sử dụng'},
+        {text: '-able', type: 'suffix', meaning: 'có thể'},
+      ],
+    };
+    const fetchImpl = vi.fn().mockResolvedValue(
+      geminiResponse(JSON.stringify(analysis)),
+    );
+
+    const result = await analyzeWordWithGemini({
+      apiKey: 'personal-key',
+      word: 'reusable',
+      fetchImpl,
+    });
+
+    expect(result.wordStructure).toEqual([]);
   });
 
   it('returns actionable quota feedback for a 429 response', async () => {
