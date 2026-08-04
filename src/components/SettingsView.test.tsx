@@ -12,15 +12,20 @@ import {
   INITIAL_STUDY_SCOPE,
 } from '../data/mockData';
 import {SettingsView} from './SettingsView';
+import type {AiProviderSettings} from '../features/persistence/settingsRepository';
 
 afterEach(cleanup);
 
 function renderSettings({
   geminiApiKey = null,
   onSaveGeminiApiKey = vi.fn().mockResolvedValue(true),
+  onSaveAiProviderSettings,
 }: {
   geminiApiKey?: string | null;
   onSaveGeminiApiKey?: (apiKey: string | null) => Promise<boolean>;
+  onSaveAiProviderSettings?: (
+    settings: AiProviderSettings,
+  ) => Promise<boolean>;
 } = {}) {
   render(
     <SettingsView
@@ -29,6 +34,9 @@ function renderSettings({
       words={[]}
       onUpdateSettings={vi.fn().mockResolvedValue(true)}
       onSaveGeminiApiKey={onSaveGeminiApiKey}
+      {...(onSaveAiProviderSettings
+        ? {onSaveAiProviderSettings}
+        : {})}
       onExportData={() => undefined}
     />,
   );
@@ -90,5 +98,63 @@ describe('SettingsView personal Gemini key', () => {
     });
     expect(keyInput).toHaveValue('retry-key');
     expect(keyInput).toBeEnabled();
+  });
+});
+
+describe('SettingsView OpenAI-compatible provider', () => {
+  it('normalizes and saves base URL, token, and model', async () => {
+    const onSaveAiProviderSettings = vi.fn().mockResolvedValue(true);
+    renderSettings({onSaveAiProviderSettings});
+
+    fireEvent.change(screen.getByLabelText('Nhà cung cấp AI'), {
+      target: {value: 'openai-compatible'},
+    });
+    fireEvent.change(screen.getByLabelText('Base URL'), {
+      target: {value: ' https://integrate.8686.vn/v1/ '},
+    });
+    fireEvent.change(screen.getByLabelText('Token'), {
+      target: {value: ' compat-token '},
+    });
+    fireEvent.change(screen.getByLabelText('Model'), {
+      target: {value: ' deepseek-ai/deepseek-v4-flash '},
+    });
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Lưu cấu hình OpenAI-compatible',
+    }));
+
+    await waitFor(() => {
+      expect(onSaveAiProviderSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          aiProvider: 'openai-compatible',
+          openAICompatibleBaseUrl: 'https://integrate.8686.vn/v1',
+          openAICompatibleToken: 'compat-token',
+          openAICompatibleModel: 'deepseek-ai/deepseek-v4-flash',
+        }),
+      );
+    });
+    expect(screen.getByLabelText('Token')).toHaveAttribute('type', 'password');
+  });
+
+  it('rejects a non-HTTPS compatible base URL before saving', async () => {
+    const onSaveAiProviderSettings = vi.fn().mockResolvedValue(true);
+    renderSettings({onSaveAiProviderSettings});
+    fireEvent.change(screen.getByLabelText('Nhà cung cấp AI'), {
+      target: {value: 'openai-compatible'},
+    });
+    fireEvent.change(screen.getByLabelText('Base URL'), {
+      target: {value: 'http://localhost:11434/v1'},
+    });
+    fireEvent.change(screen.getByLabelText('Token'), {
+      target: {value: 'token'},
+    });
+    fireEvent.change(screen.getByLabelText('Model'), {
+      target: {value: 'model'},
+    });
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Lưu cấu hình OpenAI-compatible',
+    }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/HTTPS/i);
+    expect(onSaveAiProviderSettings).not.toHaveBeenCalled();
   });
 });

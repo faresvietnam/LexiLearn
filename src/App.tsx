@@ -40,10 +40,12 @@ import { RootWordInsightsView } from './components/RootWordInsightsView';
 import { buildSessionQuestions } from './utils/sessionBuilder';
 import {getSupabaseClient} from './lib/supabase';
 import {
+  saveAiProviderSettings,
   saveGeminiApiKey,
   saveSettings,
   saveStudyScope,
 } from './features/persistence/settingsRepository';
+import type {AiProviderSettings} from './features/persistence/settingsRepository';
 import {
   completeStudySession,
   createStudySession,
@@ -656,6 +658,26 @@ function AuthenticatedApp({
     return true;
   };
 
+  const handleSaveAiProviderSettings = async (
+    providerSettings: AiProviderSettings,
+  ) => {
+    let savedSettings = providerSettings;
+    if (client && user) {
+      const result = await saveAiProviderSettings(user.id, providerSettings);
+      if (result.error || !result.data) {
+        showToast(result.error ?? 'Không thể lưu cấu hình AI.');
+        return false;
+      }
+      savedSettings = result.data;
+    }
+    setSettings((current) => current
+      ? {...current, ...savedSettings}
+      : current
+    );
+    showToast('Đã lưu cấu hình nhà cung cấp AI.');
+    return true;
+  };
+
   const handleSaveStudyScope = async (nextScope: StudyScope) => {
     if (client && user) {
       const result = await saveStudyScope(user.id, nextScope);
@@ -872,7 +894,13 @@ function AuthenticatedApp({
                 .filter(({isGlobal}) => isGlobal)
                 .map(({id, word, ipa}) => ({id, word, ipa}))
               }
-              geminiApiKey={settings.geminiApiKey}
+              aiSettings={{
+                aiProvider: settings.aiProvider,
+                geminiApiKey: settings.geminiApiKey,
+                openAICompatibleBaseUrl: settings.openAICompatibleBaseUrl,
+                openAICompatibleToken: settings.openAICompatibleToken,
+                openAICompatibleModel: settings.openAICompatibleModel,
+              }}
               onAddWord={async (newWord) => {
                 return handleAddWord(newWord);
               }}
@@ -937,6 +965,7 @@ function AuthenticatedApp({
               words={words}
               onUpdateSettings={handleUpdateSettings}
               onSaveGeminiApiKey={handleSaveGeminiApiKey}
+              onSaveAiProviderSettings={handleSaveAiProviderSettings}
               onExportData={handleExportData}
             />
           )}

@@ -46,7 +46,7 @@ export async function analyzeWordWithAI({
   if (!geminiApiKey) {
     throw new AiRequestError(
       'missing-config',
-      'Chưa có Gemini API key. Hãy lưu trong Cài đặt.',
+      'Chưa có Gemini API key. Hãy lưu key trong Cài đặt hoặc nhập thủ công.',
     );
   }
   try {

@@ -1,11 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Sparkles, Plus, Trash2, Globe, AlertCircle, Check } from 'lucide-react';
-import { Word, Deck, Tag, WordPart, WordPartType, ExampleSentence } from '../types';
-import {
-  analyzeWordWithGemini,
-  GeminiRequestError,
-} from '../features/gemini/geminiClient';
-import type {GeminiWordAnalysis} from '../features/gemini/geminiClient';
+import { Word, Deck, Tag, WordPart, WordPartType, ExampleSentence, UserSettings } from '../types';
+import {analyzeWordWithAI} from '../features/ai/aiClient';
+import {AiRequestError, type WordAnalysis} from '../features/ai/wordAnalysis';
 import {
   deleteWordImage,
   uploadWordImage,
@@ -18,6 +15,14 @@ interface AddWordModalProps {
   globalWords: Array<Pick<Word, 'id' | 'word' | 'ipa'>>;
   linkedGlobalWords: Array<Pick<Word, 'id' | 'word' | 'ipa'>>;
   geminiApiKey?: string | null;
+  aiSettings?: Pick<
+    UserSettings,
+    | 'aiProvider'
+    | 'geminiApiKey'
+    | 'openAICompatibleBaseUrl'
+    | 'openAICompatibleToken'
+    | 'openAICompatibleModel'
+  >;
   onAddWord: (newWord: Word) => Promise<boolean>;
   onLinkExistingGlobalWord: (wordId: string) => Promise<boolean>;
   onClose: () => void;
@@ -116,7 +121,7 @@ function createWordFromDraft(draft: WordDraft): Word {
 }
 
 function draftFromGemini(
-  data: GeminiWordAnalysis,
+  data: WordAnalysis,
   deckId: string,
   tagIds: string[],
   idSuffix: string,
@@ -159,6 +164,13 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
   globalWords,
   linkedGlobalWords,
   geminiApiKey = null,
+  aiSettings = {
+    aiProvider: 'gemini' as const,
+    geminiApiKey,
+    openAICompatibleBaseUrl: '',
+    openAICompatibleToken: null,
+    openAICompatibleModel: '',
+  },
   onAddWord,
   onLinkExistingGlobalWord,
   onClose,
@@ -275,23 +287,25 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
     );
   };
 
-  // The authenticated browser calls Gemini directly with the user's key.
+  const analyzeWord = (inputWord: string) => analyzeWordWithAI({
+    provider: aiSettings.aiProvider,
+    word: inputWord,
+    geminiApiKey: aiSettings.geminiApiKey,
+    openAICompatible: {
+      baseUrl: aiSettings.openAICompatibleBaseUrl,
+      token: aiSettings.openAICompatibleToken,
+      model: aiSettings.openAICompatibleModel,
+    },
+  });
+
+  // The authenticated browser calls the selected provider directly.
   const handleAiAutoFill = async () => {
     if (!word.trim()) return;
-    if (!geminiApiKey) {
-      setAiError(
-        'Chưa có Gemini API key. Hãy lưu key trong Cài đặt hoặc nhập thủ công.',
-      );
-      return;
-    }
     setAiError(null);
     setIsAiLoading(true);
 
     try {
-      const data = await analyzeWordWithGemini({
-        apiKey: geminiApiKey,
-        word,
-      });
+      const data = await analyzeWord(word);
 
       handleWordChange(data.canonicalWord);
       if (data.ipa) setIpa(data.ipa);
@@ -322,9 +336,9 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
         );
       }
     } catch (error) {
-      setAiError(error instanceof GeminiRequestError
+      setAiError(error instanceof AiRequestError
         ? error.message
-        : 'Không thể phân tích bằng Gemini. Vui lòng nhập thủ công.');
+        : 'Không thể phân tích bằng AI. Vui lòng nhập thủ công.');
     } finally {
       setIsAiLoading(false);
     }
@@ -339,11 +353,6 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
         .map((value) => value.toLowerCase()),
     ));
     if (words.length === 0) return;
-    if (!geminiApiKey) {
-      setBatchError('Chưa có Gemini API key. Hãy lưu key trong Cài đặt hoặc nhập thủ công.');
-      return;
-    }
-
     setBatchError(null);
     setBatchTotal(words.length);
     setBatchAdded(0);
@@ -357,7 +366,7 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
         const inputWord = words[index];
         setBatchProgress(`Đang xử lý ${index + 1}/${words.length}: ${inputWord}`);
         try {
-          const data = await analyzeWordWithGemini({apiKey: geminiApiKey, word: inputWord});
+          const data = await analyzeWord(inputWord);
           const normalized = data.canonicalWord.toLowerCase();
           const existing = [...globalWords, ...linkedGlobalWords].find(
             (candidate) => candidate.word.toLowerCase() === normalized,

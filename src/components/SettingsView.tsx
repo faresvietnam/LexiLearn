@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
 import { Settings as SettingsIcon, Sliders, Download, Keyboard, KeyRound, Volume2 } from 'lucide-react';
 import { UserSettings, StudyScope, Word } from '../types';
+import type {AiProviderSettings} from '../features/persistence/settingsRepository';
+import {normalizeOpenAICompatibleBaseUrl} from '../features/openai/openAICompatibleClient';
 
 interface SettingsViewProps {
   settings: UserSettings;
   studyScope: StudyScope;
   words: Word[];
   onUpdateSettings: (newSettings: UserSettings) => Promise<boolean>;
-  onSaveGeminiApiKey: (apiKey: string | null) => Promise<boolean>;
+  onSaveGeminiApiKey?: (apiKey: string | null) => Promise<boolean>;
+  onSaveAiProviderSettings?: (
+    providerSettings: AiProviderSettings,
+  ) => Promise<boolean>;
   onExportData: () => void;
 }
 
@@ -17,6 +22,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   words,
   onUpdateSettings,
   onSaveGeminiApiKey,
+  onSaveAiProviderSettings,
   onExportData,
 }) => {
   const [newWordsLimit, setNewWordsLimit] = useState(settings.newWordsPerDay);
@@ -29,13 +35,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     settings.geminiApiKey ?? '',
   );
   const [isGeminiSaving, setIsGeminiSaving] = useState(false);
+  const [aiProvider, setAiProvider] = useState(settings.aiProvider);
+  const [openAIBaseUrl, setOpenAIBaseUrl] = useState(
+    settings.openAICompatibleBaseUrl,
+  );
+  const [openAIToken, setOpenAIToken] = useState(
+    settings.openAICompatibleToken ?? '',
+  );
+  const [openAIModel, setOpenAIModel] = useState(
+    settings.openAICompatibleModel,
+  );
+  const [providerError, setProviderError] = useState<string | null>(null);
 
   const handleSaveGeminiApiKey = async () => {
     const normalizedKey = geminiApiKey.trim();
     if (!normalizedKey) return;
     setIsGeminiSaving(true);
     try {
-      const saved = await onSaveGeminiApiKey(normalizedKey);
+      const saved = onSaveAiProviderSettings
+        ? await onSaveAiProviderSettings({
+            aiProvider: 'gemini',
+            geminiApiKey: normalizedKey,
+            openAICompatibleBaseUrl: openAIBaseUrl,
+            openAICompatibleToken: openAIToken.trim() || null,
+            openAICompatibleModel: openAIModel,
+          })
+        : await onSaveGeminiApiKey?.(normalizedKey);
       if (saved) setGeminiApiKey(normalizedKey);
     } finally {
       setIsGeminiSaving(false);
@@ -45,8 +70,69 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleRemoveGeminiApiKey = async () => {
     setIsGeminiSaving(true);
     try {
-      const removed = await onSaveGeminiApiKey(null);
+      const removed = onSaveAiProviderSettings
+        ? await onSaveAiProviderSettings({
+            aiProvider: 'gemini',
+            geminiApiKey: null,
+            openAICompatibleBaseUrl: openAIBaseUrl,
+            openAICompatibleToken: openAIToken.trim() || null,
+            openAICompatibleModel: openAIModel,
+          })
+        : await onSaveGeminiApiKey?.(null);
       if (removed) setGeminiApiKey('');
+    } finally {
+      setIsGeminiSaving(false);
+    }
+  };
+
+  const handleSaveOpenAICompatible = async () => {
+    setProviderError(null);
+    let normalizedBaseUrl: string;
+    try {
+      normalizedBaseUrl = normalizeOpenAICompatibleBaseUrl(openAIBaseUrl);
+    } catch (error) {
+      setProviderError(error instanceof Error
+        ? error.message
+        : 'Base URL OpenAI-compatible không hợp lệ.');
+      return;
+    }
+    const token = openAIToken.trim();
+    const model = openAIModel.trim();
+    if (!token || !model) {
+      setProviderError('Vui lòng nhập đầy đủ token và model.');
+      return;
+    }
+    setIsGeminiSaving(true);
+    try {
+      const saved = await onSaveAiProviderSettings?.({
+        aiProvider: 'openai-compatible',
+        geminiApiKey: geminiApiKey.trim() || null,
+        openAICompatibleBaseUrl: normalizedBaseUrl,
+        openAICompatibleToken: token,
+        openAICompatibleModel: model,
+      });
+      if (saved) {
+        setAiProvider('openai-compatible');
+        setOpenAIBaseUrl(normalizedBaseUrl);
+        setOpenAIToken(token);
+        setOpenAIModel(model);
+      }
+    } finally {
+      setIsGeminiSaving(false);
+    }
+  };
+
+  const handleRemoveOpenAIToken = async () => {
+    setIsGeminiSaving(true);
+    try {
+      const saved = await onSaveAiProviderSettings?.({
+        aiProvider,
+        geminiApiKey: geminiApiKey.trim() || null,
+        openAICompatibleBaseUrl: openAIBaseUrl.trim().replace(/\/+$/, ''),
+        openAICompatibleToken: null,
+        openAICompatibleModel: openAIModel.trim(),
+      });
+      if (saved) setOpenAIToken('');
     } finally {
       setIsGeminiSaving(false);
     }
@@ -154,12 +240,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
 
-        {/* PERSONAL GEMINI KEY */}
+        {/* AI PROVIDER */}
         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
           <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
             <KeyRound className="w-5 h-5 text-indigo-600" />
-            <span>Gemini Auto-Fill cá nhân</span>
+            <span>Nhà cung cấp AI Auto-Fill</span>
           </h2>
+          <div className="space-y-1">
+            <label htmlFor="ai-provider" className="text-xs font-bold text-slate-700">
+              Nhà cung cấp AI
+            </label>
+            <select
+              id="ai-provider"
+              value={aiProvider}
+              onChange={(event) => {
+                setAiProvider(event.target.value as UserSettings['aiProvider']);
+                setProviderError(null);
+              }}
+              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900"
+            >
+              <option value="gemini">Gemini</option>
+              <option value="openai-compatible">OpenAI-compatible</option>
+            </select>
+          </div>
+          <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+            Token được đồng bộ qua Supabase và được gửi trực tiếp từ trình duyệt.
+            Hãy dùng token có thể thu hồi và giới hạn hạn mức.
+          </p>
+          {aiProvider === 'gemini' ? (
+            <>
           <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-xs text-indigo-900 space-y-1.5">
             <p className="font-bold">Cách lấy Gemini API key:</p>
             <ol className="list-decimal list-inside space-y-0.5">
@@ -214,6 +323,73 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               Xóa Gemini API key
             </button>
           </div>
+            </>
+          ) : (
+            <>
+              <div className="space-y-1">
+                <label htmlFor="openai-base-url" className="text-xs font-bold text-slate-700">
+                  Base URL
+                </label>
+                <input
+                  id="openai-base-url"
+                  type="url"
+                  value={openAIBaseUrl}
+                  onChange={(event) => setOpenAIBaseUrl(event.target.value)}
+                  placeholder="https://integrate.8686.vn/v1"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono"
+                />
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="openai-token" className="text-xs font-bold text-slate-700">
+                  Token
+                </label>
+                <input
+                  id="openai-token"
+                  type="password"
+                  autoComplete="off"
+                  value={openAIToken}
+                  onChange={(event) => setOpenAIToken(event.target.value)}
+                  placeholder="Nhập Bearer token"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono"
+                />
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="openai-model" className="text-xs font-bold text-slate-700">
+                  Model
+                </label>
+                <input
+                  id="openai-model"
+                  value={openAIModel}
+                  onChange={(event) => setOpenAIModel(event.target.value)}
+                  placeholder="deepseek-ai/deepseek-v4-flash"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono"
+                />
+              </div>
+              {providerError && (
+                <p role="alert" className="text-xs text-rose-700">
+                  {providerError}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={isGeminiSaving}
+                  onClick={() => void handleSaveOpenAICompatible()}
+                  className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs disabled:opacity-60"
+                >
+                  Lưu cấu hình OpenAI-compatible
+                </button>
+                <button
+                  type="button"
+                  disabled={isGeminiSaving || !settings.openAICompatibleToken}
+                  onClick={() => void handleRemoveOpenAIToken()}
+                  className="px-4 py-2 bg-rose-50 text-rose-700 border border-rose-200 font-bold rounded-xl text-xs disabled:opacity-60"
+                >
+                  Xóa token OpenAI-compatible
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         {/* KEYBOARD SHORTCUTS CHEAT SHEET */}

@@ -8,10 +8,21 @@ import {
 } from '@testing-library/react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {AddWordModal} from './AddWordModal';
+import type {UserSettings} from '../types';
 
 const PERSONAL_KEY = 'personal-gemini-key';
 
-function renderModal(geminiApiKey: string | null) {
+function renderModal(
+  geminiApiKey: string | null,
+  aiSettings?: Pick<
+    UserSettings,
+    | 'aiProvider'
+    | 'geminiApiKey'
+    | 'openAICompatibleBaseUrl'
+    | 'openAICompatibleToken'
+    | 'openAICompatibleModel'
+  >,
+) {
   const onAddWord = vi.fn().mockResolvedValue(true);
   render(
     <AddWordModal
@@ -25,12 +36,34 @@ function renderModal(geminiApiKey: string | null) {
       globalWords={[]}
       linkedGlobalWords={[]}
       geminiApiKey={geminiApiKey}
+      {...(aiSettings ? {aiSettings} : {})}
       onAddWord={onAddWord}
       onLinkExistingGlobalWord={vi.fn().mockResolvedValue(true)}
       onClose={() => undefined}
     />,
   );
   return onAddWord;
+}
+
+async function openAIResponse() {
+  const geminiPayload = await geminiResponse().json() as {
+    candidates: Array<{content: {parts: Array<{text: string}>}}>;
+  };
+  return new Response(JSON.stringify({
+    id: 'chatcmpl-test',
+    choices: [{
+      index: 0,
+      message: {
+        content: geminiPayload.candidates[0].content.parts[0].text,
+        role: 'assistant',
+        reasoning_content: null,
+      },
+      finish_reason: 'stop',
+      logprobs: null,
+    }],
+    model: 'deepseek-ai/deepseek-v4-flash',
+    object: 'chat.completion',
+  }), {status: 200});
 }
 
 function geminiResponse({
@@ -242,6 +275,55 @@ describe('AddWordModal Gemini Auto-Fill', () => {
 
     await waitFor(() => expect(onAddWord).toHaveBeenCalledOnce());
     expect(onAddWord.mock.calls[0][0].word).toBe('child');
+  });
+});
+
+describe('AddWordModal OpenAI-compatible Auto-Fill', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('uses the selected compatible endpoint and fills the form', async () => {
+    vi.mocked(fetch).mockResolvedValue(await openAIResponse());
+    renderModal(null, {
+      aiProvider: 'openai-compatible',
+      geminiApiKey: 'unused-gemini-key',
+      openAICompatibleBaseUrl: 'https://integrate.8686.vn/v1',
+      openAICompatibleToken: 'compat-token',
+      openAICompatibleModel: 'deepseek-ai/deepseek-v4-flash',
+    });
+    fireEvent.change(screen.getByPlaceholderText('e.g. transportation'), {
+      target: {value: 'transportation'},
+    });
+
+    fireEvent.click(screen.getByRole('button', {name: 'AI Auto-Fill'}));
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(
+        'e.g. Giao thông vận tải',
+      )).toHaveValue('sự vận chuyển');
+    });
+    expect(fetch).toHaveBeenCalledWith(
+      'https://integrate.8686.vn/v1/chat/completions',
+      expect.objectContaining({
+        headers: {
+          Authorization: 'Bearer compat-token',
+          'Content-Type': 'application/json',
+        },
+      }),
+    );
+    const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string);
+    expect(body).toMatchObject({
+      model: 'deepseek-ai/deepseek-v4-flash',
+      response_format: {type: 'json_object'},
+    });
+    expect(JSON.stringify(vi.mocked(fetch).mock.calls[0]))
+      .not.toContain('unused-gemini-key');
   });
 });
 

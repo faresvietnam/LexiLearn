@@ -85,7 +85,9 @@ export async function loadLearnerState(
         .select(`
           user_id, new_words_per_day, review_limit_per_day, hint_behavior,
           audio_autoplay, theme, language, reduced_motion,
-          char_diff_accessibility, gemini_api_key
+          char_diff_accessibility, ai_provider, gemini_api_key,
+          openai_compatible_base_url, openai_compatible_token,
+          openai_compatible_model
         `)
         .eq('user_id', userId)
         .single(),
