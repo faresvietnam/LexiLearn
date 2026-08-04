@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Search,
   Filter,
@@ -19,6 +19,16 @@ import {
   Folder,
 } from 'lucide-react';
 import { Word, Deck, Tag, MemoryStrength, WordStudyStatus } from '../types';
+
+const PAGE_SIZE = 20;
+
+const getEarliestReviewTime = (word: Word): number | null => {
+  const validTimes = word.meanings
+    .map(({nextReviewDate}) => Date.parse(nextReviewDate))
+    .filter(Number.isFinite);
+
+  return validTimes.length > 0 ? Math.min(...validTimes) : null;
+};
 
 interface VocabularyLibraryViewProps {
   words: Word[];
@@ -50,11 +60,18 @@ export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
   const [selectedTag, setSelectedTag] = useState<string>('all');
   const [memoryFilter, setMemoryFilter] = useState<string>(initialMemoryFilter || 'all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Bulk selection
   const [selectedWordIds, setSelectedWordIds] = useState<string[]>([]);
 
   // Filter logic
+  const newUnlearnedCount = words.filter((word) =>
+    word.meanings.some(
+      ({learningStatus, fsrsState}) => learningStatus === 'new' || fsrsState === 0,
+    ),
+  ).length;
+
   const filteredWords = words.filter((word) => {
     // Search term
     if (searchTerm) {
@@ -82,11 +99,35 @@ export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
     return true;
   });
 
+  const sortedWords = filteredWords
+    .map((word, index) => ({word, index, reviewTime: getEarliestReviewTime(word)}))
+    .sort((left, right) => {
+      if (left.reviewTime === null && right.reviewTime === null) {
+        return left.index - right.index;
+      }
+      if (left.reviewTime === null) return 1;
+      if (right.reviewTime === null) return -1;
+      return left.reviewTime - right.reviewTime || left.index - right.index;
+    })
+    .map(({word}) => word);
+
+  const totalPages = Math.max(1, Math.ceil(sortedWords.length / PAGE_SIZE));
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const pageEnd = Math.min(pageStart + PAGE_SIZE, sortedWords.length);
+  const pageWords = sortedWords.slice(pageStart, pageEnd);
+  const pageWordIds = pageWords.map(({id}) => id);
+  const isCurrentPageSelected =
+    pageWordIds.length > 0 && pageWordIds.every((id) => selectedWordIds.includes(id));
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
+
   const toggleSelectAll = () => {
-    if (selectedWordIds.length === filteredWords.length) {
-      setSelectedWordIds([]);
+    if (isCurrentPageSelected) {
+      setSelectedWordIds((ids) => ids.filter((id) => !pageWordIds.includes(id)));
     } else {
-      setSelectedWordIds(filteredWords.map((w) => w.id));
+      setSelectedWordIds((ids) => [...new Set([...ids, ...pageWordIds])]);
     }
   };
 
@@ -109,6 +150,12 @@ export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
           </p>
         </div>
 
+        <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-2">
+          <span className="text-sm font-semibold text-indigo-700">
+            Từ mới chưa học: {newUnlearnedCount}
+          </span>
+        </div>
+
         <button
           id="btn-add-word-header"
           onClick={onOpenAddWordModal}
@@ -128,7 +175,10 @@ export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
             <input
               type="text"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
               placeholder="Tìm kiếm theo từ hoặc nghĩa Tiếng Việt..."
               className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
             />
@@ -137,7 +187,10 @@ export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
           {/* Deck Select */}
           <select
             value={selectedDeck}
-            onChange={(e) => setSelectedDeck(e.target.value)}
+            onChange={(e) => {
+              setSelectedDeck(e.target.value);
+              setCurrentPage(1);
+            }}
             className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-indigo-500"
           >
             <option value="all">Tất cả Deck</option>
@@ -151,7 +204,10 @@ export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
           {/* Tag Select */}
           <select
             value={selectedTag}
-            onChange={(e) => setSelectedTag(e.target.value)}
+            onChange={(e) => {
+              setSelectedTag(e.target.value);
+              setCurrentPage(1);
+            }}
             className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-indigo-500"
           >
             <option value="all">Tất cả Tags</option>
@@ -165,7 +221,10 @@ export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
           {/* Memory Strength Select */}
           <select
             value={memoryFilter}
-            onChange={(e) => setMemoryFilter(e.target.value)}
+            onChange={(e) => {
+              setMemoryFilter(e.target.value);
+              setCurrentPage(1);
+            }}
             className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-indigo-500"
           >
             <option value="all">Mọi Memory Strength</option>
@@ -216,8 +275,12 @@ export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
             <thead className="bg-slate-50 text-xs uppercase text-slate-500 border-b border-slate-200 font-semibold">
               <tr>
                 <th className="py-3.5 px-4 w-10">
-                  <button onClick={toggleSelectAll} className="text-slate-400 hover:text-slate-600">
-                    {selectedWordIds.length === filteredWords.length && filteredWords.length > 0 ? (
+                  <button
+                    onClick={toggleSelectAll}
+                    className="text-slate-400 hover:text-slate-600"
+                    aria-label="Chọn tất cả từ trên trang này"
+                  >
+                    {isCurrentPageSelected ? (
                       <CheckSquare className="w-4 h-4 text-indigo-600" />
                     ) : (
                       <Square className="w-4 h-4" />
@@ -240,7 +303,7 @@ export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredWords.map((word) => {
+                pageWords.map((word) => {
                   const isSelected = selectedWordIds.includes(word.id);
                   const primaryMeaning = word.meanings[0];
                   const deck = decks.find((d) => d.id === word.deckId);
@@ -270,7 +333,7 @@ export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
                           onClick={() => onOpenWordDetail(word)}
                         >
                           <span className="font-bold text-slate-900 text-base group-hover:text-indigo-600 transition">
-                            {word.word}
+                            <span data-testid="vocabulary-word">{word.word}</span>
                           </span>
                           {word.isGlobal ? (
                             <Globe className="w-3.5 h-3.5 text-indigo-600" title="Global Word" />
@@ -369,6 +432,36 @@ export const VocabularyLibraryView: React.FC<VocabularyLibraryViewProps> = ({
             </tbody>
           </table>
         </div>
+        {sortedWords.length > 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 text-sm text-slate-600">
+            <span>
+              Hiển thị {pageStart + 1}–{pageEnd} / {sortedWords.length} từ
+            </span>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                aria-label="Trang trước"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Trước
+              </button>
+              <span className="font-semibold text-slate-700">
+                Trang {currentPage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                aria-label="Trang sau"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
