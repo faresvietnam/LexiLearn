@@ -23,7 +23,11 @@ export type SettingsRow = {
   language: UserSettings['language'];
   reduced_motion: boolean;
   char_diff_accessibility: boolean;
+  ai_provider: UserSettings['aiProvider'];
   gemini_api_key: string | null;
+  openai_compatible_base_url: string | null;
+  openai_compatible_token: string | null;
+  openai_compatible_model: string | null;
 };
 
 export type StudyScopeRow = {
@@ -172,7 +176,11 @@ export function mapSettingsRow(row: SettingsRow): UserSettings {
     language: row.language,
     reducedMotion: row.reduced_motion,
     charDiffAccessibility: row.char_diff_accessibility,
+    aiProvider: row.ai_provider,
     geminiApiKey: row.gemini_api_key,
+    openAICompatibleBaseUrl: row.openai_compatible_base_url ?? '',
+    openAICompatibleToken: row.openai_compatible_token,
+    openAICompatibleModel: row.openai_compatible_model ?? '',
   };
 }
 

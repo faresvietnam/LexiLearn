@@ -102,6 +102,13 @@ describe('persistence mappers', () => {
   });
 
   it('maps persisted learner configuration into existing settings and scope shapes', () => {
+    expect(INITIAL_SETTINGS).toMatchObject({
+      aiProvider: 'gemini',
+      openAICompatibleBaseUrl: '',
+      openAICompatibleToken: null,
+      openAICompatibleModel: '',
+    });
+
     expect(mapSettingsRow({
       user_id: 'user-1',
       new_words_per_day: 12,
@@ -113,6 +120,10 @@ describe('persistence mappers', () => {
       reduced_motion: true,
       char_diff_accessibility: true,
       gemini_api_key: 'owner-key',
+      ai_provider: 'openai-compatible',
+      openai_compatible_base_url: 'https://integrate.8686.vn/v1',
+      openai_compatible_token: 'compat-token',
+      openai_compatible_model: 'deepseek-ai/deepseek-v4-flash',
     })).toEqual({
       newWordsPerDay: 12,
       reviewLimitPerDay: 60,
@@ -123,6 +134,10 @@ describe('persistence mappers', () => {
       reducedMotion: true,
       charDiffAccessibility: true,
       geminiApiKey: 'owner-key',
+      aiProvider: 'openai-compatible',
+      openAICompatibleBaseUrl: 'https://integrate.8686.vn/v1',
+      openAICompatibleToken: 'compat-token',
+      openAICompatibleModel: 'deepseek-ai/deepseek-v4-flash',
     });
 
     expect(mapStudyScopeRow({

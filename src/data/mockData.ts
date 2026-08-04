@@ -48,7 +48,11 @@ export const INITIAL_SETTINGS: UserSettings = {
   language: 'vi',
   reducedMotion: false,
   charDiffAccessibility: true,
+  aiProvider: 'gemini',
   geminiApiKey: null,
+  openAICompatibleBaseUrl: '',
+  openAICompatibleToken: null,
+  openAICompatibleModel: '',
 };
 
 export const INITIAL_WORDS: Word[] = [

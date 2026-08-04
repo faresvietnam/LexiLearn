@@ -67,7 +67,11 @@ const settings: UserSettings = {
   language: 'vi',
   reducedMotion: false,
   charDiffAccessibility: true,
+  aiProvider: 'gemini',
   geminiApiKey: null,
+  openAICompatibleBaseUrl: '',
+  openAICompatibleToken: null,
+  openAICompatibleModel: '',
 };
 
 const newCardRow: LearningCardFsrsRow = {

@@ -130,6 +130,8 @@ export interface StudyScope {
   pausedWordIds: string[];
 }
 
+export type AiProvider = 'gemini' | 'openai-compatible';
+
 export interface UserSettings {
   newWordsPerDay: number;
   reviewLimitPerDay: number;
@@ -139,7 +141,11 @@ export interface UserSettings {
   language: 'vi' | 'en';
   reducedMotion: boolean;
   charDiffAccessibility: boolean;
+  aiProvider: AiProvider;
   geminiApiKey: string | null;
+  openAICompatibleBaseUrl: string;
+  openAICompatibleToken: string | null;
+  openAICompatibleModel: string;
 }
 
 export type QuestionStage =

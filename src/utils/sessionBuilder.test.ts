@@ -11,7 +11,11 @@ const settings: UserSettings = {
   language: 'vi',
   reducedMotion: false,
   charDiffAccessibility: false,
+  aiProvider: 'gemini',
   geminiApiKey: null,
+  openAICompatibleBaseUrl: '',
+  openAICompatibleToken: null,
+  openAICompatibleModel: '',
 };
 
 const scope: StudyScope = {
