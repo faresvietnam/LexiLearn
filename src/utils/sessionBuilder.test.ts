@@ -183,19 +183,45 @@ describe('buildSessionQuestions', () => {
     expect(session.totalAvailableReviews).toBe(1);
   });
 
-  it('does not create sentence completion without an example sentence', () => {
-    const words = ['one', 'two', 'three'].map((id) =>
-      word(id, [meaningCard(id, {history: [], memoryStrength: 'stable'})]),
+  it('uses only multiple-choice questions before new learners are asked to type', () => {
+    const words = ['one', 'two', 'three', 'four'].map((id) =>
+      word(id, [meaningCard(id, {
+        fsrsState: 0,
+        history: [],
+        exampleSentences: [{
+          id: `example-${id}`,
+          meaningCardId: id,
+          sentence: `This sentence contains ${id}.`,
+          expectedAnswer: id,
+          baseWord: id,
+          wordForm: 'base',
+          partOfSpeech: 'noun',
+          difficulty: 'easy',
+          approvalStatus: 'approved',
+        }],
+      })]),
     );
 
     const session = buildSessionQuestions(words, scope, settings);
 
-    expect(session.questions[2].type).not.toBe('sentence_completion');
+    expect(session.questions.map(({type}) => type)).toEqual([
+      'en_to_vn_mc',
+      'vn_to_en_mc',
+      'en_to_vn_mc',
+      'vn_to_en_mc',
+    ]);
+    for (const question of session.questions) {
+      expect(question.stage).toBe(1);
+      expect(question.mcOptions?.length).toBeGreaterThan(0);
+      expect(question.type).not.toBe('sentence_completion');
+    }
   });
 
-  it('masks the expected answer in sentence-completion questions', () => {
+  it('uses sentence completion at Stage 2 when word parts are unavailable', () => {
     const card = meaningCard('new', {
-      history: [],
+      fsrsState: 2,
+      memoryStrength: 'weak',
+      nextReviewDate: '2000-01-01',
       exampleSentences: [{
         id: 'example-new',
         meaningCardId: 'new',
@@ -208,15 +234,11 @@ describe('buildSessionQuestions', () => {
         approvalStatus: 'approved',
       }],
     });
-    const session = buildSessionQuestions([
-      word('one', [meaningCard('one', {history: []})]),
-      word('two', [meaningCard('two', {history: []})]),
-      word('three', [meaningCard('three', {history: []})]),
-      word('new', [card]),
-    ], scope, settings);
+    const session = buildSessionQuestions([word('new', [card])], scope, settings);
 
-    expect(session.questions[3].type).toBe('sentence_completion');
-    expect(session.questions[3].expectedAnswer).toBe('new');
+    expect(session.questions[0].stage).toBe(2);
+    expect(session.questions[0].type).toBe('sentence_completion');
+    expect(session.questions[0].expectedAnswer).toBe('new');
   });
 
   it('falls back to full-word typing when a staged card has no word parts', () => {

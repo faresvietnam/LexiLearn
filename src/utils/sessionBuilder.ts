@@ -176,15 +176,15 @@ function convertQueueToQuestions(queue: SessionQueueItem[], allWords: Word[]): Q
     let qType: Question['type'] = 'en_to_vn_mc';
 
     if (stage === 1) {
-      // Variety in Stage 1
-      const rand = index % 4;
-      if (rand === 0 && word.imageUrl && meaningCard.fsrsState === 2) qType = 'image_question';
-      else if (rand === 0 && word.audioUrl && meaningCard.fsrsState === 2) qType = 'audio_question';
-      else if (rand <= 1) qType = 'en_to_vn_mc';
-      else if (rand === 2) qType = 'vn_to_en_mc';
-      else qType = meaningCard.exampleSentences.length > 0 ? 'sentence_completion' : 'en_to_vn_mc';
-    } else if (stage === 2 && word.wordStructure.length >= 2) {
-      qType = 'word_part_selection';
+      qType = index % 2 === 0 ? 'en_to_vn_mc' : 'vn_to_en_mc';
+    } else if (stage === 2) {
+      if (word.wordStructure.length >= 2) {
+        qType = 'word_part_selection';
+      } else if (meaningCard.exampleSentences.length > 0) {
+        qType = 'sentence_completion';
+      } else {
+        qType = 'full_word_typing';
+      }
     } else if ((stage === 3 || stage === 4) && word.wordStructure.length >= 2) {
       qType = 'word_part_typing'; // Stage 4 keeps partial assistance when parts exist
     } else {
@@ -245,10 +245,6 @@ function convertQueueToQuestions(queue: SessionQueueItem[], allWords: Word[]): Q
           ? `Chọn và ghép các thành phần để tạo từ có nghĩa: "${meaningCard.meaning}"`
           : qType === 'word_part_typing'
           ? `Viết các thành phần tiếng Anh của từ có nghĩa: "${meaningCard.meaning}"`
-          : qType === 'image_question'
-          ? `Nhìn hình và gõ từ Tiếng Anh tương ứng`
-          : qType === 'audio_question'
-          ? `Nghe âm thanh và gõ từ Tiếng Anh tương ứng`
           : qType === 'sentence_completion'
           ? `Hoàn thành câu bằng từ hoặc dạng từ thích hợp:`
           : `Gõ toàn bộ từ Tiếng Anh có nghĩa: "${meaningCard.meaning}"`,
