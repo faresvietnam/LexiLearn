@@ -87,6 +87,7 @@ type GlobalMeaningRow = {
   id: string;
   meaning_vi: string;
   part_of_speech: string;
+  definition_en?: string | null;
   display_order: number;
   status: string;
   global_examples: GlobalExampleRow[] | null;
@@ -96,6 +97,7 @@ type PrivateMeaningRow = {
   id: string;
   meaning_vi: string;
   part_of_speech: string;
+  definition_en?: string | null;
   display_order: number;
   private_examples?: PrivateExampleRow[] | null;
 };
@@ -244,6 +246,7 @@ function mapMeaning(
     wordId: vocabulary.id,
     meaning: row.meaning_vi,
     partOfSpeech: row.part_of_speech,
+    ...(row.definition_en ? {definitionEn: row.definition_en} : {}),
     exampleSentences: examples,
     memoryStrength: card?.memory_strength ?? 'critical',
     memoryScore: card?.memory_score ?? 0,

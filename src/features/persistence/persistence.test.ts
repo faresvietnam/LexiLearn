@@ -21,9 +21,10 @@ import {
   mapVocabularyRow,
 } from './mappers';
 
-const {getSupabaseClient, from} = vi.hoisted(() => ({
+const {getSupabaseClient, from, rpc} = vi.hoisted(() => ({
   getSupabaseClient: vi.fn(),
   from: vi.fn(),
+  rpc: vi.fn(),
 }));
 
 vi.mock('../../lib/supabase', () => ({getSupabaseClient}));
@@ -199,6 +200,7 @@ describe('persistence mappers', () => {
           id: 'meaning-1',
           meaning_vi: 'vận chuyển',
           part_of_speech: 'verb',
+          definition_en: 'to carry people or goods from one place to another',
           display_order: 0,
           status: 'active',
           global_examples: [{
@@ -237,6 +239,7 @@ describe('persistence mappers', () => {
         wordId: 'vocabulary-1',
         meaning: 'vận chuyển',
         partOfSpeech: 'verb',
+        definitionEn: 'to carry people or goods from one place to another',
         memoryStrength: 'stable',
         memoryScore: 75,
         reviewIntervalDays: 4,
@@ -332,6 +335,7 @@ describe('persistence mappers', () => {
           id: 'private-meaning-1',
           meaning_vi: 'mục tiêu đầy tham vọng',
           part_of_speech: 'noun',
+          definition_en: 'an ambitious and difficult undertaking',
           display_order: 0,
         }],
       },
@@ -351,6 +355,7 @@ describe('persistence mappers', () => {
     });
     expect(word?.meanings[0]).toMatchObject({
       id: 'private-meaning-1',
+      definitionEn: 'an ambitious and difficult undertaking',
       memoryStrength: 'critical',
       memoryScore: 0,
       reviewIntervalDays: 1,
@@ -363,8 +368,9 @@ describe('persistence mappers', () => {
 describe('persistence repository errors', () => {
   beforeEach(() => {
     from.mockReset();
+    rpc.mockReset();
     getSupabaseClient.mockReset();
-    getSupabaseClient.mockReturnValue({from});
+    getSupabaseClient.mockReturnValue({from, rpc});
   });
 
   it.each([
@@ -424,8 +430,9 @@ describe('persistence repository errors', () => {
 describe('successful learner persistence', () => {
   beforeEach(() => {
     from.mockReset();
+    rpc.mockReset();
     getSupabaseClient.mockReset();
-    getSupabaseClient.mockReturnValue({from});
+    getSupabaseClient.mockReturnValue({from, rpc});
   });
 
   it('hydrates unlinked active Global words for discovery', async () => {
@@ -509,7 +516,6 @@ describe('successful learner persistence', () => {
     const input: Word = {
       id: 'temporary-word',
       word: 'moonshot',
-      ipa: '/ˈmuːnʃɒt/',
       imageUrl: 'https://images.example/users/user-1/images/image-1.webp',
       imageObjectKey: 'users/user-1/images/image-1.webp',
       wordStructure: [{
@@ -532,6 +538,7 @@ describe('successful learner persistence', () => {
         wordId: 'temporary-word',
         meaning: 'mục tiêu đầy tham vọng',
         partOfSpeech: 'noun',
+        definitionEn: 'an ambitious and difficult undertaking',
         memoryStrength: 'critical',
         memoryScore: 20,
         reviewIntervalDays: 1,
@@ -552,111 +559,122 @@ describe('successful learner persistence', () => {
         }],
       }],
     };
-    const insertPrivateWord = vi.fn(() => ({
-      select: vi.fn(() => ({
-        single: vi.fn().mockResolvedValue({
-          data: {
-            id: 'private-db',
-            owner_user_id: 'user-1',
-            word: 'moonshot',
-            ipa: '/ˈmuːnʃɒt/',
-            audio_url: null,
-            image_url:
-              'https://images.example/users/user-1/images/image-1.webp',
-            image_object_key: 'users/user-1/images/image-1.webp',
-            status: 'pending',
-            admin_comment: null,
-            created_at: '2026-07-30T00:00:00Z',
-          },
-          error: null,
-        }),
-      })),
-    }));
-    from.mockImplementation((table: string) => {
-      if (table === 'private_words') {
-        return {
-          insert: insertPrivateWord,
-        };
-      }
-      if (table === 'private_meanings') {
-        return {
-          insert: vi.fn(() => ({
-            select: vi.fn().mockResolvedValue({
-              data: [{
-                id: 'meaning-db',
-                meaning_vi: 'mục tiêu đầy tham vọng',
-                part_of_speech: 'noun',
-                display_order: 0,
-              }],
-              error: null,
-            }),
-          })),
-        };
-      }
-      if (table === 'private_word_parts' || table === 'private_examples') {
-        return {insert: vi.fn().mockResolvedValue({data: [], error: null})};
-      }
-      if (table === 'personal_vocabulary') {
-        return {
-          insert: vi.fn(() => ({
-            select: vi.fn(() => ({
-              single: vi.fn().mockResolvedValue({
-                data: {
-                  id: 'vocabulary-db',
-                  deck_id: 'deck-1',
-                  study_status: 'active',
-                  added_at: '2026-07-30T00:00:00Z',
-                },
-                error: null,
-              }),
-            })),
-          })),
-        };
-      }
-      if (table === 'learning_cards') {
-        return {
-          insert: vi.fn(() => ({
-            select: vi.fn().mockResolvedValue({
-              data: [{
-                id: 'card-db',
-                meaning_source_id: 'meaning-db',
-                memory_strength: 'critical',
-                memory_score: 0,
-                review_interval_days: 1,
-                next_review_at: '2026-07-30T00:00:00Z',
-                last_reviewed_at: null,
-              }],
-              error: null,
-            }),
-          })),
-        };
-      }
-      throw new Error(`Unexpected table: ${table}`);
+    rpc.mockResolvedValue({
+      data: {
+        id: 'vocabulary-db',
+        deck_id: 'deck-1',
+        study_status: 'active',
+        added_at: '2026-07-30T00:00:00Z',
+        personal_word_tags: [],
+        learning_cards: [{
+          id: 'card-db',
+          meaning_source_id: 'meaning-db',
+          memory_strength: 'critical',
+          memory_score: 0,
+          review_interval_days: 1,
+          next_review_at: null,
+          last_reviewed_at: null,
+        }],
+        global_words: null,
+        private_words: {
+          id: 'private-db',
+          owner_user_id: 'user-1',
+          word: 'moonshot',
+          ipa: null,
+          audio_url: null,
+          image_url:
+            'https://images.example/users/user-1/images/image-1.webp',
+          image_object_key: 'users/user-1/images/image-1.webp',
+          status: 'approved',
+          admin_comment: null,
+          submission_version: 1,
+          created_at: '2026-07-30T00:00:00Z',
+          private_word_parts: [{
+            id: 'part-db',
+            component_id: 'component-db',
+            text: 'moon',
+            type: 'root',
+            meaning: 'mặt trăng',
+            position: 0,
+          }],
+          private_meanings: [{
+            id: 'meaning-db',
+            meaning_vi: 'mục tiêu đầy tham vọng',
+            part_of_speech: 'noun',
+            definition_en: 'an ambitious and difficult undertaking',
+            display_order: 0,
+            private_examples: [{
+              id: 'example-db',
+              sentence: 'This is a moonshot project.',
+              expected_answer: 'moonshot',
+              word_form: 'base',
+              difficulty: 'medium',
+            }],
+          }],
+        },
+      },
+      error: null,
     });
 
     const result = await createPrivateWord('user-1', input);
 
-    expect(insertPrivateWord).toHaveBeenCalledWith(expect.objectContaining({
-      image_url:
-        'https://images.example/users/user-1/images/image-1.webp',
-      image_object_key: 'users/user-1/images/image-1.webp',
-    }));
+    expect(rpc).toHaveBeenCalledOnce();
+    expect(rpc).toHaveBeenCalledWith('create_private_word', {
+      p_payload: {
+        owner_user_id: 'user-1',
+        word: 'moonshot',
+        normalized_word: 'moonshot',
+        ipa: null,
+        audio_url: null,
+        image_url:
+          'https://images.example/users/user-1/images/image-1.webp',
+        image_object_key: 'users/user-1/images/image-1.webp',
+        deck_id: 'deck-1',
+        study_status: 'active',
+        tag_ids: [],
+        meanings: [{
+          meaning_vi: 'mục tiêu đầy tham vọng',
+          part_of_speech: 'noun',
+          definition_en: 'an ambitious and difficult undertaking',
+          examples: [{
+            sentence: 'This is a moonshot project.',
+            expected_answer: 'moonshot',
+            word_form: 'base',
+            difficulty: 'medium',
+          }],
+        }],
+        parts: [{
+          text: 'moon',
+          type: 'root',
+          meaning: 'mặt trăng',
+        }],
+      },
+    });
+    expect(from).not.toHaveBeenCalled();
     expect(result.error).toBeNull();
     expect(result.data).toMatchObject({
       id: 'vocabulary-db',
       imageUrl: 'https://images.example/users/user-1/images/image-1.webp',
       imageObjectKey: 'users/user-1/images/image-1.webp',
-      wordStructure: input.wordStructure,
+      wordStructure: [{
+        id: 'part-db',
+        text: 'moon',
+        type: 'root',
+        meaning: 'mặt trăng',
+        order: 0,
+      }],
       wordFamily: input.wordFamily,
       meanings: [{
         id: 'card-db',
+        definitionEn: 'an ambitious and difficult undertaking',
         exampleSentences: [{
-          id: 'example-local',
+          id: 'example-db',
           meaningCardId: 'card-db',
           sentence: 'This is a moonshot project.',
         }],
       }],
     });
+    expect(result.data).not.toHaveProperty('ipa');
   });
 
   it('moves all requested learner-owned words in one update', async () => {
@@ -928,7 +946,7 @@ describe('persisted form callbacks', () => {
     expect(onAddWord).not.toHaveBeenCalled();
   });
 
-  it('discloses that private structure and examples last for this session only', () => {
+  it('discloses that private learning content is saved durably', () => {
     render(React.createElement(AddWordModal, {
       decks: [],
       tags: [],
@@ -940,7 +958,7 @@ describe('persisted form callbacks', () => {
     }));
 
     expect(screen.getByText(
-      /cấu tạo từ và câu ví dụ chỉ được giữ trong phiên hiện tại/i,
+      /định nghĩa, cấu tạo từ, câu ví dụ, Deck và Tag.*được lưu lâu dài/i,
     )).toBeInTheDocument();
   });
 

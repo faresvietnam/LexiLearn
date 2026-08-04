@@ -49,7 +49,7 @@ const VOCABULARY_SELECT = `
     created_by_admin_id, created_at,
     word_parts(id, text, type, meaning, position),
     global_meanings(
-      id, meaning_vi, part_of_speech, display_order, status,
+      id, meaning_vi, part_of_speech, definition_en, display_order, status,
       global_examples(
         id, sentence, expected_answer, word_form, difficulty, status
       )
@@ -59,7 +59,7 @@ const VOCABULARY_SELECT = `
     id, owner_user_id, word, ipa, audio_url, image_url, image_object_key,
     status, admin_comment, submission_version, created_at,
     private_word_parts(id, text, type, meaning, position),
-    private_meanings(id, meaning_vi, part_of_speech, display_order,
+    private_meanings(id, meaning_vi, part_of_speech, definition_en, display_order,
       private_examples(id, sentence, expected_answer, word_form, difficulty)
     )
   )
@@ -312,18 +312,6 @@ export async function moveWordsToDeck(
     : {data: updatedIds, error: null};
 }
 
-async function removePrivateWord(
-  client: NonNullable<ReturnType<typeof getSupabaseClient>>,
-  userId: string,
-  privateWordId: string,
-) {
-  await client
-    .from('private_words')
-    .delete()
-    .eq('id', privateWordId)
-    .eq('owner_user_id', userId);
-}
-
 export async function createPrivateWord(
   userId: string,
   word: Word,
@@ -333,157 +321,60 @@ export async function createPrivateWord(
     return {data: null, error: WORD_ERROR};
   }
 
-  const {data: privateWord, error: wordError} = await client
-    .from('private_words')
-    .insert({
-      owner_user_id: userId,
-      word: word.word,
-      normalized_word: word.word.trim().toLowerCase(),
-      ipa: word.ipa ?? null,
-      audio_url: word.audioUrl ?? null,
-      image_url: word.imageUrl ?? null,
-      image_object_key: word.imageObjectKey ?? null,
-      status: 'approved',
-      admin_comment: null,
-    })
-    .select(`
-      id, owner_user_id, word, ipa, audio_url, image_url, image_object_key,
-      status, admin_comment, submission_version, created_at
-    `)
-    .single();
-
-  if (wordError || !privateWord) return {data: null, error: WORD_ERROR};
-
-  const {data: meanings, error: meaningError} = await client
-    .from('private_meanings')
-    .insert(word.meanings.map((meaning, displayOrder) => ({
-      private_word_id: privateWord.id,
+  const pPayload = {
+    owner_user_id: userId,
+    word: word.word,
+    normalized_word: word.word.trim().toLowerCase(),
+    ipa: word.ipa?.trim() || null,
+    audio_url: word.audioUrl ?? null,
+    image_url: word.imageUrl ?? null,
+    image_object_key: word.imageObjectKey ?? null,
+    deck_id: word.deckId || null,
+    study_status: word.status,
+    tag_ids: word.tags,
+    meanings: word.meanings.map((meaning) => ({
       meaning_vi: meaning.meaning,
       part_of_speech: meaning.partOfSpeech,
-      display_order: displayOrder,
-    })))
-    .select('id, meaning_vi, part_of_speech, display_order');
-
-  if (meaningError || !meanings) {
-    await removePrivateWord(client, userId, privateWord.id);
-    return {data: null, error: WORD_ERROR};
-  }
-
-  const parts = word.wordStructure
-    .filter((part) => part.text.trim())
-    .map((part, position) => ({
-      private_word_id: privateWord.id,
-      text: part.text.trim(),
-      type: part.type,
-      meaning: part.meaning ?? null,
-      position,
-    }));
-  if (parts.length > 0) {
-    const {error: partError} = await client.from('private_word_parts').insert(parts);
-    if (partError) {
-      await removePrivateWord(client, userId, privateWord.id);
-      return {data: null, error: WORD_ERROR};
-    }
-  }
-
-  const examples = word.meanings.flatMap((meaning, meaningIndex) =>
-    (meaning.exampleSentences ?? []).filter((example) => example.sentence.trim()).map((example) => ({
-      private_meaning_id: meanings[meaningIndex].id,
-      sentence: example.sentence.trim(),
-      expected_answer: example.expectedAnswer || word.word,
-      word_form: example.wordForm || 'base',
-      difficulty: example.difficulty || 'medium',
+      definition_en: meaning.definitionEn?.trim() || null,
+      examples: (meaning.exampleSentences ?? [])
+        .filter((example) => example.sentence.trim())
+        .map((example) => ({
+          sentence: example.sentence.trim(),
+          expected_answer: example.expectedAnswer || word.word,
+          word_form: example.wordForm || 'base',
+          difficulty: example.difficulty || 'medium',
+        })),
     })),
-  );
-  if (examples.length > 0) {
-    const {error: exampleError} = await client.from('private_examples').insert(examples);
-    if (exampleError) {
-      await removePrivateWord(client, userId, privateWord.id);
-      return {data: null, error: WORD_ERROR};
-    }
-  }
-
-  const {data: vocabulary, error: vocabularyError} = await client
-    .from('personal_vocabulary')
-    .insert({
-      user_id: userId,
-      private_word_id: privateWord.id,
-      deck_id: word.deckId || null,
-      study_status: word.status,
-    })
-    .select('id, deck_id, study_status, added_at')
-    .single();
-
-  if (vocabularyError || !vocabulary) {
-    await removePrivateWord(client, userId, privateWord.id);
-    return {data: null, error: WORD_ERROR};
-  }
-
-  if (word.tags.length > 0) {
-    const {error} = await client.from('personal_word_tags').insert(
-      word.tags.map((tagId) => ({
-        personal_vocabulary_id: vocabulary.id,
-        tag_id: tagId,
+    parts: word.wordStructure
+      .filter((part) => part.text.trim())
+      .map((part) => ({
+        text: part.text.trim(),
+        type: part.type,
+        meaning: part.meaning?.trim() || null,
       })),
-    );
-    if (error) {
-      await removePrivateWord(client, userId, privateWord.id);
-      return {data: null, error: WORD_ERROR};
+  };
+
+  const {data, error} = await client.rpc('create_private_word', {
+    p_payload: pPayload,
+  });
+
+  if (error || !data) {
+    if (import.meta.env.DEV && error) {
+      console.error('create_private_word failed', {
+        code: error.code,
+        message: error.message,
+      });
     }
-  }
-
-  const {data: cards, error: cardError} = await client
-    .from('learning_cards')
-    .insert(meanings.map((meaning) => ({
-      user_id: userId,
-      personal_vocabulary_id: vocabulary.id,
-      meaning_source_id: meaning.id,
-      meaning_source_type: 'private_meaning',
-    })))
-    .select(`
-      id, meaning_source_id, memory_strength, memory_score,
-      review_interval_days, next_review_at, last_reviewed_at,
-      fsrs_state, fsrs_stability, fsrs_difficulty, fsrs_elapsed_days,
-      fsrs_scheduled_days, fsrs_learning_steps, fsrs_reps, fsrs_lapses,
-      fsrs_retrievability, recognition_score, recall_score, spelling_score,
-      context_score, word_structure_score, response_time_sample_count,
-      response_time_average_ms
-    `);
-
-  if (cardError || !cards) {
-    await removePrivateWord(client, userId, privateWord.id);
     return {data: null, error: WORD_ERROR};
   }
 
-  const savedWord = mapVocabularyRow({
-    id: vocabulary.id,
-    deck_id: vocabulary.deck_id,
-    study_status: vocabulary.study_status,
-    added_at: vocabulary.added_at,
-    personal_word_tags: word.tags.map((tag_id) => ({tag_id})),
-    learning_cards: cards,
-    global_words: null,
-    private_words: {
-      ...privateWord,
-      private_meanings: meanings,
-    },
-  } as unknown as VocabularyRow);
-
+  const savedWord = mapVocabularyRow(data as unknown as VocabularyRow);
   if (!savedWord) return {data: null, error: WORD_ERROR};
 
   return {
     data: {
       ...savedWord,
-      wordStructure: word.wordStructure,
       wordFamily: word.wordFamily,
-      meanings: savedWord.meanings.map((meaning, index) => ({
-        ...meaning,
-        exampleSentences: (word.meanings[index]?.exampleSentences ?? [])
-          .map((example) => ({
-            ...example,
-            meaningCardId: meaning.id,
-          })),
-      })),
     },
     error: null,
   };

@@ -49,6 +49,7 @@ export interface MeaningCard {
   wordId: string;
   meaning: string; // e.g. "vận chuyển, chuyển chở"
   partOfSpeech: string; // e.g. "verb"
+  definitionEn?: string;
   exampleSentences: ExampleSentence[];
   
   // Personal SRS State

@@ -184,3 +184,88 @@ describe('AddWordModal Gemini Auto-Fill', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Đã thêm 2/2 từ');
   });
 });
+
+describe('AddWordModal meaning editor', () => {
+  afterEach(cleanup);
+
+  it('submits ordered meanings with independent types, definitions, and examples', async () => {
+    const onAddWord = renderModal(null);
+    fireEvent.change(screen.getByPlaceholderText('e.g. transportation'), {
+      target: {value: 'compose'},
+    });
+    fireEvent.change(screen.getByLabelText('Nghĩa tiếng Việt 1'), {
+      target: {value: 'soạn, sáng tác'},
+    });
+    fireEvent.change(screen.getByLabelText('Từ loại 1'), {
+      target: {value: 'verb'},
+    });
+    fireEvent.change(screen.getByLabelText('Định nghĩa tiếng Anh 1'), {
+      target: {value: 'to create a written or musical work'},
+    });
+    fireEvent.change(screen.getByLabelText('Câu ví dụ 1.1'), {
+      target: {value: 'She composed a short song.'},
+    });
+
+    fireEvent.click(screen.getByRole('button', {name: 'Thêm nghĩa'}));
+    fireEvent.change(screen.getByLabelText('Nghĩa tiếng Việt 2'), {
+      target: {value: 'giữ bình tĩnh'},
+    });
+    fireEvent.change(screen.getByLabelText('Từ loại 2'), {
+      target: {value: 'adjective'},
+    });
+    fireEvent.change(screen.getByLabelText('Định nghĩa tiếng Anh 2'), {
+      target: {value: 'calm and in control'},
+    });
+
+    fireEvent.click(screen.getByRole('button', {name: 'Lưu từ vựng'}));
+
+    await waitFor(() => expect(onAddWord).toHaveBeenCalledOnce());
+    const savedWord = onAddWord.mock.calls[0][0];
+    expect(savedWord).not.toHaveProperty('ipa');
+    expect(savedWord.meanings).toMatchObject([
+      {
+        meaning: 'soạn, sáng tác',
+        partOfSpeech: 'verb',
+        definitionEn: 'to create a written or musical work',
+        exampleSentences: [{
+          sentence: 'She composed a short song.',
+        }],
+      },
+      {
+        meaning: 'giữ bình tĩnh',
+        partOfSpeech: 'adjective',
+        definitionEn: 'calm and in control',
+        exampleSentences: [],
+      },
+    ]);
+  });
+
+  it('does not submit while any meaning is incomplete', async () => {
+    const onAddWord = renderModal(null);
+    fireEvent.change(screen.getByPlaceholderText('e.g. transportation'), {
+      target: {value: 'compose'},
+    });
+    fireEvent.change(screen.getByLabelText('Nghĩa tiếng Việt 1'), {
+      target: {value: 'soạn'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Thêm nghĩa'}));
+
+    fireEvent.submit(screen.getByRole('button', {name: 'Lưu từ vựng'}).closest('form')!);
+
+    await waitFor(() => expect(onAddWord).not.toHaveBeenCalled());
+  });
+
+  it('keeps one meaning section and removes only the selected extra meaning', () => {
+    renderModal(null);
+    expect(screen.getByRole('button', {name: 'Xóa nghĩa 1'})).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', {name: 'Thêm nghĩa'}));
+    fireEvent.change(screen.getByLabelText('Nghĩa tiếng Việt 2'), {
+      target: {value: 'nghĩa sẽ xóa'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Xóa nghĩa 2'}));
+
+    expect(screen.queryByDisplayValue('nghĩa sẽ xóa')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Xóa nghĩa 1'})).toBeDisabled();
+  });
+});

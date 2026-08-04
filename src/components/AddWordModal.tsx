@@ -25,11 +25,9 @@ interface AddWordModalProps {
 
 type WordDraft = {
   word: string;
-  vietnameseMeaning: string;
-  partOfSpeech: string;
   ipa: string;
   wordParts: WordPart[];
-  exampleSentences: string[];
+  meanings: MeaningDraft[];
   wordFamily?: string[];
   deckId: string;
   tagIds: string[];
@@ -37,30 +35,33 @@ type WordDraft = {
   idSuffix?: string;
 };
 
+type MeaningDraft = {
+  id: string;
+  vietnameseMeaning: string;
+  partOfSpeech: string;
+  definitionEn: string;
+  exampleSentences: string[];
+};
+
+function emptyMeaningDraft(id: string): MeaningDraft {
+  return {
+    id,
+    vietnameseMeaning: '',
+    partOfSpeech: 'noun',
+    definitionEn: '',
+    exampleSentences: [''],
+  };
+}
+
 function createWordFromDraft(draft: WordDraft): Word {
   const normalizedWord = draft.word.trim().toLowerCase();
   const idSuffix = draft.idSuffix ?? `${Date.now()}`;
   const wordId = `word_user_${idSuffix}`;
-  const meaningCardId = `meaning_${idSuffix}`;
-  const validExamples = draft.exampleSentences.map((sentence) => sentence.trim()).filter(Boolean);
-  const exampleObjects: ExampleSentence[] = (
-    validExamples.length > 0 ? validExamples : [`Example sentence for ${normalizedWord}.`]
-  ).map((sentence, index) => ({
-    id: `ex_${idSuffix}_${index}`,
-    meaningCardId,
-    sentence,
-    expectedAnswer: normalizedWord,
-    baseWord: normalizedWord,
-    wordForm: 'base',
-    partOfSpeech: draft.partOfSpeech,
-    difficulty: 'medium',
-    approvalStatus: 'approved',
-  }));
 
   return {
     id: wordId,
     word: normalizedWord,
-    ipa: draft.ipa.trim() || `/${normalizedWord}/`,
+    ...(draft.ipa.trim() ? {ipa: draft.ipa.trim()} : {}),
     wordStructure: draft.wordParts.filter((part) => part.text.trim() !== ''),
     wordFamily: draft.wordFamily?.length ? draft.wordFamily : [normalizedWord],
     isGlobal: false,
@@ -76,20 +77,41 @@ function createWordFromDraft(draft: WordDraft): Word {
           imageObjectKey: draft.image.objectKey,
         }
       : {}),
-    meanings: [{
-      id: meaningCardId,
-      wordId,
-      meaning: draft.vietnameseMeaning.trim(),
-      partOfSpeech: draft.partOfSpeech,
-      memoryStrength: 'critical',
-      memoryScore: 20,
-      reviewIntervalDays: 1,
-      nextReviewDate: new Date().toISOString().split('T')[0],
-      firstAttemptErrorRate: 0,
-      forgottenWordParts: [],
-      history: [],
-      exampleSentences: exampleObjects,
-    }],
+    meanings: draft.meanings.map((meaning, meaningIndex) => {
+      const meaningCardId = `meaning_${idSuffix}_${meaningIndex}`;
+      const exampleObjects: ExampleSentence[] = meaning.exampleSentences
+        .map((sentence) => sentence.trim())
+        .filter(Boolean)
+        .map((sentence, exampleIndex) => ({
+          id: `ex_${idSuffix}_${meaningIndex}_${exampleIndex}`,
+          meaningCardId,
+          sentence,
+          expectedAnswer: normalizedWord,
+          baseWord: normalizedWord,
+          wordForm: 'base',
+          partOfSpeech: meaning.partOfSpeech,
+          difficulty: 'medium',
+          approvalStatus: 'approved',
+        }));
+
+      return {
+        id: meaningCardId,
+        wordId,
+        meaning: meaning.vietnameseMeaning.trim(),
+        partOfSpeech: meaning.partOfSpeech,
+        ...(meaning.definitionEn.trim()
+          ? {definitionEn: meaning.definitionEn.trim()}
+          : {}),
+        memoryStrength: 'critical',
+        memoryScore: 20,
+        reviewIntervalDays: 1,
+        nextReviewDate: new Date().toISOString().split('T')[0],
+        firstAttemptErrorRate: 0,
+        forgottenWordParts: [],
+        history: [],
+        exampleSentences: exampleObjects,
+      };
+    }),
   };
 }
 
@@ -106,14 +128,24 @@ function draftFromGemini(
     meaning: part.meaning,
     order: index + 1,
   }));
-  const firstMeaning = data.meanings[0];
+  const meanings = data.meanings.length > 0
+    ? data.meanings.map((meaning, index) => ({
+        id: `meaning_ai_${idSuffix}_${index}`,
+        vietnameseMeaning: meaning.meaning,
+        partOfSpeech: meaning.partOfSpeech.toLowerCase(),
+        definitionEn: '',
+        exampleSentences: meaning.examples.map((example) => example.sentence),
+      }))
+    : [{
+        ...emptyMeaningDraft(`meaning_ai_${idSuffix}_0`),
+        vietnameseMeaning: data.vietnameseMeaning,
+        partOfSpeech: data.partOfSpeech.toLowerCase(),
+      }];
   return createWordFromDraft({
     word: data.word,
-    vietnameseMeaning: data.vietnameseMeaning,
-    partOfSpeech: data.partOfSpeech.toLowerCase(),
     ipa: data.ipa,
     wordParts: parts,
-    exampleSentences: firstMeaning?.examples.map((example) => example.sentence) ?? [],
+    meanings,
     wordFamily: data.wordFamily,
     deckId,
     tagIds,
@@ -132,12 +164,12 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
   onClose,
 }) => {
   const [word, setWord] = useState('');
-  const [vietnameseMeaning, setVietnameseMeaning] = useState('');
-  const [partOfSpeech, setPartOfSpeech] = useState('noun');
+  const [meanings, setMeanings] = useState<MeaningDraft[]>([
+    emptyMeaningDraft('meaning_1'),
+  ]);
   const [ipa, setIpa] = useState('');
   const [selectedDeckId, setSelectedDeckId] = useState(decks[0]?.id || '');
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
-  const [exampleSentences, setExampleSentences] = useState<string[]>(['']);
 
   // Morphology structure parts
   const [wordParts, setWordParts] = useState<WordPart[]>([
@@ -217,6 +249,32 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
     );
   };
 
+  const handleAddMeaning = () => {
+    setMeanings((current) => [
+      ...current,
+      emptyMeaningDraft(`meaning_${Date.now()}`),
+    ]);
+  };
+
+  const handleRemoveMeaning = (id: string) => {
+    setMeanings((current) =>
+      current.length === 1
+        ? current
+        : current.filter((meaning) => meaning.id !== id)
+    );
+  };
+
+  const handleUpdateMeaning = (
+    id: string,
+    update: Partial<MeaningDraft>,
+  ) => {
+    setMeanings((current) =>
+      current.map((meaning) =>
+        meaning.id === id ? {...meaning, ...update} : meaning
+      )
+    );
+  };
+
   // The authenticated browser calls Gemini directly with the user's key.
   const handleAiAutoFill = async () => {
     if (!word.trim()) return;
@@ -236,8 +294,20 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
       });
 
       if (data.ipa) setIpa(data.ipa);
-      if (data.partOfSpeech) setPartOfSpeech(data.partOfSpeech.toLowerCase());
-      if (data.vietnameseMeaning) setVietnameseMeaning(data.vietnameseMeaning);
+      const analyzedMeanings = data.meanings.length > 0
+        ? data.meanings.map((meaning, index) => ({
+            id: `meaning_ai_${Date.now()}_${index}`,
+            vietnameseMeaning: meaning.meaning,
+            partOfSpeech: meaning.partOfSpeech.toLowerCase(),
+            definitionEn: '',
+            exampleSentences: meaning.examples.map((example) => example.sentence),
+          }))
+        : [{
+            ...emptyMeaningDraft(`meaning_ai_${Date.now()}_0`),
+            vietnameseMeaning: data.vietnameseMeaning,
+            partOfSpeech: data.partOfSpeech.toLowerCase(),
+          }];
+      setMeanings(analyzedMeanings);
 
       if (data.wordStructure && Array.isArray(data.wordStructure)) {
         setWordParts(
@@ -249,13 +319,6 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
             order: i + 1,
           }))
         );
-      }
-
-      if (data.meanings && data.meanings[0]?.examples) {
-        const exArray = data.meanings[0].examples.map((ex: any) => ex.sentence).filter(Boolean);
-        if (exArray.length > 0) {
-          setExampleSentences(exArray);
-        }
       }
     } catch (error) {
       setAiError(error instanceof GeminiRequestError
@@ -386,7 +449,13 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!word.trim() || !vietnameseMeaning.trim()) return;
+    if (
+      !word.trim()
+      || meanings.length === 0
+      || meanings.some((meaning) =>
+        !meaning.vietnameseMeaning.trim() || !meaning.partOfSpeech.trim()
+      )
+    ) return;
 
     if (duplicateGlobalWord) {
       await handleLinkGlobal();
@@ -395,11 +464,9 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
 
     const newWord = createWordFromDraft({
       word,
-      vietnameseMeaning,
-      partOfSpeech,
       ipa,
       wordParts,
-      exampleSentences,
+      meanings,
       deckId: selectedDeckId,
       tagIds: selectedTagIds,
       image: uploadedImage,
@@ -417,11 +484,9 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
       uploadedImageRef.current = null;
       setUploadedImage(null);
       setWord('');
-      setVietnameseMeaning('');
       setIpa('');
-      setPartOfSpeech('noun');
+      setMeanings([emptyMeaningDraft('meaning_1')]);
       setWordParts([{id: 'part_1', text: '', type: 'root', meaning: '', order: 1}]);
-      setExampleSentences(['']);
       setSelectedGlobalWordId('');
       setDuplicateGlobalWord(null);
     } else {
@@ -565,33 +630,159 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
             )}
           </div>
 
-          {/* Vietnamese Meaning & Part of Speech */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="sm:col-span-2 space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">Nghĩa Tiếng Việt *</label>
-              <input
-                type="text"
-                required
-                value={vietnameseMeaning}
-                onChange={(e) => setVietnameseMeaning(e.target.value)}
-                placeholder="e.g. Giao thông vận tải"
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
-              />
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Nghĩa của từ
+              </label>
+              <button
+                type="button"
+                onClick={handleAddMeaning}
+                className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1 font-bold"
+              >
+                <Plus className="w-3.5 h-3.5" /> Thêm nghĩa
+              </button>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">Từ loại *</label>
-              <select
-                value={partOfSpeech}
-                onChange={(e) => setPartOfSpeech(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
+            {meanings.map((meaning, meaningIndex) => (
+              <div
+                key={meaning.id}
+                className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4"
               >
-                <option value="noun">Noun (danh từ)</option>
-                <option value="verb">Verb (động từ)</option>
-                <option value="adjective">Adjective (tính từ)</option>
-                <option value="adverb">Adverb (phó từ)</option>
-              </select>
-            </div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-slate-800">
+                    Nghĩa {meaningIndex + 1}
+                  </h3>
+                  <button
+                    type="button"
+                    aria-label={`Xóa nghĩa ${meaningIndex + 1}`}
+                    disabled={meanings.length === 1}
+                    onClick={() => handleRemoveMeaning(meaning.id)}
+                    className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <label
+                      htmlFor={`meaning-vi-${meaning.id}`}
+                      className="text-xs font-bold text-slate-700"
+                    >
+                      Nghĩa Tiếng Việt *
+                    </label>
+                    <input
+                      id={`meaning-vi-${meaning.id}`}
+                      aria-label={`Nghĩa tiếng Việt ${meaningIndex + 1}`}
+                      type="text"
+                      required
+                      value={meaning.vietnameseMeaning}
+                      onChange={(event) => handleUpdateMeaning(meaning.id, {
+                        vietnameseMeaning: event.target.value,
+                      })}
+                      placeholder="e.g. Giao thông vận tải"
+                      className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-indigo-500 transition"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label
+                      htmlFor={`meaning-pos-${meaning.id}`}
+                      className="text-xs font-bold text-slate-700"
+                    >
+                      Từ loại *
+                    </label>
+                    <select
+                      id={`meaning-pos-${meaning.id}`}
+                      aria-label={`Từ loại ${meaningIndex + 1}`}
+                      value={meaning.partOfSpeech}
+                      onChange={(event) => handleUpdateMeaning(meaning.id, {
+                        partOfSpeech: event.target.value,
+                      })}
+                      className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-indigo-500 transition"
+                    >
+                      <option value="noun">Noun (danh từ)</option>
+                      <option value="verb">Verb (động từ)</option>
+                      <option value="adjective">Adjective (tính từ)</option>
+                      <option value="adverb">Adverb (phó từ)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor={`meaning-definition-${meaning.id}`}
+                    className="text-xs font-bold text-slate-700"
+                  >
+                    Định nghĩa tiếng Anh
+                  </label>
+                  <input
+                    id={`meaning-definition-${meaning.id}`}
+                    aria-label={`Định nghĩa tiếng Anh ${meaningIndex + 1}`}
+                    type="text"
+                    value={meaning.definitionEn}
+                    onChange={(event) => handleUpdateMeaning(meaning.id, {
+                      definitionEn: event.target.value,
+                    })}
+                    placeholder="Optional English definition"
+                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-indigo-500 transition"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700">
+                      Câu ví dụ
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateMeaning(meaning.id, {
+                        exampleSentences: [...meaning.exampleSentences, ''],
+                      })}
+                      className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1 font-bold"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Thêm câu ví dụ
+                    </button>
+                  </div>
+                  {meaning.exampleSentences.map((sentence, exampleIndex) => (
+                    <div
+                      key={`${meaning.id}-${exampleIndex}`}
+                      className="flex items-start gap-2"
+                    >
+                      <textarea
+                        aria-label={`Câu ví dụ ${meaningIndex + 1}.${exampleIndex + 1}`}
+                        value={sentence}
+                        onChange={(event) => {
+                          const nextExamples = [...meaning.exampleSentences];
+                          nextExamples[exampleIndex] = event.target.value;
+                          handleUpdateMeaning(meaning.id, {
+                            exampleSentences: nextExamples,
+                          });
+                        }}
+                        placeholder={`Ví dụ câu ${exampleIndex + 1}...`}
+                        rows={2}
+                        className="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-indigo-500 transition text-xs"
+                      />
+                      {meaning.exampleSentences.length > 1 && (
+                        <button
+                          type="button"
+                          aria-label={`Xóa câu ví dụ ${meaningIndex + 1}.${exampleIndex + 1}`}
+                          onClick={() => handleUpdateMeaning(meaning.id, {
+                            exampleSentences: meaning.exampleSentences.filter(
+                              (_, index) => index !== exampleIndex,
+                            ),
+                          })}
+                          className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition mt-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* IPA & Deck */}
@@ -717,54 +908,9 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
             </div>
           </div>
 
-          {/* Example Sentences */}
-          <div className="space-y-3 pt-3 border-t border-slate-100">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Ví dụ câu (Context):
-              </label>
-              <button
-                type="button"
-                onClick={() => setExampleSentences([...exampleSentences, ''])}
-                className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1 font-bold"
-              >
-                <Plus className="w-3.5 h-3.5" /> Thêm câu ví dụ
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              {exampleSentences.map((sent, idx) => (
-                <div key={idx} className="flex items-start gap-2">
-                  <textarea
-                    value={sent}
-                    onChange={(e) => {
-                      const updated = [...exampleSentences];
-                      updated[idx] = e.target.value;
-                      setExampleSentences(updated);
-                    }}
-                    placeholder={`Ví dụ câu ${idx + 1}...`}
-                    rows={2}
-                    className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-indigo-500 focus:bg-white transition text-xs"
-                  />
-                  {exampleSentences.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExampleSentences(exampleSentences.filter((_, i) => i !== idx))
-                      }
-                      className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition mt-1"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
           <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-            Cấu tạo từ và câu ví dụ chỉ được giữ trong phiên hiện tại.
-            Từ, nghĩa, Deck và Tag được lưu lâu dài.
+            Từ, nghĩa, định nghĩa, cấu tạo từ, câu ví dụ, Deck và Tag
+            được lưu lâu dài.
           </p>
 
           {/* Actions */}
