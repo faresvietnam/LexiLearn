@@ -26,7 +26,8 @@ export type GeminiWordAnalysis = {
     order: number;
   }>;
   meanings: Array<{
-    meaning: string;
+    meaningVi: string;
+    definitionEn: string;
     partOfSpeech: string;
     examples: Array<{
       sentence: string;
@@ -68,7 +69,7 @@ type AnalyzeWordInput = {
 };
 
 function buildPrompt(word: string) {
-  return `Analyze "${word}" for a Vietnamese learner. Return JSON only. Use one concise Vietnamese meaning, one part of speech, accurate IPA, up to 5 morphology parts, up to 5 word-family items, and 1-2 natural example sentences. If morphology is unclear, return an empty list; do not guess.`;
+  return `Analyze the English word "${word}" for a Vietnamese learner. Return JSON only. For each distinct common meaning, put a concise Vietnamese translation in meaningVi and an English dictionary-style definition in definitionEn; never put English text in meaningVi. Include the correct part of speech and 1-2 natural English example sentences for each meaning. Use accurate IPA, up to 5 morphology parts, and up to 5 word-family items. If morphology is unclear, return an empty list; do not guess.`;
 }
 
 const RESPONSE_SCHEMA = {
@@ -96,11 +97,18 @@ const RESPONSE_SCHEMA = {
     },
     meanings: {
       type: 'array',
-      maxItems: 1,
+      maxItems: 5,
       items: {
         type: 'object',
         properties: {
-          meaning: {type: 'string'},
+          meaningVi: {
+            type: 'string',
+            description: 'A concise Vietnamese translation written only in Vietnamese.',
+          },
+          definitionEn: {
+            type: 'string',
+            description: 'A concise English dictionary-style definition.',
+          },
           partOfSpeech: {type: 'string'},
           examples: {
             type: 'array',
@@ -114,7 +122,7 @@ const RESPONSE_SCHEMA = {
             },
           },
         },
-        required: ['meaning', 'partOfSpeech', 'examples'],
+        required: ['meaningVi', 'definitionEn', 'partOfSpeech', 'examples'],
       },
     },
     wordFamily: {
@@ -163,7 +171,8 @@ function isMeaning(
   value: unknown,
 ): value is GeminiWordAnalysis['meanings'][number] {
   return isRecord(value)
-    && isNonEmptyString(value.meaning)
+    && isNonEmptyString(value.meaningVi)
+    && typeof value.definitionEn === 'string'
     && isNonEmptyString(value.partOfSpeech)
     && Array.isArray(value.examples)
     && value.examples.every(isExample);
@@ -204,10 +213,10 @@ function parseAnalysis(value: unknown): GeminiWordAnalysis {
       order: Number.isInteger(part.order) ? part.order as number : index + 1,
     })),
     meanings: (value.meanings as Array<Record<string, unknown>>).map((meaning) => {
-      const meaningText = meaning.meaning as string;
       const meaningPartOfSpeech = meaning.partOfSpeech as string;
       return {
-        meaning: meaningText,
+        meaningVi: meaning.meaningVi as string,
+        definitionEn: meaning.definitionEn as string,
         partOfSpeech: meaningPartOfSpeech,
         examples: (meaning.examples as Array<Record<string, unknown>>).map((example) => ({
           sentence: example.sentence as string,

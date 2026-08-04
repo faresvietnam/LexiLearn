@@ -19,7 +19,8 @@ const ANALYSIS = {
   ],
   meanings: [
     {
-      meaning: 'sự vận chuyển',
+      meaningVi: 'sự vận chuyển',
+      definitionEn: 'the movement of people or goods from one place to another',
       partOfSpeech: 'noun',
       examples: [
         {
@@ -105,7 +106,7 @@ describe('analyzeWordWithGemini', () => {
         responseSchema: expect.objectContaining({
           properties: expect.objectContaining({
             wordStructure: expect.objectContaining({maxItems: 5}),
-            meanings: expect.objectContaining({maxItems: 1}),
+            meanings: expect.objectContaining({maxItems: 5}),
             wordFamily: expect.objectContaining({maxItems: 5}),
           }),
         }),
@@ -114,6 +115,38 @@ describe('analyzeWordWithGemini', () => {
     expect(log).not.toHaveBeenCalled();
     expect(warn).not.toHaveBeenCalled();
     expect(error).not.toHaveBeenCalled();
+  });
+
+  it('keeps the Vietnamese meaning separate from the optional English definition', async () => {
+    const analysis = {
+      ...ANALYSIS,
+      word: 'reusable',
+      partOfSpeech: 'adjective',
+      vietnameseMeaning: 'có thể tái sử dụng',
+      meanings: [{
+        meaningVi: 'có thể tái sử dụng',
+        definitionEn: 'able to be used again or multiple times',
+        partOfSpeech: 'adjective',
+        examples: [{
+          sentence: 'We should bring reusable bags.',
+        }],
+      }],
+    };
+    const fetchImpl = vi.fn().mockResolvedValue(
+      geminiResponse(JSON.stringify(analysis)),
+    );
+
+    const result = await analyzeWordWithGemini({
+      apiKey: 'personal-key',
+      word: 'reusable',
+      fetchImpl,
+    });
+
+    expect(result.meanings).toEqual([expect.objectContaining({
+      meaningVi: 'có thể tái sử dụng',
+      definitionEn: 'able to be used again or multiple times',
+      partOfSpeech: 'adjective',
+    })]);
   });
 
   it('returns actionable quota feedback for a 429 response', async () => {

@@ -131,9 +131,9 @@ function draftFromGemini(
   const meanings = data.meanings.length > 0
     ? data.meanings.map((meaning, index) => ({
         id: `meaning_ai_${idSuffix}_${index}`,
-        vietnameseMeaning: meaning.meaning,
+        vietnameseMeaning: meaning.meaningVi,
         partOfSpeech: meaning.partOfSpeech.toLowerCase(),
-        definitionEn: '',
+        definitionEn: meaning.definitionEn,
         exampleSentences: meaning.examples.map((example) => example.sentence),
       }))
     : [{
@@ -297,9 +297,9 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
       const analyzedMeanings = data.meanings.length > 0
         ? data.meanings.map((meaning, index) => ({
             id: `meaning_ai_${Date.now()}_${index}`,
-            vietnameseMeaning: meaning.meaning,
+            vietnameseMeaning: meaning.meaningVi,
             partOfSpeech: meaning.partOfSpeech.toLowerCase(),
-            definitionEn: '',
+            definitionEn: meaning.definitionEn,
             exampleSentences: meaning.examples.map((example) => example.sentence),
           }))
         : [{

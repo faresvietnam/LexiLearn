@@ -50,7 +50,8 @@ function geminiResponse() {
               order: 1,
             }],
             meanings: [{
-              meaning: 'sự vận chuyển',
+              meaningVi: 'sự vận chuyển',
+              definitionEn: 'the movement of people or goods from one place to another',
               partOfSpeech: 'noun',
               examples: [{
                 sentence: 'Public transportation is convenient.',
@@ -128,6 +129,9 @@ describe('AddWordModal Gemini Auto-Fill', () => {
         'e.g. Giao thông vận tải',
       )).toHaveValue('sự vận chuyển');
     });
+    expect(screen.getByLabelText('Định nghĩa tiếng Anh 1')).toHaveValue(
+      'the movement of people or goods from one place to another',
+    );
     expect(fetch).toHaveBeenCalledWith(
       expect.stringMatching(
         /^https:\/\/generativelanguage\.googleapis\.com\//,
