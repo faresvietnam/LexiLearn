@@ -578,7 +578,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
 
                 return (
                   <button
-                    key={opt.id}
+                    key={`${currentQuestion.id}-${opt.id}`}
                     onClick={() => {
                       if (isChecked && !isCorrect) {
                         // Allow selecting another option after a wrong check

@@ -92,6 +92,50 @@ afterEach(() => {
 });
 
 describe('LearningSessionView session completion', () => {
+  it('recreates multiple-choice buttons between questions so interaction state cannot leak', () => {
+    const firstQuestion: Question = {
+      ...question,
+      id: 'question-remember-mc',
+      type: 'vn_to_en_mc',
+      prompt: 'Chọn từ có nghĩa là "nhớ"',
+      mcOptions: [
+        {id: 'opt_correct', label: 'remember', isCorrect: true, keyShortcut: '1'},
+        {id: 'opt_d_0', label: 'forget', isCorrect: false, keyShortcut: '2'},
+      ],
+    };
+    const secondQuestion: Question = {
+      ...firstQuestion,
+      id: 'question-recall-mc',
+      prompt: 'Chọn từ có nghĩa là "nhớ lại"',
+      expectedAnswer: 'recall',
+      mcOptions: [
+        {id: 'opt_correct', label: 'recall', isCorrect: true, keyShortcut: '1'},
+        {id: 'opt_d_0', label: 'ignore', isCorrect: false, keyShortcut: '2'},
+      ],
+    };
+
+    render(
+      <LearningSessionView
+        questions={[firstQuestion, secondQuestion]}
+        settings={settings}
+        isExtraReview={false}
+        onMeaningCardUpdated={() => undefined}
+        onAttempt={() => undefined}
+        onFinishSession={() => undefined}
+        onExitSession={() => undefined}
+      />,
+    );
+
+    const firstCorrectButton = screen.getByRole('button', {name: /remember/i});
+    fireEvent.click(firstCorrectButton);
+    fireEvent.click(screen.getByRole('button', {name: /Check/i}));
+    fireEvent.click(screen.getByRole('button', {name: /Tiếp tục/i}));
+
+    expect(screen.getByRole('button', {name: /recall/i})).not.toBe(
+      firstCorrectButton,
+    );
+  });
+
   it('leaves legacy heuristic scheduling fields unchanged for an FSRS review', () => {
     let updatedCard: MeaningCard | undefined;
 
