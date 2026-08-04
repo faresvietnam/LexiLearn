@@ -1,4 +1,4 @@
-import type {WordPartType} from '../../types';
+import type {WordPartType} from '../../types/index.js';
 
 const GEMINI_MODEL = 'gemini-flash-latest';
 const GEMINI_ENDPOINT =

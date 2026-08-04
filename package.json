@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build": "npm run lint:vercel-function && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist server.cjs",
     "lint": "tsc --noEmit",
+    "lint:vercel-function": "tsc --noEmit --module NodeNext --moduleResolution NodeNext --target ES2022 --skipLibCheck api/ai/analyze.ts",
     "test": "vitest"
   },
   "dependencies": {

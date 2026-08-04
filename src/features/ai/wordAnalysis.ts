@@ -3,7 +3,7 @@ import {
   parseAnalysis,
   type GeminiErrorKind,
   type GeminiWordAnalysis,
-} from '../gemini/geminiClient';
+} from '../gemini/geminiClient.js';
 
 export type WordAnalysis = GeminiWordAnalysis;
 export type AiErrorKind = GeminiErrorKind | 'missing-config';

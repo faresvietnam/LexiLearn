@@ -3,10 +3,10 @@ import {lookup} from 'node:dns/promises';
 import {
   buildWordAnalysisPrompt,
   parseWordAnalysisJson,
-} from '../../src/features/ai/wordAnalysis';
+} from '../../src/features/ai/wordAnalysis.js';
 import {validateProviderBaseUrl} from
-  '../../src/features/openai/providerUrlPolicy';
-import type {AiProvider} from '../../src/types';
+  '../../src/features/openai/providerUrlPolicy.js';
+import type {AiProvider} from '../../src/types/index.js';
 
 type StoredProviderSettings = {
   provider: AiProvider;
