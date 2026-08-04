@@ -1,10 +1,15 @@
-# Add Word API Endpoint Design
+# Word API Endpoints Design
 
 ## Goal
 
-Let a user add a private word to their own vocabulary from outside the web
-app (curl, iOS Shortcuts, n8n, etc.) by calling a new authenticated HTTP
-endpoint, without building a separate long-lived token system.
+Let a user manage their own vocabulary from outside the web app (curl, iOS
+Shortcuts, n8n, etc.) via two new authenticated HTTP endpoints, without
+building a separate long-lived token system:
+
+- `POST /api/words/add` — add a private word.
+- `GET /api/words/reference` — look up the user's existing decks, tags, and
+  word-root components so a caller can reuse the right ids/text instead of
+  guessing or duplicating them.
 
 ## Authentication
 
@@ -37,7 +42,7 @@ This is self-contained: it reads the client directly (same pattern already
 used elsewhere in the codebase) and needs no new props, no changes to
 `AuthProvider`, and no backend support.
 
-## API Endpoint
+## Endpoint: Add Word
 
 `POST /api/words/add`, implemented as a Vercel Function using the same Web
 `Request`/`Response` handler-factory pattern as `api/ai/analyze.ts` and
@@ -109,18 +114,73 @@ truth for those rules.
 
 No service-role key is used anywhere in this endpoint.
 
+## Endpoint: Reference Data
+
+`GET /api/words/reference`, same handler-factory pattern, read-only.
+
+### Request
+
+```text
+GET /api/words/reference
+Authorization: Bearer <supabase_access_token>
+```
+
+No body.
+
+### Handling
+
+1. Read the Bearer token; return `401` if missing.
+2. Verify it with `supabase.auth.getUser(token)`; return `401` if invalid.
+3. Create a Supabase client using the publishable key with the verified
+   access token attached as the `Authorization` header, same as the add-word
+   endpoint. RLS already restricts `decks`, `tags`, and
+   `private_word_components` to rows owned by the calling user
+   (`owner_user_id`/`user_id` = `auth.uid()`), so the queries need no manual
+   user-id filter beyond what RLS enforces.
+4. Run the three selects (decks, tags, word components) and return them
+   together. A query failure returns `500`.
+
+### Response
+
+```jsonc
+{
+  "decks": [
+    {"id": "uuid", "name": "...", "color": "...", "is_default": false}
+  ],
+  "tags": [
+    {"id": "uuid", "name": "...", "color": "..."}
+  ],
+  "word_components": [
+    {
+      "id": "uuid",
+      "type": "root",
+      "normalized_text": "...",
+      "display_text": "...",
+      "meaning": "..."
+    }
+  ]
+}
+```
+
+`word_components` is the user's `private_word_components` library — the same
+table `create_private_word` upserts into (unique on
+`owner_user_id, type, normalized_text`) when a word's `parts[]` are saved. A
+caller can look these up first and reuse the exact `type`/`text` so repeated
+roots/prefixes/suffixes stay merged instead of duplicated.
+
 ## Local Dev and Deployment
 
-`server.ts` gets one more forwarder, following the existing
+`server.ts` gets two more forwarders, following the existing
 `forwardAnalyzeRequest`/`forwardImageRequest` pattern:
 
 ```text
 app.post('/api/words/add', forwardAddWordRequest);
+app.get('/api/words/reference', forwardWordReferenceRequest);
 ```
 
-Vercel picks up `api/words/add.ts` automatically via file-based routing in
-production; no `vercel.json` changes are needed (none exist for the other
-two endpoints either).
+Vercel picks up `api/words/add.ts` and `api/words/reference.ts`
+automatically via file-based routing in production; no `vercel.json` changes
+are needed (none exist for the other two endpoints either).
 
 ## Testing
 
@@ -139,5 +199,16 @@ Cases:
 - RPC succeeds → `201` with the returned word JSON, and the call payload
   includes the verified user id as `owner_user_id`.
 
+`src/features/words/wordReferenceFunction.test.ts`, same style, with
+`verifyAccessToken` and the reference-data loader mocked.
+
+Cases:
+
+- Missing/invalid Bearer token → `401`.
+- Loader failure → `500`.
+- Success → `200` with `decks`, `tags`, and `word_components` from the
+  loader passed through unchanged.
+
 No new database migration, table, or RPC is added, so no database-level
-tests are needed beyond the existing `create_private_word` coverage.
+tests are needed beyond the existing `create_private_word` and RLS
+coverage.
