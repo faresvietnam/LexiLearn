@@ -237,38 +237,6 @@ export interface StudyAttemptInput {
   sentenceKey?: string;
 }
 
-export interface CsvRowRaw {
-  word: string;
-  vietnameseMeaning: string;
-  partOfSpeech?: string;
-  ipa?: string;
-  deck?: string;
-  tags?: string;
-  prefix?: string;
-  root?: string;
-  suffix?: string;
-  exampleSentence?: string;
-}
-
-export interface CsvImportConflict {
-  word: string;
-  field: string;
-  existingValue: string;
-  importedValue: string;
-  resolution: 'keep' | 'use_imported';
-}
-
-export interface CsvImportReport {
-  newWordsCount: number;
-  existingLinkedCount: number;
-  emptyFieldsFilledCount: number;
-  conflictsResolvedCount: number;
-  duplicateRowsRemovedCount: number;
-  invalidRowsCount: number;
-  rows: CsvRowRaw[];
-  conflicts: CsvImportConflict[];
-}
-
 export type JsonWordExampleInput = {
   sentence: string;
   expected_answer?: string;
