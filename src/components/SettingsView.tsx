@@ -335,7 +335,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   type="url"
                   value={openAIBaseUrl}
                   onChange={(event) => setOpenAIBaseUrl(event.target.value)}
-                  placeholder="https://integrate.8686.vn/v1"
+                  placeholder="https://openai.com/v1"
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono"
                 />
               </div>
@@ -361,7 +361,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   id="openai-model"
                   value={openAIModel}
                   onChange={(event) => setOpenAIModel(event.target.value)}
-                  placeholder="deepseek-ai/deepseek-v4-flash"
+                  placeholder="gpt5.5"
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono"
                 />
               </div>

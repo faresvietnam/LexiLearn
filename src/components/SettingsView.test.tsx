@@ -109,6 +109,14 @@ describe('SettingsView OpenAI-compatible provider', () => {
     fireEvent.change(screen.getByLabelText('Nhà cung cấp AI'), {
       target: {value: 'openai-compatible'},
     });
+    expect(screen.getByLabelText('Base URL')).toHaveAttribute(
+      'placeholder',
+      'https://openai.com/v1',
+    );
+    expect(screen.getByLabelText('Model')).toHaveAttribute(
+      'placeholder',
+      'gpt5.5',
+    );
     fireEvent.change(screen.getByLabelText('Base URL'), {
       target: {value: ' https://integrate.8686.vn/v1/ '},
     });
