@@ -268,3 +268,35 @@ export interface CsvImportReport {
   rows: CsvRowRaw[];
   conflicts: CsvImportConflict[];
 }
+
+export type JsonWordExampleInput = {
+  sentence: string;
+  expected_answer?: string;
+  word_form?: string;
+  difficulty?: 'easy' | 'medium' | 'hard';
+};
+
+export type JsonWordMeaningInput = {
+  meaning_vi: string;
+  part_of_speech: string;
+  definition_en?: string;
+  examples?: JsonWordExampleInput[];
+};
+
+export type JsonWordPartInput = {
+  text: string;
+  type: WordPartType;
+  meaning?: string;
+};
+
+export type JsonWordInput = {
+  word: string;
+  ipa?: string;
+  audio_url?: string;
+  image_url?: string;
+  deck_name?: string;
+  tag_names?: string[];
+  study_status?: WordStudyStatus;
+  meanings: JsonWordMeaningInput[];
+  parts?: JsonWordPartInput[];
+};
