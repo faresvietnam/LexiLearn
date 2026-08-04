@@ -6,6 +6,7 @@ import {
 
 const ANALYSIS = {
   word: 'transportation',
+  canonicalWord: 'transportation',
   ipa: '/ˌtrænspərˈteɪʃn/',
   partOfSpeech: 'noun',
   vietnameseMeaning: 'sự vận chuyển',
@@ -31,6 +32,22 @@ const ANALYSIS = {
       examples: [
         {
           sentence: 'Public transportation is convenient.',
+          expectedAnswer: 'transportation',
+          baseWord: 'transportation',
+          wordForm: 'base',
+          partOfSpeech: 'noun',
+          difficulty: 'medium',
+        },
+        {
+          sentence: 'The city needs better public transportation.',
+          expectedAnswer: 'transportation',
+          baseWord: 'transportation',
+          wordForm: 'base',
+          partOfSpeech: 'noun',
+          difficulty: 'medium',
+        },
+        {
+          sentence: 'Transportation costs increased this year.',
           expectedAnswer: 'transportation',
           baseWord: 'transportation',
           wordForm: 'base',
@@ -127,15 +144,18 @@ describe('analyzeWordWithGemini', () => {
     const analysis = {
       ...ANALYSIS,
       word: 'reusable',
+      canonicalWord: 'reusable',
       partOfSpeech: 'adjective',
       vietnameseMeaning: 'có thể tái sử dụng',
       meanings: [{
         meaningVi: 'có thể tái sử dụng',
         definitionEn: 'able to be used again or multiple times',
         partOfSpeech: 'adjective',
-        examples: [{
-          sentence: 'We should bring reusable bags.',
-        }],
+        examples: [
+          {sentence: 'We should bring reusable bags.'},
+          {sentence: 'This bottle is reusable.'},
+          {sentence: 'Choose reusable containers.'},
+        ],
       }],
     };
     const fetchImpl = vi.fn().mockResolvedValue(
@@ -155,10 +175,31 @@ describe('analyzeWordWithGemini', () => {
     })]);
   });
 
+  it('returns the dictionary headword selected for an inflected AI input', async () => {
+    const analysis = {
+      ...ANALYSIS,
+      word: 'abandoned',
+      canonicalWord: 'abandon',
+      wordStructure: [],
+    };
+    const fetchImpl = vi.fn().mockResolvedValue(
+      geminiResponse(JSON.stringify(analysis)),
+    );
+
+    const result = await analyzeWordWithGemini({
+      apiKey: 'personal-key',
+      word: 'abandoned',
+      fetchImpl,
+    });
+
+    expect(result.canonicalWord).toBe('abandon');
+  });
+
   it('discards morphology parts that do not concatenate to the analyzed word', async () => {
     const analysis = {
       ...ANALYSIS,
       word: 'reusable',
+      canonicalWord: 'reusable',
       wordStructure: [
         {text: 're-', type: 'prefix', meaning: 'lại'},
         {text: 'use', type: 'root', meaning: 'sử dụng'},
@@ -182,19 +223,28 @@ describe('analyzeWordWithGemini', () => {
     const analysis = {
       ...ANALYSIS,
       word: 'abandon',
+      canonicalWord: 'abandon',
       wordStructure: [],
       meanings: [
         {
           meaningVi: 'bỏ rơi, ruồng bỏ',
           definitionEn: 'to leave someone or something behind',
           partOfSpeech: 'Verb',
-          examples: [{sentence: 'He abandoned his car.'}],
+          examples: [
+            {sentence: 'He abandoned his car.'},
+            {sentence: 'The crew abandoned the ship.'},
+            {sentence: 'Someone abandoned the puppy.'},
+          ],
         },
         {
           meaningVi: 'từ bỏ, bỏ dở',
           definitionEn: 'to stop doing something before it is finished',
           partOfSpeech: 'verb',
-          examples: [{sentence: 'They abandoned the search.'}],
+          examples: [
+            {sentence: 'They abandoned the search.'},
+            {sentence: 'The company abandoned the project.'},
+            {sentence: 'She abandoned her original plan.'},
+          ],
         },
       ],
     };
@@ -219,8 +269,52 @@ describe('analyzeWordWithGemini', () => {
     });
     expect(result.meanings[0].examples.map(({sentence}) => sentence)).toEqual([
       'He abandoned his car.',
-      'They abandoned the search.',
+      'The crew abandoned the ship.',
+      'Someone abandoned the puppy.',
     ]);
+  });
+
+  it.each([
+    {
+      label: 'fewer than three',
+      examples: [{sentence: 'One.'}, {sentence: 'Two.'}],
+    },
+    {
+      label: 'more than three',
+      examples: [
+        {sentence: 'One.'},
+        {sentence: 'Two.'},
+        {sentence: 'Three.'},
+        {sentence: 'Four.'},
+      ],
+    },
+    {
+      label: 'duplicate',
+      examples: [
+        {sentence: 'Same sentence.'},
+        {sentence: 'Same sentence.'},
+        {sentence: 'Another sentence.'},
+      ],
+    },
+  ])('rejects $label examples for one meaning', async ({examples}) => {
+    const analysis = {
+      ...ANALYSIS,
+      meanings: [{
+        ...ANALYSIS.meanings[0],
+        examples,
+      }],
+    };
+    const fetchImpl = vi.fn().mockResolvedValue(
+      geminiResponse(JSON.stringify(analysis)),
+    );
+
+    await expect(analyzeWordWithGemini({
+      apiKey: 'personal-key',
+      word: analysis.word,
+      fetchImpl,
+    })).rejects.toEqual(expect.objectContaining({
+      kind: 'invalid-response',
+    }));
   });
 
   it('returns actionable quota feedback for a 429 response', async () => {

@@ -142,7 +142,7 @@ function draftFromGemini(
         partOfSpeech: data.partOfSpeech.toLowerCase(),
       }];
   return createWordFromDraft({
-    word: data.word,
+    word: data.canonicalWord,
     ipa: data.ipa,
     wordParts: parts,
     meanings,
@@ -293,6 +293,7 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
         word,
       });
 
+      handleWordChange(data.canonicalWord);
       if (data.ipa) setIpa(data.ipa);
       const analyzedMeanings = data.meanings.length > 0
         ? data.meanings.map((meaning, index) => ({
@@ -357,14 +358,14 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
         setBatchProgress(`Đang xử lý ${index + 1}/${words.length}: ${inputWord}`);
         try {
           const data = await analyzeWordWithGemini({apiKey: geminiApiKey, word: inputWord});
-          const normalized = inputWord.toLowerCase();
+          const normalized = data.canonicalWord.toLowerCase();
           const existing = [...globalWords, ...linkedGlobalWords].find(
             (candidate) => candidate.word.toLowerCase() === normalized,
           );
           const saved = existing
             ? await onLinkExistingGlobalWord(existing.id)
             : await onAddWord(draftFromGemini(
-                {...data, word: inputWord},
+                data,
                 selectedDeckId,
                 selectedTagIds,
                 `${Date.now()}_${index}`,

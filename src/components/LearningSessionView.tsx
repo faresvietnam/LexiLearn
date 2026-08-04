@@ -762,7 +762,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
       {/* Answer Review Overlay Screen (Section 3.4 & 10) */}
       {showAnswerReview && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6 animate-fade-in">
-          <div className="max-w-2xl w-full bg-white border border-slate-200 rounded-3xl p-8 space-y-6 shadow-2xl">
+          <div className="max-w-2xl max-h-[90vh] w-full bg-white border border-slate-200 rounded-3xl p-8 flex flex-col gap-6 shadow-2xl">
             {/* Answer Result Header */}
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-3">
@@ -783,6 +783,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
               </button>
             </div>
 
+            <div className="min-h-0 flex-1 overflow-y-auto space-y-6 pr-1">
             {/* Target Word & IPA */}
             <div className="space-y-1">
               <div className="flex items-baseline gap-3">
@@ -795,14 +796,53 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
               </div>
             </div>
 
-            {/* Tested Meaning Highlight */}
-            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-1">
-              <div className="text-xs font-bold uppercase text-emerald-800 tracking-wider">
-                Nghĩa vừa được kiểm tra
+            <div className="space-y-3">
+              <div className="text-xs font-bold uppercase text-slate-500 tracking-wider">
+                Tất cả nghĩa và ví dụ
               </div>
-              <p className="text-lg font-bold text-slate-900">
-                {currentQuestion.targetMeaningCard.meaning}
-              </p>
+              {currentQuestion.word.meanings.map((meaning) => {
+                const isTested =
+                  meaning.id === currentQuestion.targetMeaningCard.id;
+                return (
+                  <section
+                    key={meaning.id}
+                    className={`rounded-2xl border p-4 space-y-3 ${
+                      isTested
+                        ? 'border-emerald-200 bg-emerald-50'
+                        : 'border-slate-200 bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-lg font-bold text-slate-900">
+                        {meaning.meaning}
+                      </p>
+                      <span className="text-xs text-indigo-600 font-mono font-bold">
+                        ({meaning.partOfSpeech})
+                      </span>
+                    </div>
+                    {meaning.definitionEn && (
+                      <p className="text-sm text-slate-600">
+                        {meaning.definitionEn}
+                      </p>
+                    )}
+                    {meaning.exampleSentences.length > 0 && (
+                      <ol className="space-y-2">
+                        {meaning.exampleSentences.map((example, index) => (
+                          <li
+                            key={example.id}
+                            className="flex gap-2 rounded-xl border border-white/80 bg-white px-3 py-2 text-sm text-slate-700"
+                          >
+                            <span className="font-bold text-indigo-500">
+                              {index + 1}.
+                            </span>
+                            <span>{example.sentence}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </section>
+                );
+              })}
             </div>
 
             {reviewSchedule && (
@@ -829,30 +869,6 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
               </div>
             )}
 
-            {/* All OTHER Meanings Display (Requirement Section 3.4) */}
-            {currentQuestion.word.meanings.length > 1 && (
-              <div className="space-y-2">
-                <div className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-                  Các nghĩa khác của từ "{currentQuestion.word.word}":
-                </div>
-                <div className="space-y-1.5">
-                  {currentQuestion.word.meanings
-                    .filter((m) => m.id !== currentQuestion.targetMeaningCard.id)
-                    .map((otherM, i) => (
-                      <div
-                        key={i}
-                        className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-sm flex items-center justify-between"
-                      >
-                        <span className="text-slate-800 font-medium">{otherM.meaning}</span>
-                        <span className="text-xs text-indigo-600 font-mono font-bold">
-                          ({otherM.partOfSpeech})
-                        </span>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            )}
-
             {/* Word Structure Breakdown */}
             {currentQuestion.word.wordStructure.length > 0 && (
               <div className="space-y-2">
@@ -873,6 +889,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
                 </div>
               </div>
             )}
+            </div>
 
             {/* Continue Button */}
             <button

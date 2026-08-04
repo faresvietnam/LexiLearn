@@ -92,6 +92,86 @@ afterEach(() => {
 });
 
 describe('LearningSessionView session completion', () => {
+  it('shows every meaning with all three examples in the correct-answer overlay', () => {
+    const rememberExamples = [
+      'I remember my first teacher.',
+      'Please remember to lock the door.',
+      'She remembers his name clearly.',
+    ].map((sentence, index) => ({
+      id: `remember-example-${index}`,
+      meaningCardId: meaningCard.id,
+      sentence,
+      expectedAnswer: 'remember',
+      baseWord: 'remember',
+      wordForm: 'base',
+      partOfSpeech: 'verb',
+      difficulty: 'medium' as const,
+      approvalStatus: 'approved' as const,
+    }));
+    const remembranceMeaning: MeaningCard = {
+      ...meaningCard,
+      id: 'meaning-remembrance',
+      meaning: 'lễ tưởng niệm',
+      partOfSpeech: 'noun',
+      definitionEn: 'an act of remembering and honoring someone',
+      exampleSentences: [
+        'They held a service of remembrance.',
+        'The monument stands in remembrance of the victims.',
+        'A minute of remembrance followed the speech.',
+      ].map((sentence, index) => ({
+        id: `remembrance-example-${index}`,
+        meaningCardId: 'meaning-remembrance',
+        sentence,
+        expectedAnswer: 'remembrance',
+        baseWord: 'remember',
+        wordForm: 'noun',
+        partOfSpeech: 'noun',
+        difficulty: 'medium' as const,
+        approvalStatus: 'approved' as const,
+      })),
+    };
+    const testedMeaning: MeaningCard = {
+      ...meaningCard,
+      definitionEn: 'to keep information in your mind',
+      exampleSentences: rememberExamples,
+    };
+    const reviewQuestion: Question = {
+      ...question,
+      word: {
+        ...pendingWord,
+        meanings: [testedMeaning, remembranceMeaning],
+      },
+      targetMeaningCard: testedMeaning,
+    };
+
+    render(
+      <LearningSessionView
+        questions={[reviewQuestion]}
+        settings={settings}
+        isExtraReview={false}
+        onMeaningCardUpdated={() => undefined}
+        onAttempt={() => undefined}
+        onFinishSession={() => undefined}
+        onExitSession={() => undefined}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('Gõ từ tiếng Anh tại đây...'), {
+      target: {value: 'remember'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: /Check/i}));
+
+    expect(screen.getByRole('heading', {name: 'Chính xác!'})).toBeInTheDocument();
+    expect(screen.getByText('to keep information in your mind')).toBeInTheDocument();
+    expect(screen.getByText('an act of remembering and honoring someone')).toBeInTheDocument();
+    for (const sentence of [
+      ...rememberExamples.map(({sentence}) => sentence),
+      ...remembranceMeaning.exampleSentences.map(({sentence}) => sentence),
+    ]) {
+      expect(screen.getByText(sentence)).toBeInTheDocument();
+    }
+  });
+
   it('recreates multiple-choice buttons between questions so interaction state cannot leak', () => {
     const firstQuestion: Question = {
       ...question,

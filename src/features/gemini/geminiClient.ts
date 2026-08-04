@@ -16,6 +16,7 @@ const DIFFICULTIES = new Set(['easy', 'medium', 'hard']);
 
 export type GeminiWordAnalysis = {
   word: string;
+  canonicalWord: string;
   ipa: string;
   partOfSpeech: string;
   vietnameseMeaning: string;
@@ -69,13 +70,17 @@ type AnalyzeWordInput = {
 };
 
 function buildPrompt(word: string) {
-  return `Analyze the English word "${word}" for a Vietnamese learner. Return JSON only. Return at most one meanings entry per part of speech. When one part of speech has several common senses, combine their Vietnamese translations in meaningVi and their concise English explanations in definitionEn instead of creating duplicate entries. Never put English text in meaningVi. Include 1-2 representative natural English example sentences per part of speech. Use accurate IPA and up to 5 word-family items. Every wordStructure.text must be an exact consecutive surface substring of "${word}", in order; after removing boundary hyphens, concatenating all parts must equal "${word}" exactly. Do not restore dropped letters or use underlying dictionary forms. If an exact morphology split is unclear or affected by a spelling change, return an empty wordStructure; do not guess.`;
+  return `Analyze the English input "${word}" for a Vietnamese learner. Return JSON only. Set canonicalWord to the dictionary headword: convert past tense, past participles, -ing verb forms, and plural nouns (including irregular forms) to their base form. Preserve comparative and superlative forms such as better, larger, and largest. Preserve words such as news when that form is already the dictionary headword. Analyze IPA, meanings, morphology, word family, and examples for canonicalWord, not the original inflected input. Return at most one meanings entry per part of speech. When one part of speech has several common senses, combine their Vietnamese translations in meaningVi and their concise English explanations in definitionEn instead of creating duplicate entries. Never put English text in meaningVi. Include exactly 3 distinct, natural English example sentences per part of speech. Use accurate IPA and up to 5 word-family items. Every wordStructure.text must be an exact consecutive surface substring of canonicalWord, in order; after removing boundary hyphens, concatenating all parts must equal canonicalWord exactly. Do not restore dropped letters or use underlying dictionary forms in wordStructure. If an exact morphology split is unclear or affected by a spelling change, return an empty wordStructure; do not guess.`;
 }
 
 const RESPONSE_SCHEMA = {
   type: 'object',
   properties: {
     word: {type: 'string'},
+    canonicalWord: {
+      type: 'string',
+      description: 'Dictionary headword after the requested canonicalization rules.',
+    },
     ipa: {type: 'string'},
     partOfSpeech: {type: 'string'},
     vietnameseMeaning: {type: 'string'},
@@ -119,7 +124,8 @@ const RESPONSE_SCHEMA = {
           },
           examples: {
             type: 'array',
-            maxItems: 2,
+            minItems: 3,
+            maxItems: 3,
             items: {
               type: 'object',
               properties: {
@@ -140,6 +146,7 @@ const RESPONSE_SCHEMA = {
   },
   required: [
     'word',
+    'canonicalWord',
     'ipa',
     'partOfSpeech',
     'vietnameseMeaning',
@@ -177,12 +184,24 @@ function isExample(
 function isMeaning(
   value: unknown,
 ): value is GeminiWordAnalysis['meanings'][number] {
+  if (
+    !isRecord(value)
+    || !isNonEmptyString(value.meaningVi)
+    || typeof value.definitionEn !== 'string'
+    || !isNonEmptyString(value.partOfSpeech)
+    || !Array.isArray(value.examples)
+    || value.examples.length !== 3
+    || !value.examples.every(isExample)
+  ) return false;
+
+  const normalizedSentences = value.examples.map((example) =>
+    (example as Record<string, unknown>).sentence
+      ?.toString()
+      .trim()
+      .toLocaleLowerCase('en-US')
+  );
   return isRecord(value)
-    && isNonEmptyString(value.meaningVi)
-    && typeof value.definitionEn === 'string'
-    && isNonEmptyString(value.partOfSpeech)
-    && Array.isArray(value.examples)
-    && value.examples.every(isExample);
+    && new Set(normalizedSentences).size === 3;
 }
 
 function normalizeMorphologyText(value: string): string {
@@ -210,6 +229,7 @@ function parseAnalysis(value: unknown): GeminiWordAnalysis {
   if (
     !isRecord(value)
     || !isNonEmptyString(value.word)
+    || !isNonEmptyString(value.canonicalWord)
     || !isNonEmptyString(value.ipa)
     || !isNonEmptyString(value.partOfSpeech)
     || !isNonEmptyString(value.vietnameseMeaning)
@@ -228,6 +248,7 @@ function parseAnalysis(value: unknown): GeminiWordAnalysis {
   }
 
   const word = value.word as string;
+  const canonicalWord = value.canonicalWord as string;
   const defaultPartOfSpeech = value.partOfSpeech as string;
   const parsedWordStructure =
     (value.wordStructure as Array<Record<string, unknown>>).map((part, index) => ({
@@ -239,7 +260,7 @@ function parseAnalysis(value: unknown): GeminiWordAnalysis {
   const joinedStructure = parsedWordStructure
     .map((part) => normalizeMorphologyText(part.text))
     .join('');
-  const wordStructure = joinedStructure === normalizeMorphologyText(word)
+  const wordStructure = joinedStructure === normalizeMorphologyText(canonicalWord)
     ? parsedWordStructure
     : [];
   const parsedMeanings =
@@ -253,10 +274,10 @@ function parseAnalysis(value: unknown): GeminiWordAnalysis {
           sentence: example.sentence as string,
           expectedAnswer: typeof example.expectedAnswer === 'string'
             ? example.expectedAnswer
-            : word,
+            : canonicalWord,
           baseWord: typeof example.baseWord === 'string'
             ? example.baseWord
-            : word,
+            : canonicalWord,
           wordForm: typeof example.wordForm === 'string' ? example.wordForm : 'base',
           partOfSpeech: typeof example.partOfSpeech === 'string'
             ? example.partOfSpeech
@@ -273,7 +294,7 @@ function parseAnalysis(value: unknown): GeminiWordAnalysis {
       const key = meaning.partOfSpeech.trim().toLocaleLowerCase('en-US');
       const existing = grouped.get(key);
       if (!existing) {
-        grouped.set(key, {...meaning, examples: meaning.examples.slice(0, 2)});
+        grouped.set(key, {...meaning, examples: meaning.examples.slice(0, 3)});
         return grouped;
       }
       const knownSentences = new Set(
@@ -286,7 +307,7 @@ function parseAnalysis(value: unknown): GeminiWordAnalysis {
         ...existing,
         meaningVi: appendUniqueText(existing.meaningVi, meaning.meaningVi),
         definitionEn: appendUniqueText(existing.definitionEn, meaning.definitionEn),
-        examples: [...existing.examples, ...newExamples].slice(0, 2),
+        examples: [...existing.examples, ...newExamples].slice(0, 3),
       });
       return grouped;
     }, new Map<string, GeminiWordAnalysis['meanings'][number]>()),
@@ -294,6 +315,7 @@ function parseAnalysis(value: unknown): GeminiWordAnalysis {
 
   return {
     word,
+    canonicalWord,
     ipa: value.ipa as string,
     partOfSpeech: defaultPartOfSpeech,
     vietnameseMeaning: value.vietnameseMeaning as string,

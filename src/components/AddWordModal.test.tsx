@@ -33,13 +33,20 @@ function renderModal(geminiApiKey: string | null) {
   return onAddWord;
 }
 
-function geminiResponse() {
+function geminiResponse({
+  word = 'transportation',
+  canonicalWord = word,
+}: {
+  word?: string;
+  canonicalWord?: string;
+} = {}) {
   return new Response(JSON.stringify({
     candidates: [{
       content: {
         parts: [{
           text: JSON.stringify({
-            word: 'transportation',
+            word,
+            canonicalWord,
             ipa: '/ˌtrænspərˈteɪʃn/',
             partOfSpeech: 'noun',
             vietnameseMeaning: 'sự vận chuyển',
@@ -59,15 +66,29 @@ function geminiResponse() {
               definitionEn: 'the movement of people or goods from one place to another',
               partOfSpeech: 'noun',
               examples: [{
-                sentence: 'Public transportation is convenient.',
-                expectedAnswer: 'transportation',
-                baseWord: 'transportation',
+                sentence: `${canonicalWord} appears in the first example.`,
+                expectedAnswer: canonicalWord,
+                baseWord: canonicalWord,
+                wordForm: 'base',
+                partOfSpeech: 'noun',
+                difficulty: 'medium',
+              }, {
+                sentence: `${canonicalWord} appears in the second example.`,
+                expectedAnswer: canonicalWord,
+                baseWord: canonicalWord,
+                wordForm: 'base',
+                partOfSpeech: 'noun',
+                difficulty: 'medium',
+              }, {
+                sentence: `${canonicalWord} appears in the third example.`,
+                expectedAnswer: canonicalWord,
+                baseWord: canonicalWord,
                 wordForm: 'base',
                 partOfSpeech: 'noun',
                 difficulty: 'medium',
               }],
             }],
-            wordFamily: ['transportation'],
+            wordFamily: [canonicalWord],
           }),
         }],
         role: 'model',
@@ -149,6 +170,20 @@ describe('AddWordModal Gemini Auto-Fill', () => {
     );
   });
 
+  it('updates the visible word to the canonical headword after AI Auto-Fill', async () => {
+    vi.mocked(fetch).mockResolvedValue(geminiResponse({
+      word: 'abandoned',
+      canonicalWord: 'abandon',
+    }));
+    renderModal(PERSONAL_KEY);
+    const wordInput = screen.getByPlaceholderText('e.g. transportation');
+    fireEvent.change(wordInput, {target: {value: 'abandoned'}});
+
+    fireEvent.click(screen.getByRole('button', {name: 'AI Auto-Fill'}));
+
+    await waitFor(() => expect(wordInput).toHaveValue('abandon'));
+  });
+
   it('shows quota feedback and preserves manual entry after Gemini rejects the request', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({
       error: {
@@ -191,6 +226,22 @@ describe('AddWordModal Gemini Auto-Fill', () => {
     await waitFor(() => expect(onAddWord).toHaveBeenCalledTimes(2));
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(screen.getByRole('status')).toHaveTextContent('Đã thêm 2/2 từ');
+  });
+
+  it('saves the canonical headword returned for a batch AI entry', async () => {
+    vi.mocked(fetch).mockResolvedValue(geminiResponse({
+      word: 'children',
+      canonicalWord: 'child',
+    }));
+    const onAddWord = renderModal(PERSONAL_KEY);
+    fireEvent.change(screen.getByLabelText('AI thêm nhiều từ'), {
+      target: {value: 'children'},
+    });
+
+    fireEvent.click(screen.getByRole('button', {name: 'AI thêm danh sách'}));
+
+    await waitFor(() => expect(onAddWord).toHaveBeenCalledOnce());
+    expect(onAddWord.mock.calls[0][0].word).toBe('child');
   });
 });
 
@@ -247,6 +298,21 @@ describe('AddWordModal meaning editor', () => {
         exampleSentences: [],
       },
     ]);
+  });
+
+  it('preserves an inflected word when the user saves without AI', async () => {
+    const onAddWord = renderModal(null);
+    fireEvent.change(screen.getByPlaceholderText('e.g. transportation'), {
+      target: {value: 'abandoned'},
+    });
+    fireEvent.change(screen.getByLabelText('Nghĩa tiếng Việt 1'), {
+      target: {value: 'đã bỏ rơi'},
+    });
+
+    fireEvent.click(screen.getByRole('button', {name: 'Lưu từ vựng'}));
+
+    await waitFor(() => expect(onAddWord).toHaveBeenCalledOnce());
+    expect(onAddWord.mock.calls[0][0].word).toBe('abandoned');
   });
 
   it('does not submit while any meaning is incomplete', async () => {
