@@ -47,7 +47,7 @@ describe('database migration chain', () => {
       '20260803090300_harden_admin_user_stats.sql',
       '20260803090400_complete_new_word_quota.sql',
       '20260804031142_add_private_word_component_library.sql',
-      '20260804120000_add_openai_compatible_provider.sql',
+      '20260804074151_add_openai_compatible_provider.sql',
     ]);
   });
 
