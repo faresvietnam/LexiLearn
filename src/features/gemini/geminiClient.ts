@@ -69,7 +69,7 @@ type AnalyzeWordInput = {
 };
 
 function buildPrompt(word: string) {
-  return `Analyze the English word "${word}" for a Vietnamese learner. Return JSON only. For each distinct common meaning, put a concise Vietnamese translation in meaningVi and an English dictionary-style definition in definitionEn; never put English text in meaningVi. Include the correct part of speech and 1-2 natural English example sentences for each meaning. Use accurate IPA and up to 5 word-family items. Every wordStructure.text must be an exact consecutive surface substring of "${word}", in order; after removing boundary hyphens, concatenating all parts must equal "${word}" exactly. Do not restore dropped letters or use underlying dictionary forms. If an exact morphology split is unclear or affected by a spelling change, return an empty wordStructure; do not guess.`;
+  return `Analyze the English word "${word}" for a Vietnamese learner. Return JSON only. Return at most one meanings entry per part of speech. When one part of speech has several common senses, combine their Vietnamese translations in meaningVi and their concise English explanations in definitionEn instead of creating duplicate entries. Never put English text in meaningVi. Include 1-2 representative natural English example sentences per part of speech. Use accurate IPA and up to 5 word-family items. Every wordStructure.text must be an exact consecutive surface substring of "${word}", in order; after removing boundary hyphens, concatenating all parts must equal "${word}" exactly. Do not restore dropped letters or use underlying dictionary forms. If an exact morphology split is unclear or affected by a spelling change, return an empty wordStructure; do not guess.`;
 }
 
 const RESPONSE_SCHEMA = {
@@ -101,6 +101,7 @@ const RESPONSE_SCHEMA = {
     meanings: {
       type: 'array',
       maxItems: 5,
+      description: 'At most one entry for each unique part of speech.',
       items: {
         type: 'object',
         properties: {
@@ -112,7 +113,10 @@ const RESPONSE_SCHEMA = {
             type: 'string',
             description: 'A concise English dictionary-style definition.',
           },
-          partOfSpeech: {type: 'string'},
+          partOfSpeech: {
+            type: 'string',
+            description: 'Part of speech; must be unique within meanings.',
+          },
           examples: {
             type: 'array',
             maxItems: 2,
@@ -188,6 +192,20 @@ function normalizeMorphologyText(value: string): string {
     .replace(/[\s\u2010-\u2015-]+/g, '');
 }
 
+function appendUniqueText(current: string, next: string): string {
+  const trimmedCurrent = current.trim();
+  const trimmedNext = next.trim();
+  if (!trimmedNext) return trimmedCurrent;
+  if (!trimmedCurrent) return trimmedNext;
+  const normalizedNext = trimmedNext.toLocaleLowerCase('en-US');
+  const currentParts = trimmedCurrent
+    .split(';')
+    .map((part) => part.trim().toLocaleLowerCase('en-US'));
+  return currentParts.includes(normalizedNext)
+    ? trimmedCurrent
+    : `${trimmedCurrent}; ${trimmedNext}`;
+}
+
 function parseAnalysis(value: unknown): GeminiWordAnalysis {
   if (
     !isRecord(value)
@@ -224,14 +242,8 @@ function parseAnalysis(value: unknown): GeminiWordAnalysis {
   const wordStructure = joinedStructure === normalizeMorphologyText(word)
     ? parsedWordStructure
     : [];
-
-  return {
-    word,
-    ipa: value.ipa as string,
-    partOfSpeech: defaultPartOfSpeech,
-    vietnameseMeaning: value.vietnameseMeaning as string,
-    wordStructure,
-    meanings: (value.meanings as Array<Record<string, unknown>>).map((meaning) => {
+  const parsedMeanings =
+    (value.meanings as Array<Record<string, unknown>>).map((meaning) => {
       const meaningPartOfSpeech = meaning.partOfSpeech as string;
       return {
         meaningVi: meaning.meaningVi as string,
@@ -255,7 +267,38 @@ function parseAnalysis(value: unknown): GeminiWordAnalysis {
             : 'medium',
         })),
       };
-    }),
+    });
+  const meanings = Array.from(
+    parsedMeanings.reduce((grouped, meaning) => {
+      const key = meaning.partOfSpeech.trim().toLocaleLowerCase('en-US');
+      const existing = grouped.get(key);
+      if (!existing) {
+        grouped.set(key, {...meaning, examples: meaning.examples.slice(0, 2)});
+        return grouped;
+      }
+      const knownSentences = new Set(
+        existing.examples.map(({sentence}) => sentence.trim().toLocaleLowerCase('en-US')),
+      );
+      const newExamples = meaning.examples.filter(
+        ({sentence}) => !knownSentences.has(sentence.trim().toLocaleLowerCase('en-US')),
+      );
+      grouped.set(key, {
+        ...existing,
+        meaningVi: appendUniqueText(existing.meaningVi, meaning.meaningVi),
+        definitionEn: appendUniqueText(existing.definitionEn, meaning.definitionEn),
+        examples: [...existing.examples, ...newExamples].slice(0, 2),
+      });
+      return grouped;
+    }, new Map<string, GeminiWordAnalysis['meanings'][number]>()),
+  ).map(([, meaning]) => meaning);
+
+  return {
+    word,
+    ipa: value.ipa as string,
+    partOfSpeech: defaultPartOfSpeech,
+    vietnameseMeaning: value.vietnameseMeaning as string,
+    wordStructure,
+    meanings,
     wordFamily: value.wordFamily as string[],
   };
 }

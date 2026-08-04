@@ -178,6 +178,51 @@ describe('analyzeWordWithGemini', () => {
     expect(result.wordStructure).toEqual([]);
   });
 
+  it('merges multiple senses with the same part of speech into one meaning card', async () => {
+    const analysis = {
+      ...ANALYSIS,
+      word: 'abandon',
+      wordStructure: [],
+      meanings: [
+        {
+          meaningVi: 'bỏ rơi, ruồng bỏ',
+          definitionEn: 'to leave someone or something behind',
+          partOfSpeech: 'Verb',
+          examples: [{sentence: 'He abandoned his car.'}],
+        },
+        {
+          meaningVi: 'từ bỏ, bỏ dở',
+          definitionEn: 'to stop doing something before it is finished',
+          partOfSpeech: 'verb',
+          examples: [{sentence: 'They abandoned the search.'}],
+        },
+      ],
+    };
+    const fetchImpl = vi.fn().mockResolvedValue(
+      geminiResponse(JSON.stringify(analysis)),
+    );
+
+    const result = await analyzeWordWithGemini({
+      apiKey: 'personal-key',
+      word: 'abandon',
+      fetchImpl,
+    });
+
+    expect(result.meanings).toHaveLength(1);
+    expect(result.meanings[0]).toMatchObject({
+      meaningVi: 'bỏ rơi, ruồng bỏ; từ bỏ, bỏ dở',
+      definitionEn: [
+        'to leave someone or something behind',
+        'to stop doing something before it is finished',
+      ].join('; '),
+      partOfSpeech: 'Verb',
+    });
+    expect(result.meanings[0].examples.map(({sentence}) => sentence)).toEqual([
+      'He abandoned his car.',
+      'They abandoned the search.',
+    ]);
+  });
+
   it('returns actionable quota feedback for a 429 response', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       error: {
