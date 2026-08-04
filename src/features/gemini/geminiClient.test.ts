@@ -14,13 +14,13 @@ const ANALYSIS = {
     {
       text: 'transport',
       type: 'root',
-      meaning: 'carry',
+      meaningVi: 'vận chuyển',
       order: 1,
     },
     {
       text: 'ation',
       type: 'suffix',
-      meaning: 'action or process',
+      meaningVi: 'hành động hoặc quá trình',
       order: 2,
     },
   ],
@@ -175,6 +175,32 @@ describe('analyzeWordWithGemini', () => {
     })]);
   });
 
+  it('returns Vietnamese meanings for every morphology part', async () => {
+    const analysis = {
+      ...ANALYSIS,
+      word: 'process',
+      canonicalWord: 'process',
+      wordStructure: [
+        {text: 'pro', type: 'prefix', meaningVi: 'về phía trước'},
+        {text: 'cess', type: 'root', meaningVi: 'đi, tiến lên'},
+      ],
+    };
+    const fetchImpl = vi.fn().mockResolvedValue(
+      geminiResponse(JSON.stringify(analysis)),
+    );
+
+    const result = await analyzeWordWithGemini({
+      apiKey: 'personal-key',
+      word: 'process',
+      fetchImpl,
+    });
+
+    expect(result.wordStructure).toEqual([
+      expect.objectContaining({text: 'pro', meaningVi: 'về phía trước'}),
+      expect.objectContaining({text: 'cess', meaningVi: 'đi, tiến lên'}),
+    ]);
+  });
+
   it('returns the dictionary headword selected for an inflected AI input', async () => {
     const analysis = {
       ...ANALYSIS,
@@ -201,9 +227,9 @@ describe('analyzeWordWithGemini', () => {
       word: 'reusable',
       canonicalWord: 'reusable',
       wordStructure: [
-        {text: 're-', type: 'prefix', meaning: 'lại'},
-        {text: 'use', type: 'root', meaning: 'sử dụng'},
-        {text: '-able', type: 'suffix', meaning: 'có thể'},
+        {text: 're-', type: 'prefix', meaningVi: 'lại'},
+        {text: 'use', type: 'root', meaningVi: 'sử dụng'},
+        {text: '-able', type: 'suffix', meaningVi: 'có thể'},
       ],
     };
     const fetchImpl = vi.fn().mockResolvedValue(

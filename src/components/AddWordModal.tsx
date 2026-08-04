@@ -125,7 +125,7 @@ function draftFromGemini(
     id: `part_ai_${idSuffix}_${index}`,
     text: part.text,
     type: part.type,
-    meaning: part.meaning,
+    meaning: part.meaningVi,
     order: index + 1,
   }));
   const meanings = data.meanings.length > 0
@@ -316,7 +316,7 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({
             id: `part_ai_${i}`,
             text: p.text,
             type: p.type || 'root',
-            meaning: p.meaning || '',
+            meaning: p.meaningVi || '',
             order: i + 1,
           }))
         );

@@ -53,12 +53,12 @@ function geminiResponse({
             wordStructure: [{
               text: 'transport',
               type: 'root',
-              meaning: 'carry',
+              meaningVi: 'vận chuyển',
               order: 1,
             }, {
               text: 'ation',
               type: 'suffix',
-              meaning: 'action or process',
+              meaningVi: 'hành động hoặc quá trình',
               order: 2,
             }],
             meanings: [{
