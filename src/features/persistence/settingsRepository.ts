@@ -12,10 +12,82 @@ const GEMINI_KEY_LOAD_ERROR =
   'Không thể tải Gemini API key. Vui lòng thử lại.';
 const GEMINI_KEY_SAVE_ERROR =
   'Không thể lưu Gemini API key. Vui lòng thử lại.';
+const AI_PROVIDER_SAVE_ERROR =
+  'Không thể lưu cấu hình nhà cung cấp AI. Vui lòng thử lại.';
 
 type GeminiKeyRow = {
   gemini_api_key: string | null;
 };
+
+export type AiProviderSettings = Pick<
+  UserSettings,
+  | 'aiProvider'
+  | 'geminiApiKey'
+  | 'openAICompatibleBaseUrl'
+  | 'openAICompatibleToken'
+  | 'openAICompatibleModel'
+>;
+
+type AiProviderSettingsRow = {
+  ai_provider: AiProviderSettings['aiProvider'];
+  gemini_api_key: string | null;
+  openai_compatible_base_url: string | null;
+  openai_compatible_token: string | null;
+  openai_compatible_model: string | null;
+};
+
+function mapAiProviderSettingsRow(
+  row: AiProviderSettingsRow,
+): AiProviderSettings {
+  return {
+    aiProvider: row.ai_provider,
+    geminiApiKey: row.gemini_api_key,
+    openAICompatibleBaseUrl: row.openai_compatible_base_url ?? '',
+    openAICompatibleToken: row.openai_compatible_token,
+    openAICompatibleModel: row.openai_compatible_model ?? '',
+  };
+}
+
+export async function saveAiProviderSettings(
+  userId: string,
+  settings: AiProviderSettings,
+): Promise<PersistenceResult<AiProviderSettings>> {
+  const client = getSupabaseClient();
+  if (!client) return {data: null, error: AI_PROVIDER_SAVE_ERROR};
+
+  const normalized: AiProviderSettings = {
+    aiProvider: settings.aiProvider,
+    geminiApiKey: settings.geminiApiKey?.trim() || null,
+    openAICompatibleBaseUrl: settings.openAICompatibleBaseUrl
+      .trim()
+      .replace(/\/+$/, ''),
+    openAICompatibleToken: settings.openAICompatibleToken?.trim() || null,
+    openAICompatibleModel: settings.openAICompatibleModel.trim(),
+  };
+  const {data, error} = (await client
+    .from('user_settings')
+    .update({
+      ai_provider: normalized.aiProvider,
+      gemini_api_key: normalized.geminiApiKey,
+      openai_compatible_base_url:
+        normalized.openAICompatibleBaseUrl || null,
+      openai_compatible_token: normalized.openAICompatibleToken,
+      openai_compatible_model: normalized.openAICompatibleModel || null,
+    })
+    .eq('user_id', userId)
+    .select(
+      'ai_provider, gemini_api_key, openai_compatible_base_url, '
+      + 'openai_compatible_token, openai_compatible_model',
+    )
+    .single()) as {
+      data: AiProviderSettingsRow | null;
+      error: unknown | null;
+    };
+
+  return error || !data
+    ? {data: null, error: AI_PROVIDER_SAVE_ERROR}
+    : {data: mapAiProviderSettingsRow(data), error: null};
+}
 
 export async function loadGeminiApiKey(
   userId: string,

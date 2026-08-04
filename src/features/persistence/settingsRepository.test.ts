@@ -39,6 +39,7 @@ vi.mock('../../lib/supabase', () => ({getSupabaseClient}));
 
 import {
   loadGeminiApiKey,
+  saveAiProviderSettings,
   saveGeminiApiKey,
 } from './settingsRepository';
 
@@ -113,5 +114,74 @@ describe('personal Gemini key persistence', () => {
     expect(result.data).toBeNull();
     expect(result.error).toMatch(/Không thể/);
     expect(result.error).not.toContain('owner-key');
+  });
+});
+
+describe('AI provider settings persistence', () => {
+  beforeEach(() => {
+    from.mockClear();
+    update.mockClear();
+    selectAfterUpdate.mockClear();
+    singleAfterUpdate.mockReset();
+    getSupabaseClient.mockReturnValue({from});
+  });
+
+  it('normalizes and saves the complete provider configuration atomically', async () => {
+    singleAfterUpdate.mockResolvedValue({
+      data: {
+        ai_provider: 'openai-compatible',
+        gemini_api_key: 'gemini-key',
+        openai_compatible_base_url: 'https://integrate.8686.vn/v1',
+        openai_compatible_token: 'compat-token',
+        openai_compatible_model: 'deepseek-ai/deepseek-v4-flash',
+      },
+      error: null,
+    });
+
+    await expect(saveAiProviderSettings('owner-user', {
+      aiProvider: 'openai-compatible',
+      geminiApiKey: ' gemini-key ',
+      openAICompatibleBaseUrl: ' https://integrate.8686.vn/v1/// ',
+      openAICompatibleToken: ' compat-token ',
+      openAICompatibleModel: ' deepseek-ai/deepseek-v4-flash ',
+    })).resolves.toEqual({
+      data: {
+        aiProvider: 'openai-compatible',
+        geminiApiKey: 'gemini-key',
+        openAICompatibleBaseUrl: 'https://integrate.8686.vn/v1',
+        openAICompatibleToken: 'compat-token',
+        openAICompatibleModel: 'deepseek-ai/deepseek-v4-flash',
+      },
+      error: null,
+    });
+
+    expect(update).toHaveBeenCalledWith({
+      ai_provider: 'openai-compatible',
+      gemini_api_key: 'gemini-key',
+      openai_compatible_base_url: 'https://integrate.8686.vn/v1',
+      openai_compatible_token: 'compat-token',
+      openai_compatible_model: 'deepseek-ai/deepseek-v4-flash',
+    });
+    expect(update.mock.results[0].value.eq)
+      .toHaveBeenCalledWith('user_id', 'owner-user');
+  });
+
+  it('clears the compatible token without leaking it in persistence errors', async () => {
+    singleAfterUpdate.mockResolvedValue({
+      data: null,
+      error: {message: 'database rejected compat-secret'},
+    });
+
+    const result = await saveAiProviderSettings('owner-user', {
+      aiProvider: 'openai-compatible',
+      geminiApiKey: null,
+      openAICompatibleBaseUrl: 'https://integrate.8686.vn/v1',
+      openAICompatibleToken: null,
+      openAICompatibleModel: 'deepseek-ai/deepseek-v4-flash',
+    });
+
+    expect(result.data).toBeNull();
+    expect(result.error).toMatch(/Không thể/);
+    expect(result.error).not.toContain('compat-secret');
   });
 });
