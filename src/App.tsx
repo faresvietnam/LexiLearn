@@ -598,34 +598,34 @@ function AuthenticatedApp({
     return true;
   };
 
-  const handleCreateDeck = async (deck: Deck) => {
+  const handleCreateDeck = async (deck: Deck): Promise<Deck | null> => {
     let savedDeck = deck;
     if (client && user) {
       const result = await saveDeck(user.id, deck);
       if (result.error) {
         showToast(result.error);
-        return false;
+        return null;
       }
       savedDeck = result.data;
     }
     setDecks((prev) => [...prev, savedDeck]);
     showToast(`Đã tạo Deck "${savedDeck.name}".`);
-    return true;
+    return savedDeck;
   };
 
-  const handleCreateTag = async (tag: Tag) => {
+  const handleCreateTag = async (tag: Tag): Promise<Tag | null> => {
     let savedTag = tag;
     if (client && user) {
       const result = await saveTag(user.id, tag);
       if (result.error) {
         showToast(result.error);
-        return false;
+        return null;
       }
       savedTag = result.data;
     }
     setTags((prev) => [...prev, savedTag]);
     showToast(`Đã tạo Tag "${savedTag.name}".`);
-    return true;
+    return savedTag;
   };
 
   const handleUpdateSettings = async (nextSettings: UserSettings) => {

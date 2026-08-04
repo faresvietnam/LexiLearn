@@ -6,8 +6,8 @@ interface DecksAndTagsViewProps {
   decks: Deck[];
   tags: Tag[];
   words: Word[];
-  onCreateDeck: (deck: Deck) => Promise<boolean>;
-  onCreateTag: (tag: Tag) => Promise<boolean>;
+  onCreateDeck: (deck: Deck) => Promise<Deck | null>;
+  onCreateTag: (tag: Tag) => Promise<Tag | null>;
 }
 
 export const DecksAndTagsView: React.FC<DecksAndTagsViewProps> = ({
@@ -30,9 +30,9 @@ export const DecksAndTagsView: React.FC<DecksAndTagsViewProps> = ({
     e.preventDefault();
     if (!newDeckName.trim()) return;
     setIsCreatingDeck(true);
-    let saved = false;
+    let created: Deck | null = null;
     try {
-      saved = await onCreateDeck({
+      created = await onCreateDeck({
         id: `deck_${Date.now()}`,
         name: newDeckName.trim(),
         description: newDeckDesc.trim(),
@@ -42,7 +42,7 @@ export const DecksAndTagsView: React.FC<DecksAndTagsViewProps> = ({
     } finally {
       setIsCreatingDeck(false);
     }
-    if (saved) {
+    if (created) {
       setNewDeckName('');
       setNewDeckDesc('');
     }
@@ -52,9 +52,9 @@ export const DecksAndTagsView: React.FC<DecksAndTagsViewProps> = ({
     e.preventDefault();
     if (!newTagName.trim()) return;
     setIsCreatingTag(true);
-    let saved = false;
+    let created: Tag | null = null;
     try {
-      saved = await onCreateTag({
+      created = await onCreateTag({
         id: `tag_${Date.now()}`,
         name: newTagName.trim(),
         color: newTagColor,
@@ -62,7 +62,7 @@ export const DecksAndTagsView: React.FC<DecksAndTagsViewProps> = ({
     } finally {
       setIsCreatingTag(false);
     }
-    if (saved) setNewTagName('');
+    if (created) setNewTagName('');
   };
 
   return (
