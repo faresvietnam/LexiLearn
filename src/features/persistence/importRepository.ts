@@ -1,5 +1,5 @@
 import {getSupabaseClient} from '../../lib/supabase';
-import type {CsvRowRaw} from '../../types';
+import type {JsonWordInput} from '../../types';
 import type {PersistenceResult} from './settingsRepository';
 
 const IMPORT_ERROR = 'Không thể lưu tiến trình import CSV. Vui lòng thử lại.';
@@ -9,7 +9,7 @@ export type CsvImportRowInput = {
   importId?: string;
   sourceRowNumber: number;
   canonicalKey: string;
-  rawData: CsvRowRaw;
+  rawData: JsonWordInput;
 };
 
 export type CsvImportRowStatus = 'pending' | 'imported' | 'skipped' | 'failed';
@@ -19,7 +19,7 @@ export type ResumableCsvImportRow = {
   import_id: string;
   source_row_number: number;
   canonical_key: string;
-  raw_data: CsvRowRaw;
+  raw_data: JsonWordInput;
   status: Extract<CsvImportRowStatus, 'pending' | 'failed'>;
 };
 

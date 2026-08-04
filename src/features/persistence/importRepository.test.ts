@@ -37,7 +37,7 @@ describe('CSV import persistence', () => {
     single.mockResolvedValueOnce({data: {id: 'import-1'}, error: null});
 
     await expect(createCsvImportBatch('user-1', 'words.csv', [
-      {sourceRowNumber: 2, canonicalKey: 'transportation|noun', rawData: {word: 'transportation', vietnameseMeaning: 'vận chuyển'}},
+      {sourceRowNumber: 2, canonicalKey: 'transportation|noun', rawData: {word: 'transportation', meanings: [{meaning_vi: 'vận chuyển', part_of_speech: 'noun'}]}},
     ])).resolves.toEqual({data: {importId: 'import-1', rowIds: ['row-1']}, error: null});
 
     expect(from).toHaveBeenNthCalledWith(1, 'csv_imports');
@@ -53,7 +53,7 @@ describe('CSV import persistence', () => {
       owner_user_id: 'user-1',
       source_row_number: 2,
       canonical_key: 'transportation|noun',
-      raw_data: {word: 'transportation', vietnameseMeaning: 'vận chuyển'},
+      raw_data: {word: 'transportation', meanings: [{meaning_vi: 'vận chuyển', part_of_speech: 'noun'}]},
       status: 'pending',
     }]);
   });
@@ -76,7 +76,7 @@ describe('CSV import persistence', () => {
     const order = vi.fn(() => Promise.resolve({
       data: [{
         id: 'row-1', import_id: 'import-1', source_row_number: 2,
-        canonical_key: 'new|noun', raw_data: {word: 'new'}, status: 'pending',
+        canonical_key: 'new|noun', raw_data: {word: 'new', meanings: []}, status: 'pending',
       }],
       error: null,
     }));
@@ -92,7 +92,7 @@ describe('CSV import persistence', () => {
     await expect(listResumableCsvImports('user-1')).resolves.toEqual({
       data: [{
         id: 'row-1', import_id: 'import-1', source_row_number: 2,
-        canonical_key: 'new|noun', raw_data: {word: 'new'}, status: 'pending',
+        canonical_key: 'new|noun', raw_data: {word: 'new', meanings: []}, status: 'pending',
       }],
       error: null,
     });

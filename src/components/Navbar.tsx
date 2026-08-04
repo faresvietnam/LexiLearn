@@ -5,7 +5,7 @@ import {
   BookOpen,
   FolderTree,
   PlusCircle,
-  FileSpreadsheet,
+  FileJson,
   BarChart3,
   Settings as SettingsIcon,
   ShieldCheck,
@@ -58,7 +58,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'vocabulary', label: 'Thư viện từ vựng', icon: BookOpen },
     { id: 'decks_tags', label: 'Deck & Tags', icon: FolderTree },
     { id: 'add_word', label: 'Thêm từ mới', icon: PlusCircle },
-    { id: 'import_csv', label: 'Import CSV', icon: FileSpreadsheet },
+    { id: 'import_json', label: 'Import JSON', icon: FileJson },
     { id: 'analytics', label: 'Thống kê tiến trình', icon: BarChart3 },
     { id: 'settings', label: 'Cài đặt', icon: SettingsIcon },
   ];

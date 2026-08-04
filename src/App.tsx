@@ -30,7 +30,7 @@ import { VocabularyLibraryView } from './components/VocabularyLibraryView';
 import { WordDetailModal } from './components/WordDetailModal';
 import {deleteWordImage} from './features/images/r2ImageUpload';
 import { AddWordModal } from './components/AddWordModal';
-import { CsvImportModal } from './components/CsvImportModal';
+import { JsonImportModal, type ImportSummary } from './components/JsonImportModal';
 import { DecksAndTagsView } from './components/DecksAndTagsView';
 import { StudyScopeModal } from './components/StudyScopeModal';
 import { ProgressView } from './components/ProgressView';
@@ -86,7 +86,7 @@ import {
   type ResumableCsvImportRow,
 } from './features/persistence/importRepository';
 import {routeImportedRow} from './features/import/importRouting';
-import {buildImportedWord} from './features/import/csvWordBuilder';
+import {resolveJsonImportWords} from './features/import/jsonImportResolver';
 import {getStudyDate} from './lib/studyDate';
 
 export default function App() {
@@ -155,8 +155,8 @@ function AuthenticatedApp({
   // Modals & Overlay States
   const [showStudyScopeModal, setShowStudyScopeModal] = useState<boolean>(false);
   const [showAddWordModal, setShowAddWordModal] = useState<boolean>(false);
-  const [showCsvImportModal, setShowCsvImportModal] = useState<boolean>(false);
-  const [resumableCsvRows, setResumableCsvRows] = useState<ResumableCsvImportRow[]>([]);
+  const [showJsonImportModal, setShowJsonImportModal] = useState<boolean>(false);
+  const [resumableJsonRows, setResumableJsonRows] = useState<ResumableCsvImportRow[]>([]);
   const [selectedWordDetail, setSelectedWordDetail] = useState<Word | null>(null);
   const [vocabularyMemoryFilter, setVocabularyMemoryFilter] = useState<MemoryStrength | null>(null);
 
@@ -192,7 +192,7 @@ function AuthenticatedApp({
       setIsHydrating(false);
     });
     void listResumableCsvImports(user.id).then((result) => {
-      if (alive && result.data) setResumableCsvRows(result.data);
+      if (alive && result.data) setResumableJsonRows(result.data);
     });
     void getStudyAttemptAnalytics(user.id).then((result) => {
       if (alive) {
@@ -704,14 +704,14 @@ function AuthenticatedApp({
     return true;
   };
 
-  const handleConfirmCsvImport = async (
+  const handleConfirmJsonImport = async (
     importedWords: Word[],
     importRows: CsvImportRowInput[],
-  ) => {
+  ): Promise<ImportSummary> => {
     if (!client || !user) {
       setWords((prev) => [...importedWords, ...prev]);
-      showToast(`Đã import thành công ${importedWords.length} từ vựng từ CSV!`);
-      return;
+      showToast(`Đã import thành công ${importedWords.length} từ vựng từ JSON!`);
+      return {created: importedWords.length, linked: 0, skippedDuplicate: 0, failed: 0};
     }
 
     const rows = importRows.map((row) => ({
@@ -721,29 +721,28 @@ function AuthenticatedApp({
     const existingImportId = rows.find(({importId}) => importId)?.importId;
     const batch = existingImportId
       ? {data: {importId: existingImportId, rowIds: rows.map(({id}) => id ?? '')}, error: null}
-      : await createCsvImportBatch(user.id, 'csv-import.csv', rows);
+      : await createCsvImportBatch(user.id, 'json-import.json', rows);
     if (batch.error || !batch.data) {
-      showToast(batch.error ?? 'Không thể bắt đầu import CSV.');
-      return;
+      showToast(batch.error ?? 'Không thể bắt đầu import JSON.');
+      return {created: 0, linked: 0, skippedDuplicate: 0, failed: importedWords.length};
     }
 
     await updateCsvImportStatus(user.id, batch.data.importId, 'importing');
     const persistedWords: Word[] = [];
     let processedRows = 0;
+    let created = 0;
+    let linked = 0;
+    let skippedDuplicate = 0;
+    let failed = 0;
     const rowIds = batch.data.rowIds;
 
     for (const [index, importedWord] of importedWords.entries()) {
-      const wordForPersistence: Word = {
-        ...importedWord,
-        deckId: decks[0]?.id ?? '',
-        tags: [],
-      };
       const row = rows[index];
       const route = row
         ? routeImportedRow(row.rawData, words)
         : {kind: 'create_private' as const};
       let result = route.kind === 'create_private'
-        ? await createPrivateWord(user.id, wordForPersistence)
+        ? await createPrivateWord(user.id, importedWord)
         : {data: null, error: null};
 
       if (route.kind === 'duplicate_private') {
@@ -753,7 +752,7 @@ function AuthenticatedApp({
           candidate.word.trim().toLowerCase() === importedWord.word.trim().toLowerCase(),
         );
         if (globalMatch) {
-          result = await linkGlobalWord(user.id, globalMatch.id, decks[0]?.id ?? null);
+          result = await linkGlobalWord(user.id, globalMatch.id, importedWord.deckId || null);
         } else {
           result = {data: null, error: 'Không tìm thấy Global Word để liên kết.'};
         }
@@ -762,11 +761,14 @@ function AuthenticatedApp({
       if (result.data && !result.error) {
         persistedWords.push(result.data);
         processedRows++;
+        if (route.kind === 'link_global') linked++; else created++;
         if (rowId) await markCsvImportRow(user.id, batch.data.importId, rowId, 'imported', null);
       } else if (route.kind === 'duplicate_private' && rowId) {
         processedRows++;
+        skippedDuplicate++;
         await markCsvImportRow(user.id, batch.data.importId, rowId, 'skipped', {reason: 'duplicate_private'});
       } else if (rowId) {
+        failed++;
         await markCsvImportRow(user.id, batch.data.importId, rowId, 'failed', {message: result.error});
       }
     }
@@ -777,12 +779,14 @@ function AuthenticatedApp({
       processedRows === importedWords.length ? 'completed' : 'failed',
     );
     setWords((prev) => [...persistedWords, ...prev]);
-    showToast(`Đã lưu ${persistedWords.length}/${importedWords.length} từ CSV vào database.`);
+    showToast(`Đã lưu ${persistedWords.length}/${importedWords.length} từ JSON vào database.`);
+    return {created, linked, skippedDuplicate, failed};
   };
 
-  const handleResumeCsvImport = async (pendingRows: ResumableCsvImportRow[]) => {
-    const words = pendingRows.map(({raw_data}) => buildImportedWord(raw_data));
-    await handleConfirmCsvImport(
+  const handleResumeJsonImport = async (pendingRows: ResumableCsvImportRow[]) => {
+    const entries = pendingRows.map(({raw_data}) => raw_data);
+    const words = await resolveJsonImportWords(entries, decks, tags, handleCreateDeck, handleCreateTag);
+    await handleConfirmJsonImport(
       words,
       pendingRows.map(({id, import_id, source_row_number, canonical_key, raw_data}) => ({
         id,
@@ -792,7 +796,7 @@ function AuthenticatedApp({
         rawData: raw_data,
       })),
     );
-    setResumableCsvRows([]);
+    setResumableJsonRows([]);
   };
 
   // Export Learning Data JSON
@@ -921,15 +925,16 @@ function AuthenticatedApp({
             />
           )}
 
-          {currentTab === 'import_csv' && (
-            <CsvImportModal
+          {currentTab === 'import_json' && (
+            <JsonImportModal
               existingWords={words}
-              resumableRows={resumableCsvRows}
-              onResumeImport={handleResumeCsvImport}
-              onConfirmImport={async (newWords, importRows) => {
-                await handleConfirmCsvImport(newWords, importRows);
-                setCurrentTab('vocabulary');
-              }}
+              decks={decks}
+              tags={tags}
+              onCreateDeck={handleCreateDeck}
+              onCreateTag={handleCreateTag}
+              resumableRows={resumableJsonRows}
+              onResumeImport={handleResumeJsonImport}
+              onConfirmImport={handleConfirmJsonImport}
               onClose={() => setCurrentTab('vocabulary')}
             />
           )}
