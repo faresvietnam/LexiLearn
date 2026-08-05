@@ -90,6 +90,36 @@ const newCardRow: LearningCardFsrsRow = {
   fsrs_retrievability: 1,
 };
 
+function buildFillerQuestion(index: number): Question {
+  const fillerMeaning: MeaningCard = {
+    ...meaningCard,
+    id: `meaning-filler-${index}`,
+  };
+  const fillerWord: Word = {
+    ...pendingWord,
+    id: `word-filler-${index}`,
+    word: `filler${index}`,
+    meanings: [fillerMeaning],
+  };
+  return {
+    id: `question-filler-${index}`,
+    word: fillerWord,
+    targetMeaningCard: fillerMeaning,
+    stage: 1,
+    type: 'en_to_vn_mc',
+    prompt: `Chọn nghĩa đúng cho filler ${index}`,
+    mcOptions: [
+      {
+        id: 'opt_correct',
+        label: `Đáp án đúng ${index}`,
+        isCorrect: true,
+        keyShortcut: '1',
+      },
+    ],
+    expectedAnswer: `filler${index}`,
+  };
+}
+
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
@@ -301,11 +331,21 @@ describe('LearningSessionView session completion', () => {
     vi.setSystemTime(new Date('2026-07-29T10:00:30.000Z'));
     fireEvent.click(screen.getByRole('button', { name: /Tiếp tục/i }));
 
+    // A missed-then-corrected question is reinserted once before the
+    // session can finish.
+    expect(finishedStats).toBeUndefined();
+
+    const relearnInput = screen.getByPlaceholderText('Gõ từ tiếng Anh tại đây...');
+    fireEvent.change(relearnInput, { target: { value: 'remember' } });
+    vi.setSystemTime(new Date('2026-07-29T10:00:35.000Z'));
+    fireEvent.click(screen.getByRole('button', { name: /Check/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Tiếp tục/i }));
+
     expect(finishedStats).toEqual({
-      reviewsCompleted: 1,
-      newWordsLearned: 1,
-      firstAttemptAccuracy: 0,
-      studyTimeSeconds: 30,
+      reviewsCompleted: 2,
+      newWordsLearned: 2,
+      firstAttemptAccuracy: 50,
+      studyTimeSeconds: 35,
       retriesTotal: 1,
       extraReviewMode: true,
     });
@@ -733,6 +773,202 @@ describe('LearningSessionView attempt persistence contract', () => {
     fireEvent.click(screen.getByRole('button', {name: /Tiếp tục/i}));
     await Promise.resolve();
 
+    // A missed-then-corrected question is reinserted once before the
+    // session can finish.
+    expect(onFinishSession).not.toHaveBeenCalled();
+
+    const relearnInput = screen.getByPlaceholderText(
+      'Gõ từ tiếng Anh tại đây...',
+    );
+    fireEvent.change(relearnInput, {target: {value: 'remember'}});
+    fireEvent.click(screen.getByRole('button', {name: /Check/i}));
+    fireEvent.click(screen.getByRole('button', {name: /Tiếp tục/i}));
+    await Promise.resolve();
+
     expect(onFinishSession).toHaveBeenCalledOnce();
+  });
+});
+
+describe('LearningSessionView in-session relearn reinsertion', () => {
+  it('reinserts a missed question five questions later within the same session', () => {
+    const fillerQuestions = Array.from({ length: 6 }, (_, i) =>
+      buildFillerQuestion(i + 1),
+    );
+
+    render(
+      <LearningSessionView
+        questions={[question, ...fillerQuestions]}
+        settings={settings}
+        isExtraReview={false}
+        onMeaningCardUpdated={() => undefined}
+        onAttempt={() => undefined}
+        onFinishSession={() => undefined}
+        onExitSession={() => undefined}
+      />
+    );
+
+    const answerInput = screen.getByPlaceholderText(
+      'Gõ từ tiếng Anh tại đây...',
+    );
+    fireEvent.change(answerInput, { target: { value: 'wrong' } });
+    fireEvent.click(screen.getByRole('button', { name: /Check/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Thử lại/i }));
+    fireEvent.change(answerInput, { target: { value: 'remember' } });
+    fireEvent.click(screen.getByRole('button', { name: /Check/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Tiếp tục/i }));
+
+    expect(screen.getByText('Câu 2 / 8')).toBeInTheDocument();
+
+    for (let i = 0; i < 4; i++) {
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: new RegExp(`Đáp án đúng ${i + 1}`),
+        }),
+      );
+      fireEvent.click(screen.getByRole('button', { name: /Check/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Tiếp tục/i }));
+    }
+
+    expect(screen.getByText('Câu 6 / 8')).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('Gõ từ tiếng Anh tại đây...'),
+    ).toBeInTheDocument();
+  });
+
+  it('reflects the grown question count in the final session stats', () => {
+    const fillerQuestions = Array.from({ length: 6 }, (_, i) =>
+      buildFillerQuestion(i + 1),
+    );
+    let finishedStats: SessionStats | undefined;
+
+    render(
+      <LearningSessionView
+        questions={[question, ...fillerQuestions]}
+        settings={settings}
+        isExtraReview={false}
+        onMeaningCardUpdated={() => undefined}
+        onAttempt={() => undefined}
+        onFinishSession={(stats) => {
+          finishedStats = stats;
+        }}
+        onExitSession={() => undefined}
+      />
+    );
+
+    const answerInput = screen.getByPlaceholderText(
+      'Gõ từ tiếng Anh tại đây...',
+    );
+    fireEvent.change(answerInput, { target: { value: 'wrong' } });
+    fireEvent.click(screen.getByRole('button', { name: /Check/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Thử lại/i }));
+    fireEvent.change(answerInput, { target: { value: 'remember' } });
+    fireEvent.click(screen.getByRole('button', { name: /Check/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Tiếp tục/i }));
+
+    // Fillers 1-6: the 5th and 6th land after the reinserted clone (index 5).
+    for (let i = 0; i < 4; i++) {
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: new RegExp(`Đáp án đúng ${i + 1}`),
+        }),
+      );
+      fireEvent.click(screen.getByRole('button', { name: /Check/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Tiếp tục/i }));
+    }
+
+    // Index 5: the reinserted clone, answered correctly this time. The
+    // typing input unmounted while fillers (multiple-choice) were on
+    // screen, so it must be re-queried rather than reusing the earlier
+    // `answerInput` reference.
+    const relearnInput = screen.getByPlaceholderText(
+      'Gõ từ tiếng Anh tại đây...',
+    );
+    fireEvent.change(relearnInput, { target: { value: 'remember' } });
+    fireEvent.click(screen.getByRole('button', { name: /Check/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Tiếp tục/i }));
+
+    // Index 6-7: fillers 5 and 6.
+    for (const i of [4, 5]) {
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: new RegExp(`Đáp án đúng ${i + 1}`),
+        }),
+      );
+      fireEvent.click(screen.getByRole('button', { name: /Check/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Tiếp tục/i }));
+    }
+
+    expect(finishedStats?.reviewsCompleted).toBe(8);
+  });
+
+  it('does not reinsert a card a second time and rates each occurrence independently', async () => {
+    const fillerQuestions = Array.from({ length: 6 }, (_, i) =>
+      buildFillerQuestion(i + 1),
+    );
+    const targetCardRatings: string[] = [];
+
+    render(
+      <LearningSessionView
+        questions={[question, ...fillerQuestions]}
+        settings={settings}
+        isExtraReview={false}
+        onMeaningCardUpdated={() => undefined}
+        onAttempt={() => undefined}
+        onReviewCompleted={async (cardId, rating, reviewedAt) => {
+          if (cardId === meaningCard.id) {
+            targetCardRatings.push(rating);
+          }
+          return scheduleCard(newCardRow, rating, reviewedAt);
+        }}
+        onFinishSession={() => undefined}
+        onExitSession={() => undefined}
+      />
+    );
+
+    const answerInput = screen.getByPlaceholderText(
+      'Gõ từ tiếng Anh tại đây...',
+    );
+
+    fireEvent.change(answerInput, { target: { value: 'wrong' } });
+    fireEvent.click(screen.getByRole('button', { name: /Check/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Thử lại/i }));
+    fireEvent.change(answerInput, { target: { value: 'remember' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Check/i }));
+      await Promise.resolve();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Tiếp tục/i }));
+
+    for (let i = 0; i < 4; i++) {
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: new RegExp(`Đáp án đúng ${i + 1}`),
+        }),
+      );
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Check/i }));
+        await Promise.resolve();
+      });
+      fireEvent.click(screen.getByRole('button', { name: /Tiếp tục/i }));
+    }
+
+    // The typing input unmounted while fillers (multiple-choice) were on
+    // screen, so it must be re-queried rather than reusing the earlier
+    // `answerInput` reference.
+    const relearnInput = screen.getByPlaceholderText(
+      'Gõ từ tiếng Anh tại đây...',
+    );
+    fireEvent.change(relearnInput, { target: { value: 'wrong-again' } });
+    fireEvent.click(screen.getByRole('button', { name: /Check/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Thử lại/i }));
+    fireEvent.change(relearnInput, { target: { value: 'remember' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Check/i }));
+      await Promise.resolve();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Tiếp tục/i }));
+
+    expect(screen.getByText(/Câu \d+ \/ 8/)).toBeInTheDocument();
+    expect(targetCardRatings).toEqual(['Again', 'Again']);
   });
 });

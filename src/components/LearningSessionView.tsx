@@ -86,7 +86,8 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
   onExitSession,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const currentQuestion = questions[currentIndex];
+  const [sessionQuestions, setSessionQuestions] = useState<Question[]>(questions);
+  const currentQuestion = sessionQuestions[currentIndex];
 
   // User input states
   const [selectedMcOption, setSelectedMcOption] = useState<string | null>(null);
@@ -117,6 +118,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
   const totalAttemptedQuestionsRef = useRef<number>(0);
   const reviewRequestIdRef = useRef(0);
   const reviewRetryRef = useRef<(() => void) | null>(null);
+  const reinsertedMeaningCardIdsRef = useRef<Set<string>>(new Set());
 
   // Focus ref for input
   const inputRef = useRef<HTMLInputElement>(null);
@@ -254,6 +256,21 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
       const isFirstTry = newAttempts === 1;
       if (isFirstTry) {
         firstAttemptSuccessesRef.current += 1;
+      } else {
+        const cardId = currentQuestion.targetMeaningCard.id;
+        if (!reinsertedMeaningCardIdsRef.current.has(cardId)) {
+          reinsertedMeaningCardIdsRef.current.add(cardId);
+          const relearnQuestion: Question = {
+            ...currentQuestion,
+            id: `${currentQuestion.id}_relearn`,
+          };
+          setSessionQuestions((prev) => {
+            const insertAt = Math.min(currentIndex + 5, prev.length);
+            const next = [...prev];
+            next.splice(insertAt, 0, relearnQuestion);
+            return next;
+          });
+        }
       }
       totalAttemptedQuestionsRef.current += 1;
 
@@ -349,7 +366,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
   const handleContinueNext = () => {
     if (onReviewCompleted && (isReviewSaving || !reviewSchedule)) return;
     setShowAnswerReview(false);
-    if (currentIndex + 1 < questions.length) {
+    if (currentIndex + 1 < sessionQuestions.length) {
       setCurrentIndex((prev) => prev + 1);
     } else {
       // Finish Session
@@ -361,8 +378,8 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
           : 100;
 
       onFinishSession({
-        reviewsCompleted: questions.length,
-        newWordsLearned: questions.filter((q) => q.targetMeaningCard.fsrsState === 0).length,
+        reviewsCompleted: sessionQuestions.length,
+        newWordsLearned: sessionQuestions.filter((q) => q.targetMeaningCard.fsrsState === 0).length,
         firstAttemptAccuracy: accuracy,
         studyTimeSeconds: Math.round((Date.now() - sessionStartTimeRef.current) / 1000),
         retriesTotal: retriesTotalRef.current,
@@ -478,7 +495,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
     );
   }
 
-  const progressPercent = Math.round(((currentIndex + 1) / questions.length) * 100);
+  const progressPercent = Math.round(((currentIndex + 1) / sessionQuestions.length) * 100);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col font-sans select-none">
@@ -494,7 +511,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
             <X className="w-5 h-5" />
           </button>
           <div className="text-sm font-bold text-slate-700">
-            Câu {currentIndex + 1} / {questions.length}
+            Câu {currentIndex + 1} / {sessionQuestions.length}
           </div>
         </div>
 
