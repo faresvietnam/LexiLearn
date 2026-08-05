@@ -485,4 +485,37 @@ describe('buildSessionQuestions', () => {
     expect(session.insufficientCards).toBe(false);
     expect(session.questions.length).toBeGreaterThan(0);
   });
+
+  it('pads a 6-card session to 10 questions by round-robin repeating cards', () => {
+    const words = fillerReviewWords(6);
+
+    const session = buildSessionQuestions(words, scope, settings);
+
+    expect(session.questions).toHaveLength(10);
+    const counts = session.questions.reduce<Record<string, number>>((acc, q) => {
+      acc[q.word.id] = (acc[q.word.id] ?? 0) + 1;
+      return acc;
+    }, {});
+    expect(Object.values(counts).sort()).toEqual([1, 1, 2, 2, 2, 2]);
+  });
+
+  it('does not pad a session that already has 10 or more distinct cards', () => {
+    const words = fillerReviewWords(11);
+    const roomySettings = { ...settings, reviewLimitPerDay: 20 };
+
+    const session = buildSessionQuestions(words, scope, roomySettings);
+
+    expect(session.questions).toHaveLength(11);
+    const ids = session.questions.map((q) => q.word.id);
+    expect(new Set(ids).size).toBe(11);
+  });
+
+  it('pads a session that has exactly the minimum 5 distinct cards', () => {
+    const words = fillerReviewWords(5);
+
+    const session = buildSessionQuestions(words, scope, settings);
+
+    expect(session.questions).toHaveLength(10);
+    expect(new Set(session.questions.map((q) => q.word.id)).size).toBe(5);
+  });
 });

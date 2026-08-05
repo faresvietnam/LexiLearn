@@ -3,6 +3,7 @@ import {calculateForgettingRisk} from '../features/scheduling/forgettingRisk';
 import { isReviewDue, isReviewDueWithin, SHORT_TERM_WINDOW_MS } from '../features/scheduling/reviewCountdown';
 
 const MIN_DISTINCT_CARDS_FOR_SESSION = 5;
+const MIN_QUESTIONS_PER_SESSION = 10;
 
 export interface SessionQueueItem {
   word: Word;
@@ -166,8 +167,15 @@ export function buildSessionQuestions(
   // 3. Spacing constraint: Spacing same word cards by at least 1 other question
   const spacedQueue = enforceWordSpacing(finalQueue);
 
-  // 4. Convert queue items to interactive Question objects
-  const questions = convertQueueToQuestions(spacedQueue, words);
+  // 4. Pad a small (5-9 card) session with round-robin repeated cards so it
+  // has at least MIN_QUESTIONS_PER_SESSION questions. Repeats are spaced at
+  // least spacedQueue.length apart, already satisfying enforceWordSpacing.
+  const expandedQueue = spacedQueue.length < MIN_QUESTIONS_PER_SESSION
+    ? expandQueueForVariants(spacedQueue, MIN_QUESTIONS_PER_SESSION)
+    : spacedQueue;
+
+  // 5. Convert queue items to interactive Question objects
+  const questions = convertQueueToQuestions(expandedQueue, words);
 
   return {
     questions,
@@ -195,6 +203,15 @@ function enforceWordSpacing(queue: SessionQueueItem[]): SessionQueueItem[] {
   }
 
   return result;
+}
+
+function expandQueueForVariants(
+  queue: SessionQueueItem[],
+  minQuestions: number,
+): SessionQueueItem[] {
+  if (queue.length === 0) return queue;
+  const total = Math.max(minQuestions, queue.length);
+  return Array.from({ length: total }, (_, i) => queue[i % queue.length]);
 }
 
 function convertQueueToQuestions(queue: SessionQueueItem[], allWords: Word[]): Question[] {
