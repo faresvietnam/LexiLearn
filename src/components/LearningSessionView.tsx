@@ -31,6 +31,7 @@ import {
 import type {ScheduledLearningCard} from '../features/scheduling/fsrsScheduler';
 import type {SkillScoreInput} from '../features/scheduling/skillScores';
 import {formatRelativeDueTime} from '../features/scheduling/relativeDueTime';
+import {SHORT_TERM_WINDOW_MS} from '../features/scheduling/reviewCountdown';
 
 export function maskSentenceAnswer(sentence: string, answer: string): string {
   if (/_{3,}/.test(sentence)) return sentence;
@@ -130,7 +131,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
   const totalAttemptedQuestionsRef = useRef<number>(0);
   const reviewRequestIdRef = useRef(0);
   const reviewRetryRef = useRef<(() => void) | null>(null);
-  const reinsertedMeaningCardIdsRef = useRef<Set<string>>(new Set());
+  const reinsertSeqRef = useRef(0);
   const wrongCheckAtRef = useRef<number>(0);
 
   // Focus ref for input
@@ -269,21 +270,6 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
       const isFirstTry = newAttempts === 1;
       if (isFirstTry) {
         firstAttemptSuccessesRef.current += 1;
-      } else {
-        const cardId = currentQuestion.targetMeaningCard.id;
-        if (!reinsertedMeaningCardIdsRef.current.has(cardId)) {
-          reinsertedMeaningCardIdsRef.current.add(cardId);
-          const relearnQuestion: Question = {
-            ...currentQuestion,
-            id: `${currentQuestion.id}_relearn`,
-          };
-          setSessionQuestions((prev) => {
-            const insertAt = Math.min(currentIndex + 5, prev.length);
-            const next = [...prev];
-            next.splice(insertAt, 0, relearnQuestion);
-            return next;
-          });
-        }
       }
       totalAttemptedQuestionsRef.current += 1;
 
@@ -342,6 +328,19 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
               setReviewSchedule(schedule);
               setIsReviewSaving(false);
               setReviewSaveError(!schedule);
+              if (schedule && schedule.card.due.getTime() - reviewedAt.getTime() <= SHORT_TERM_WINDOW_MS) {
+                reinsertSeqRef.current += 1;
+                const relearnQuestion: Question = {
+                  ...currentQuestion,
+                  id: `${currentQuestion.id}_relearn_${reinsertSeqRef.current}`,
+                };
+                setSessionQuestions((prev) => {
+                  const insertAt = Math.min(currentIndex + 4, prev.length);
+                  const next = [...prev];
+                  next.splice(insertAt, 0, relearnQuestion);
+                  return next;
+                });
+              }
             }).catch(() => {
               setIsReviewSaving(false);
               setReviewSaveError(true);
