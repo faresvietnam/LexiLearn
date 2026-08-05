@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MeaningCard, StudyScope, UserSettings, Word } from '../types';
 import { buildSessionQuestions } from './sessionBuilder';
+import { getNextStudyDayBoundary } from '../features/scheduling/reviewCountdown';
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 const settings: UserSettings = {
   newWordsPerDay: 10,
@@ -503,6 +508,70 @@ describe('buildSessionQuestions', () => {
     );
 
     const session = buildSessionQuestions(words, scope, settings);
+
+    expect(session.insufficientCards).toBe(true);
+    expect(session.nextEligibleAt).toBeUndefined();
+  });
+
+  it('falls back to the next new-word quota reset when it would close the gap sooner than any review', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-31T05:00:00.000Z'));
+    const dueWords = ['due-1', 'due-2', 'due-3'].map((id) =>
+      word(id, [meaningCard(id, { nextReviewDate: '2000-01-01' })]),
+    );
+    const newWords = Array.from({ length: 10 }, (_, i) =>
+      word(`new-${i}`, [meaningCard(`new-${i}`, { history: [] })]),
+    );
+
+    // 3 already qualify (deficit 2); today's new-word quota is exhausted
+    // (override 0), but 10 new cards are waiting once it resets.
+    const session = buildSessionQuestions([...dueWords, ...newWords], scope, settings, false, 0);
+
+    expect(session.insufficientCards).toBe(true);
+    expect(session.nextEligibleAt).toBe(
+      getNextStudyDayBoundary(new Date(), 'Asia/Ho_Chi_Minh').toISOString(),
+    );
+  });
+
+  it('prefers an earlier upcoming review over the quota reset', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-31T05:00:00.000Z'));
+    const dueWords = ['due-1', 'due-2', 'due-3'].map((id) =>
+      word(id, [meaningCard(id, { nextReviewDate: '2000-01-01' })]),
+    );
+    const soonIso = new Date(Date.now() + 30 * 60_000).toISOString();
+    const laterIso = new Date(Date.now() + 45 * 60_000).toISOString();
+    const laterReviewWords = [
+      word('future-soon', [meaningCard('future-soon', { fsrsState: 2, nextReviewDate: soonIso })]),
+      word('future-later', [meaningCard('future-later', { fsrsState: 2, nextReviewDate: laterIso })]),
+    ];
+    const newWords = Array.from({ length: 10 }, (_, i) =>
+      word(`new-${i}`, [meaningCard(`new-${i}`, { history: [] })]),
+    );
+
+    // The quota reset (~16h away) would also close the gap eventually, but
+    // the 2nd-soonest future review (45 minutes away) gets there first.
+    const session = buildSessionQuestions(
+      [...dueWords, ...laterReviewWords, ...newWords],
+      scope,
+      settings,
+      false,
+      0,
+    );
+
+    expect(session.nextEligibleAt).toBe(laterIso);
+  });
+
+  it('ignores the quota reset when too few new cards exist to ever close the gap', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-31T05:00:00.000Z'));
+    const limitedNewWordSettings = { ...settings, newWordsPerDay: 1 };
+    const dueWords = ['due-1', 'due-2', 'due-3'].map((id) =>
+      word(id, [meaningCard(id, { nextReviewDate: '2000-01-01' })]),
+    );
+    const words = [...dueWords, word('new-1', [meaningCard('new-1', { history: [] })])];
+
+    const session = buildSessionQuestions(words, scope, limitedNewWordSettings, false, 0);
 
     expect(session.insufficientCards).toBe(true);
     expect(session.nextEligibleAt).toBeUndefined();

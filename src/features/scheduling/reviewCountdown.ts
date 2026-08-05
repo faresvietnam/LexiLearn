@@ -1,4 +1,5 @@
 import type {Word} from '../../types';
+import {getStudyDate} from '../../lib/studyDate';
 
 export type ReviewCountdownState =
   | {kind: 'due'}
@@ -56,6 +57,14 @@ export function findNextReview(
   }
   if (!earliest) return {kind: 'none'};
   return {kind: 'scheduled', target: earliest, remainingMs: Math.max(0, earliest.getTime() - now.getTime())};
+}
+
+/** The instant the daily new-word quota next resets (next local 04:00). */
+export function getNextStudyDayBoundary(now: Date, timezone: string): Date {
+  const todayKey = getStudyDate(now, timezone);
+  const nextDay = new Date(`${todayKey}T00:00:00.000Z`);
+  nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+  return localBoundaryToUtc(nextDay.toISOString().slice(0, 10), timezone)!;
 }
 
 export function isReviewDue(

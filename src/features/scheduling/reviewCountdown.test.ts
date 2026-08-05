@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import type {Word} from '../../types';
-import {findNextReview, formatReviewCountdown, isReviewDue, isReviewDueWithin} from './reviewCountdown';
+import {findNextReview, formatReviewCountdown, getNextStudyDayBoundary, isReviewDue, isReviewDueWithin} from './reviewCountdown';
 
 const word = (id: string, state: 0 | 1 | 2 | 3, nextReviewDate: string): Word => ({
   id, word: id, wordStructure: [], wordFamily: [], isGlobal: false, approvalStatus: 'approved',
@@ -83,5 +83,17 @@ describe('isReviewDueWithin', () => {
 
   it('is false when there is no next review date', () => {
     expect(isReviewDueWithin(undefined, windowMs, now)).toBe(false);
+  });
+});
+
+describe('getNextStudyDayBoundary', () => {
+  it('returns tomorrow local 04:00 when now is after today\'s boundary', () => {
+    const boundary = getNextStudyDayBoundary(new Date('2026-07-31T05:00:00.000Z'), 'Asia/Ho_Chi_Minh');
+    expect(boundary.toISOString()).toBe('2026-07-31T21:00:00.000Z');
+  });
+
+  it('still returns the same instant when now is just before local 04:00', () => {
+    const boundary = getNextStudyDayBoundary(new Date('2026-07-31T20:59:00.000Z'), 'Asia/Ho_Chi_Minh');
+    expect(boundary.toISOString()).toBe('2026-07-31T21:00:00.000Z');
   });
 });

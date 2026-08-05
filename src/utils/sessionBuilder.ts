@@ -1,6 +1,11 @@
 import { Word, MeaningCard, Question, StudyScope, UserSettings } from '../types';
 import {calculateForgettingRisk} from '../features/scheduling/forgettingRisk';
-import { isReviewDue, isReviewDueWithin, SHORT_TERM_WINDOW_MS } from '../features/scheduling/reviewCountdown';
+import {
+  getNextStudyDayBoundary,
+  isReviewDue,
+  isReviewDueWithin,
+  SHORT_TERM_WINDOW_MS,
+} from '../features/scheduling/reviewCountdown';
 
 const MIN_DISTINCT_CARDS_FOR_SESSION = 5;
 const MIN_QUESTIONS_PER_SESSION = 10;
@@ -150,16 +155,33 @@ export function buildSessionQuestions(
 
   if (selectedReviews.length + selectedNew.length < MIN_DISTINCT_CARDS_FOR_SESSION) {
     const deficit = MIN_DISTINCT_CARDS_FOR_SESSION - (selectedReviews.length + selectedNew.length);
-    const upcoming = laterCards
+    const upcomingReviews = laterCards
       .map((item) => item.meaningCard.nextReviewDate)
       .filter((d): d is string => Boolean(d))
       .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    const reviewPathAt = upcomingReviews[deficit - 1];
+
+    // New words aren't time-gated — only today's quota blocks them. If more
+    // are waiting than today's quota lets through, the next quota reset
+    // (tomorrow's study-day boundary) may close the gap on its own.
+    const potentialNewAfterReset = Math.min(newCards.length, settings.newWordsPerDay || 10);
+    const quotaResetHelps = newCards.length > selectedNew.length
+      && selectedReviews.length + potentialNewAfterReset >= MIN_DISTINCT_CARDS_FOR_SESSION;
+    const quotaResetAt = quotaResetHelps
+      ? getNextStudyDayBoundary(now, 'Asia/Ho_Chi_Minh').toISOString()
+      : undefined;
+
+    const candidates = [reviewPathAt, quotaResetAt].filter((d): d is string => Boolean(d));
+    const nextEligibleAt = candidates.length > 0
+      ? candidates.reduce((earliest, d) => (new Date(d) < new Date(earliest) ? d : earliest))
+      : undefined;
+
     return {
       questions: [],
       totalAvailableReviews,
       limitReached,
       insufficientCards: true,
-      nextEligibleAt: upcoming[deficit - 1],
+      nextEligibleAt,
     };
   }
 
