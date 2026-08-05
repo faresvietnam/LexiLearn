@@ -18,7 +18,13 @@ export function buildSessionQuestions(
   settings: UserSettings,
   isExtraReview: boolean = false,
   newWordsLimitOverride?: number,
-): { questions: Question[]; totalAvailableReviews: number; limitReached: boolean; insufficientCards: boolean } {
+): {
+  questions: Question[];
+  totalAvailableReviews: number;
+  limitReached: boolean;
+  insufficientCards: boolean;
+  nextEligibleAt?: string;
+} {
   const now = new Date();
 
   // 1. Filter words in Study Scope & Active status
@@ -41,6 +47,7 @@ export function buildSessionQuestions(
   // Extract all Meaning Cards from active words
   const reviewCards: SessionQueueItem[] = [];
   const newCards: SessionQueueItem[] = [];
+  const laterCards: SessionQueueItem[] = [];
 
   activeWords.forEach((word) => {
     word.meanings.forEach((meaningCard) => {
@@ -77,6 +84,8 @@ export function buildSessionQuestions(
         || isExtraReview
       ) {
         reviewCards.push({ word, meaningCard, isNewWord: false, stage });
+      } else {
+        laterCards.push({ word, meaningCard, isNewWord: false, stage });
       }
     });
   });
@@ -140,11 +149,17 @@ export function buildSessionQuestions(
   const selectedNew = newCards.slice(0, newWordsLimit);
 
   if (selectedReviews.length + selectedNew.length < MIN_DISTINCT_CARDS_FOR_SESSION) {
+    const deficit = MIN_DISTINCT_CARDS_FOR_SESSION - (selectedReviews.length + selectedNew.length);
+    const upcoming = laterCards
+      .map((item) => item.meaningCard.nextReviewDate)
+      .filter((d): d is string => Boolean(d))
+      .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
     return {
       questions: [],
       totalAvailableReviews,
       limitReached,
       insufficientCards: true,
+      nextEligibleAt: upcoming[deficit - 1],
     };
   }
 

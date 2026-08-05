@@ -475,6 +475,37 @@ describe('buildSessionQuestions', () => {
 
     expect(session.questions).toEqual([]);
     expect(session.insufficientCards).toBe(true);
+    expect(session.nextEligibleAt).toBeUndefined();
+  });
+
+  it('reports nextEligibleAt as the date the Nth still-missing card becomes due', () => {
+    const dueWords = ['due-1', 'due-2', 'due-3'].map((id) =>
+      word(id, [meaningCard(id, { nextReviewDate: '2000-01-01' })]),
+    );
+    const soonIso = new Date(Date.now() + 60 * 60_000).toISOString();
+    const laterIso = new Date(Date.now() + 3 * 60 * 60_000).toISOString();
+    const futureWords = [
+      word('future-soon', [meaningCard('future-soon', { fsrsState: 2, nextReviewDate: soonIso })]),
+      word('future-later', [meaningCard('future-later', { fsrsState: 2, nextReviewDate: laterIso })]),
+    ];
+
+    const session = buildSessionQuestions([...dueWords, ...futureWords], scope, settings);
+
+    // 3 already qualify; 2 more are needed. The 2nd-soonest future card
+    // (not the 1st) is the one that actually closes the gap to 5.
+    expect(session.insufficientCards).toBe(true);
+    expect(session.nextEligibleAt).toBe(laterIso);
+  });
+
+  it('leaves nextEligibleAt unset when there is not enough vocabulary in scope regardless of wait', () => {
+    const words = ['one', 'two', 'three'].map((id) =>
+      word(id, [meaningCard(id, { nextReviewDate: '2000-01-01' })]),
+    );
+
+    const session = buildSessionQuestions(words, scope, settings);
+
+    expect(session.insufficientCards).toBe(true);
+    expect(session.nextEligibleAt).toBeUndefined();
   });
 
   it('does not report insufficientCards once at least 5 distinct cards qualify', () => {

@@ -254,37 +254,38 @@ describe('App insufficient-card session start', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows a countdown when the not-enough-cards session has only future-due cards', async () => {
-    const futureIso = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
+  it('shows a countdown to when the 5th still-missing card becomes due', async () => {
+    // 5 future-due cards, none of which qualify yet — the gap to 5 closes
+    // only once the *last* (soonest-to-latest, 5th) one comes due, so the
+    // countdown must point at that one, not the first.
+    const words = [1, 2, 3, 4, 5].map((hoursAhead) => ({
+      ...INITIAL_WORDS[0],
+      id: `future-word-${hoursAhead}`,
+      meanings: [{
+        ...INITIAL_WORDS[0].meanings[0],
+        id: `future-meaning-${hoursAhead}`,
+        wordId: `future-word-${hoursAhead}`,
+        fsrsState: 2,
+        nextReviewDate: new Date(Date.now() + hoursAhead * 60 * 60 * 1000).toISOString(),
+        history: [{
+          id: `h-future-${hoursAhead}`,
+          date: '2026-07-01T00:00:00.000Z',
+          stage: 1,
+          isFirstAttemptCorrect: true,
+          attemptsCount: 1,
+          hintLevelUsed: 0,
+          responseTimeMs: 1000,
+          errorTypes: [],
+        }],
+      }],
+    }));
     loadLearnerState.mockResolvedValue({
       data: {
         settings: INITIAL_SETTINGS,
         studyScope: INITIAL_STUDY_SCOPE,
         decks: INITIAL_DECKS,
         tags: INITIAL_TAGS,
-        words: [
-          {
-            ...INITIAL_WORDS[0],
-            id: 'future-word-1',
-            meanings: [{
-              ...INITIAL_WORDS[0].meanings[0],
-              id: 'future-meaning-1',
-              wordId: 'future-word-1',
-              fsrsState: 2,
-              nextReviewDate: futureIso,
-              history: [{
-                id: 'h-future-1',
-                date: '2026-07-01T00:00:00.000Z',
-                stage: 1,
-                isFirstAttemptCorrect: true,
-                attemptsCount: 1,
-                hintLevelUsed: 0,
-                responseTimeMs: 1000,
-                errorTypes: [],
-              }],
-            }],
-          },
-        ],
+        words,
         globalWords: [],
       },
       error: null,
@@ -295,7 +296,7 @@ describe('App insufficient-card session start', () => {
     fireEvent.click(startButton);
 
     expect(
-      await screen.findByText(/Chưa đủ từ vựng cần học.*quay lại sau/),
+      await screen.findByText(/Chưa đủ từ vựng cần học.*quay lại sau 5 giờ/),
     ).toBeInTheDocument();
   });
 });

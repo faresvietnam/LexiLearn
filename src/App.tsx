@@ -38,7 +38,7 @@ import { SettingsView } from './components/SettingsView';
 import { AdminWorkspace } from './components/AdminWorkspace';
 import { RootWordInsightsView } from './components/RootWordInsightsView';
 import { buildSessionQuestions } from './utils/sessionBuilder';
-import { findNextReview, formatReviewCountdown } from './features/scheduling/reviewCountdown';
+import { formatReviewCountdown } from './features/scheduling/reviewCountdown';
 import {getSupabaseClient} from './lib/supabase';
 import {
   saveAiProviderSettings,
@@ -311,7 +311,7 @@ function AuthenticatedApp({
       }
       newWordsLimitOverride = Math.max(0, settings.newWordsPerDay - usage.data);
     }
-    const {questions, insufficientCards} = buildSessionQuestions(
+    const {questions, insufficientCards, nextEligibleAt} = buildSessionQuestions(
       words,
       studyScope,
       settings,
@@ -319,10 +319,14 @@ function AuthenticatedApp({
       newWordsLimitOverride,
     );
     if (insufficientCards) {
-      const countdown = findNextReview(words, new Date());
+      const eligibleAt = nextEligibleAt ? new Date(nextEligibleAt) : null;
       showToast(
-        countdown.kind === 'scheduled'
-          ? `Chưa đủ từ vựng cần học trong Study Scope hiện tại — quay lại sau ${formatReviewCountdown(countdown)}.`
+        eligibleAt
+          ? `Chưa đủ từ vựng cần học trong Study Scope hiện tại — quay lại sau ${formatReviewCountdown({
+              kind: 'scheduled',
+              target: eligibleAt,
+              remainingMs: Math.max(0, eligibleAt.getTime() - Date.now()),
+            })}.`
           : 'Chưa đủ từ vựng cần học trong Study Scope hiện tại (cần tối thiểu 5 card).',
       );
       return;
