@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 import { Word, StudyScope, UserSettings, MemoryStrength } from '../types';
 import {buildReviewForecast} from '../features/scheduling/reviewForecast';
-import { findNextReview, formatReviewCountdown, isReviewDue } from '../features/scheduling/reviewCountdown';
+import { formatReviewCountdown, isReviewDue, type ReviewCountdownState } from '../features/scheduling/reviewCountdown';
+import { buildSessionQuestions } from '../utils/sessionBuilder';
 
 interface DashboardViewProps {
   words: Word[];
@@ -111,7 +112,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   });
 
   const totalMeaningCards = strongCount + stableCount + weakCount + criticalCount;
-  const nextReview = findNextReview(activeWords, now, 'Asia/Ho_Chi_Minh');
+
+  // "Ôn lại sau" answers "when can I next start a session" — that requires
+  // the same 5-distinct-card minimum buildSessionQuestions enforces, not
+  // just whether any single card is due (which disagreed with the actual
+  // start-session gate whenever due cards existed but fewer than 5 total).
+  const newWordsLimitOverride = Math.max(0, settings.newWordsPerDay - newWordsStartedToday);
+  const sessionPreview = buildSessionQuestions(words, studyScope, settings, false, newWordsLimitOverride);
+  const nextReview: ReviewCountdownState = sessionPreview.insufficientCards
+    ? sessionPreview.nextEligibleAt
+      ? {
+          kind: 'scheduled',
+          target: new Date(sessionPreview.nextEligibleAt),
+          remainingMs: Math.max(0, new Date(sessionPreview.nextEligibleAt).getTime() - now.getTime()),
+        }
+      : {kind: 'none'}
+    : {kind: 'due'};
   const forecast = buildReviewForecast(words, studyScope, now, 'Asia/Ho_Chi_Minh');
 
   // Sort frequently forgotten words by error rate descending
