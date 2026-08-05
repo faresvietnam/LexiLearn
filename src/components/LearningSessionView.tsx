@@ -15,6 +15,7 @@ import {
 import {
   MeaningCard,
   Question,
+  QuestionType,
   UserSettings,
   SessionStats,
   StudyAttemptInput,
@@ -40,6 +41,18 @@ function maskSentenceAnswer(sentence: string, answer: string): string {
     '_____ ',
   ).replace(/_____\s+([,.!?;:])/g, '_____$1').trim();
 }
+const TYPED_ANSWER_QUESTION_TYPES: readonly QuestionType[] = [
+  'full_word_typing',
+  'word_part_typing',
+  'sentence_completion',
+  'image_question',
+  'audio_question',
+];
+
+function isTypingQuestionType(type: QuestionType): boolean {
+  return TYPED_ANSWER_QUESTION_TYPES.includes(type);
+}
+
 import { CharacterDiffComparison } from './CharacterDiffComparison';
 
 interface LearningSessionViewProps {
@@ -391,6 +404,10 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
           // Retry typing attempt
           setIsChecked(false);
           setDiffResult(null);
+          if (currentQuestion && isTypingQuestionType(currentQuestion.type)) {
+            setTypingValue('');
+            setPartTypingValues({});
+          }
           inputRef.current?.focus();
         }
         return;
@@ -748,6 +765,10 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
               onClick={() => {
                 setIsChecked(false);
                 setDiffResult(null);
+                if (isTypingQuestionType(currentQuestion.type)) {
+                  setTypingValue('');
+                  setPartTypingValues({});
+                }
                 setTimeout(() => inputRef.current?.focus(), 50);
               }}
               className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-base shadow-md shadow-indigo-100 transition"

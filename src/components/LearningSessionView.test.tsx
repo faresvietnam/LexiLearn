@@ -476,6 +476,88 @@ describe('LearningSessionView session completion', () => {
     expect(screen.queryByText('- Bạn nhập:')).not.toBeInTheDocument();
     expect(screen.queryByText('+ Đáp án:')).not.toBeInTheDocument();
   });
+
+  it('clears the typed answer back to blank when retrying via the Retry button', () => {
+    render(
+      <LearningSessionView
+        questions={[question]}
+        settings={settings}
+        isExtraReview={false}
+        onMeaningCardUpdated={() => undefined}
+        onAttempt={() => undefined}
+        onFinishSession={() => undefined}
+        onExitSession={() => undefined}
+      />
+    );
+
+    const answerInput = screen.getByPlaceholderText(
+      'Gõ từ tiếng Anh tại đây...',
+    ) as HTMLInputElement;
+    fireEvent.change(answerInput, { target: { value: 'remmber' } });
+    fireEvent.click(screen.getByRole('button', { name: /Check/i }));
+    expect(answerInput.value).toBe('remmber');
+
+    fireEvent.click(screen.getByRole('button', { name: /Thử lại/i }));
+
+    expect(answerInput.value).toBe('');
+  });
+
+  it('clears the typed answer back to blank when retrying with Enter', () => {
+    render(
+      <LearningSessionView
+        questions={[question]}
+        settings={settings}
+        isExtraReview={false}
+        onMeaningCardUpdated={() => undefined}
+        onAttempt={() => undefined}
+        onFinishSession={() => undefined}
+        onExitSession={() => undefined}
+      />
+    );
+
+    const answerInput = screen.getByPlaceholderText(
+      'Gõ từ tiếng Anh tại đây...',
+    ) as HTMLInputElement;
+    fireEvent.change(answerInput, { target: { value: 'remmber' } });
+    fireEvent.click(screen.getByRole('button', { name: /Check/i }));
+
+    fireEvent.keyDown(window, { key: 'Enter' });
+
+    expect(answerInput.value).toBe('');
+  });
+
+  it('clears word-part typing inputs back to blank when retrying a wrong attempt', () => {
+    const wordPartQuestion: Question = {
+      ...question,
+      id: 'question-remember-parts-retry',
+      stage: 3,
+      type: 'word_part_typing',
+      wordParts: [
+        { id: 'part-remember', text: 'remember', type: 'root', order: 1 },
+      ],
+    };
+
+    render(
+      <LearningSessionView
+        questions={[wordPartQuestion]}
+        settings={settings}
+        isExtraReview={false}
+        onMeaningCardUpdated={() => undefined}
+        onAttempt={() => undefined}
+        onFinishSession={() => undefined}
+        onExitSession={() => undefined}
+      />
+    );
+
+    const rootInput = screen.getByPlaceholderText('root') as HTMLInputElement;
+    fireEvent.change(rootInput, { target: { value: 'remmber' } });
+    fireEvent.click(screen.getByRole('button', { name: /Check/i }));
+    expect(rootInput.value).toBe('remmber');
+
+    fireEvent.click(screen.getByRole('button', { name: /Thử lại/i }));
+
+    expect(rootInput.value).toBe('');
+  });
 });
 
 describe('LearningSessionView attempt persistence contract', () => {
