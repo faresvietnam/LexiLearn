@@ -48,7 +48,8 @@ describe('database migration chain', () => {
       '20260803090400_complete_new_word_quota.sql',
       '20260804031142_add_private_word_component_library.sql',
       '20260804074151_add_openai_compatible_provider.sql',
-    '20260804081036_add_openai_token_configured_flag.sql',
+      '20260804081036_add_openai_token_configured_flag.sql',
+      '20260804090000_relax_import_row_number_check.sql',
     ]);
   });
 

@@ -244,9 +244,13 @@ describe('App FSRS review scheduling', () => {
       await screen.findByRole('button', {name: 'Continue Learning'}),
     );
     await screen.findByText(/Câu 1 \//);
-    fireEvent.click(screen.getByRole('button', {
+    const correctAnswer = screen.getByRole('button', {
       name: /Chưa từng có tiền lệ/,
-    }));
+    });
+    fireEvent.click(correctAnswer);
+    await waitFor(() => {
+      expect(correctAnswer).toHaveClass('border-indigo-500');
+    });
     fireEvent.click(screen.getByRole('button', {name: /Check/i}));
 
     expect(
