@@ -70,6 +70,20 @@ function word(id: string, meanings: MeaningCard[], status: Word['status'] = 'act
   };
 }
 
+function fillerReviewWords(count: number, scoreStart = 900): Word[] {
+  return Array.from({ length: count }, (_, i) =>
+    word(`filler-${i}`, [meaningCard(`filler-${i}`, {
+      memoryStrength: 'stable',
+      memoryScore: scoreStart + i,
+      nextReviewDate: '2000-01-01',
+    })]),
+  );
+}
+
+function realIds(session: { questions: { word: { id: string } }[] }): string[] {
+  return session.questions.map((q) => q.word.id).filter((id) => !id.startsWith('filler-'));
+}
+
 describe('buildSessionQuestions', () => {
   it('keeps an eligible queue empty when there are no new or due cards', () => {
     const words = [word('future', [meaningCard('future')])];
@@ -361,7 +375,7 @@ describe('buildSessionQuestions', () => {
     expect(session.limitReached).toBe(true);
   });
 
-  it('does not add new cards when a critical review is due', () => {
+  it('still includes new cards when a critical review is due', () => {
     const words = [
       word('critical', [
         meaningCard('critical', {
@@ -371,11 +385,14 @@ describe('buildSessionQuestions', () => {
         }),
       ]),
       word('new', [meaningCard('new', { history: [] })]),
+      ...fillerReviewWords(8),
     ];
 
     const session = buildSessionQuestions(words, scope, settings);
+    const ids = session.questions.map((q) => q.word.id);
 
-    expect(session.questions.map((question) => question.word.id)).toEqual(['critical']);
+    expect(ids).toContain('critical');
+    expect(ids).toContain('new');
   });
 
   it('orders due reviews by lower memory score first', () => {
@@ -383,10 +400,57 @@ describe('buildSessionQuestions', () => {
       word('high', [meaningCard('high', { nextReviewDate: '2000-01-01', memoryScore: 80 })]),
       word('low', [meaningCard('low', { nextReviewDate: '2000-01-01', memoryScore: 10 })]),
       word('middle', [meaningCard('middle', { nextReviewDate: '2000-01-01', memoryScore: 50 })]),
+      ...fillerReviewWords(7),
     ];
 
     const session = buildSessionQuestions(words, scope, settings);
 
-    expect(session.questions.map((question) => question.word.id)).toEqual(['low', 'middle', 'high']);
+    expect(realIds(session)).toEqual(['low', 'middle', 'high']);
+  });
+
+  it('ranks critical, then due-within-15-minutes, then ordinary due reviews', () => {
+    const words = [
+      word('ordinary-due', [meaningCard('ordinary-due', {
+        memoryStrength: 'stable',
+        memoryScore: 60,
+        nextReviewDate: new Date(Date.now() - 24 * 60 * 60_000).toISOString(),
+      })]),
+      word('near-due', [meaningCard('near-due', {
+        fsrsState: 2,
+        memoryStrength: 'stable',
+        memoryScore: 60,
+        nextReviewDate: new Date(Date.now() + 10 * 60_000).toISOString(),
+      })]),
+      word('critical', [meaningCard('critical', {
+        memoryStrength: 'critical',
+        memoryScore: 10,
+        nextReviewDate: new Date(Date.now() - 60 * 60_000).toISOString(),
+      })]),
+      ...fillerReviewWords(7),
+    ];
+
+    const session = buildSessionQuestions(words, scope, settings, false, undefined);
+
+    expect(realIds(session)).toEqual(['critical', 'near-due', 'ordinary-due']);
+  });
+
+  it('orders same-tier due-within-15-minutes cards by soonest due first', () => {
+    const words = [
+      word('due-in-12', [meaningCard('due-in-12', {
+        fsrsState: 2,
+        memoryStrength: 'stable',
+        nextReviewDate: new Date(Date.now() + 12 * 60_000).toISOString(),
+      })]),
+      word('due-in-3', [meaningCard('due-in-3', {
+        fsrsState: 2,
+        memoryStrength: 'stable',
+        nextReviewDate: new Date(Date.now() + 3 * 60_000).toISOString(),
+      })]),
+      ...fillerReviewWords(8),
+    ];
+
+    const session = buildSessionQuestions(words, scope, settings);
+
+    expect(realIds(session)).toEqual(['due-in-3', 'due-in-12']);
   });
 });

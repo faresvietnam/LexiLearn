@@ -1,6 +1,6 @@
 import { Word, MeaningCard, Question, StudyScope, UserSettings } from '../types';
 import {calculateForgettingRisk} from '../features/scheduling/forgettingRisk';
-import { isReviewDue } from '../features/scheduling/reviewCountdown';
+import { isReviewDue, isReviewDueWithin, SHORT_TERM_WINDOW_MS } from '../features/scheduling/reviewCountdown';
 
 export interface SessionQueueItem {
   word: Word;
@@ -15,7 +15,7 @@ export function buildSessionQuestions(
   settings: UserSettings,
   isExtraReview: boolean = false,
   newWordsLimitOverride?: number,
-): { questions: Question[]; totalAvailableReviews: number; limitReached: boolean } {
+): { questions: Question[]; totalAvailableReviews: number; limitReached: boolean; insufficientCards: boolean } {
   const now = new Date();
 
   // 1. Filter words in Study Scope & Active status
@@ -62,11 +62,15 @@ export function buildSessionQuestions(
         && meaningCard.wordStructureScore < 50
       ) stage = 4;
 
+      const isNearDueSoon = !isDue
+        && isReviewDueWithin(meaningCard.nextReviewDate, SHORT_TERM_WINDOW_MS, now, 'Asia/Ho_Chi_Minh');
+
       if (isFsrsNew) {
         newCards.push({ word, meaningCard, isNewWord: true, stage: 1 });
       } else if (
         isDue
         || meaningCard.memoryStrength === 'critical'
+        || isNearDueSoon
         || isExtraReview
       ) {
         reviewCards.push({ word, meaningCard, isNewWord: false, stage });
@@ -74,9 +78,7 @@ export function buildSessionQuestions(
     });
   });
 
-  // 2. Priority Sorting for Reviews:
-  // Order: Overdue -> Critical Strength -> Weak Strength -> Due today
-  reviewCards.sort((a, b) => {
+  const legacyRiskCompare = (a: SessionQueueItem, b: SessionQueueItem) => {
     const hasTelemetry = a.meaningCard.recognitionScore !== undefined
       || a.meaningCard.recallScore !== undefined
       || a.meaningCard.spellingScore !== undefined
@@ -86,14 +88,13 @@ export function buildSessionQuestions(
       return (a.meaningCard.memoryScore || 50) - (b.meaningCard.memoryScore || 50);
     }
     return calculateForgettingRisk(b.meaningCard) - calculateForgettingRisk(a.meaningCard);
-  });
+  };
 
-  const criticalReviews = reviewCards.filter(
-    (item) => item.meaningCard.memoryStrength === 'critical'
-  );
-
-  // If Extra Review Mode: only pick at-risk / critical words
+  // If Extra Review Mode: only pick at-risk / critical words. Keeps the
+  // original single-criterion sort — tiering below is a normal-session-only
+  // concept and would misclassify far-future extra-review candidates.
   if (isExtraReview) {
+    reviewCards.sort(legacyRiskCompare);
     const atRiskCards = reviewCards.filter(
       (c) => c.meaningCard.memoryStrength === 'critical' || c.meaningCard.memoryStrength === 'weak'
     );
@@ -102,8 +103,28 @@ export function buildSessionQuestions(
       questions: convertQueueToQuestions(selected, words),
       totalAvailableReviews: atRiskCards.length,
       limitReached: false,
+      insufficientCards: false,
     };
   }
+
+  // 2. Priority tiers for reviews:
+  //   A) critical strength, B) due within the short-term FSRS window,
+  //   C) everything else already due. Each tier keeps its own ordering.
+  const reviewTier = (item: SessionQueueItem): 0 | 1 | 2 => {
+    if (item.meaningCard.memoryStrength === 'critical') return 0;
+    if (!isReviewDue(item.meaningCard.nextReviewDate, now, 'Asia/Ho_Chi_Minh')) return 1;
+    return 2;
+  };
+
+  reviewCards.sort((a, b) => {
+    const tierDiff = reviewTier(a) - reviewTier(b);
+    if (tierDiff !== 0) return tierDiff;
+    if (reviewTier(a) === 1) {
+      return new Date(a.meaningCard.nextReviewDate!).getTime()
+        - new Date(b.meaningCard.nextReviewDate!).getTime();
+    }
+    return legacyRiskCompare(a, b);
+  });
 
   // Enforce Review Limit Per Day
   const reviewLimit = settings.reviewLimitPerDay || 40;
@@ -113,11 +134,7 @@ export function buildSessionQuestions(
   const selectedReviews = reviewCards.slice(0, reviewLimit);
   const limitReached = reviewCards.length > reviewLimit;
 
-  // Rule from section 6: If critical reviews exist, do NOT include new words in session!
-  let selectedNew: SessionQueueItem[] = [];
-  if (criticalReviews.length === 0) {
-    selectedNew = newCards.slice(0, newWordsLimit);
-  }
+  const selectedNew = newCards.slice(0, newWordsLimit);
 
   // Interleave 4 reviews per 1 new word if new words present
   const finalQueue: SessionQueueItem[] = [];
@@ -145,6 +162,7 @@ export function buildSessionQuestions(
     questions,
     totalAvailableReviews,
     limitReached,
+    insufficientCards: false,
   };
 }
 
