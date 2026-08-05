@@ -58,6 +58,7 @@ import {
   pauseStudySession,
   submitLearningReview,
 } from './features/persistence/sessionRepository';
+import {renumberSessionAttempt} from './features/persistence/sessionAttemptSequence';
 import {aggregateSentenceAnalytics} from './features/analytics/sentenceAnalytics';
 import type {ProgressAttemptRow} from './features/analytics/progressAnalytics';
 import type {AutomaticRating} from './features/scheduling/automaticRating';
@@ -151,6 +152,7 @@ function AuthenticatedApp({
   const [isSessionStartPending, setIsSessionStartPending] = useState(false);
   const sessionStartPendingRef = useRef(false);
   const pendingAttemptsRef = useRef(new Map<string, StudyAttemptInput[]>());
+  const attemptNumberByCardRef = useRef(new Map<string, number>());
 
   // Modals & Overlay States
   const [showStudyScopeModal, setShowStudyScopeModal] = useState<boolean>(false);
@@ -268,6 +270,7 @@ function AuthenticatedApp({
   ) => {
     if (sessionStartPendingRef.current) return;
     pendingAttemptsRef.current.clear();
+    attemptNumberByCardRef.current.clear();
     sessionStartPendingRef.current = true;
     setIsSessionStartPending(true);
     let sessionId: string | null = null;
@@ -372,8 +375,14 @@ function AuthenticatedApp({
 
   const handleAttempt = async (attempt: StudyAttemptInput) => {
     if (!client || !user || !activeSessionId) return;
-    const current = pendingAttemptsRef.current.get(attempt.learningCardId) ?? [];
-    pendingAttemptsRef.current.set(attempt.learningCardId, [...current, attempt]);
+    const cardId = attempt.learningCardId;
+    const renumberedAttempt = renumberSessionAttempt(
+      attemptNumberByCardRef.current.get(cardId) ?? 0,
+      attempt,
+    );
+    attemptNumberByCardRef.current.set(cardId, renumberedAttempt.attemptNumber);
+    const current = pendingAttemptsRef.current.get(cardId) ?? [];
+    pendingAttemptsRef.current.set(cardId, [...current, renumberedAttempt]);
   };
 
   const handleReviewCompleted = async (
