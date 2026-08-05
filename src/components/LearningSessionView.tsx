@@ -119,6 +119,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
   const reviewRequestIdRef = useRef(0);
   const reviewRetryRef = useRef<(() => void) | null>(null);
   const reinsertedMeaningCardIdsRef = useRef<Set<string>>(new Set());
+  const wrongCheckAtRef = useRef<number>(0);
 
   // Focus ref for input
   const inputRef = useRef<HTMLInputElement>(null);
@@ -348,6 +349,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
       }
     } else {
       // Wrong answer behavior
+      wrongCheckAtRef.current = Date.now();
       retriesTotalRef.current += 1;
       if (attemptErrorTypes.length > 0) {
         setAccumulatedErrorTypes((prev) => [...prev, ...attemptErrorTypes]);
@@ -417,8 +419,11 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
           handleContinueNext();
         } else if (!isChecked) {
           handleCheckAnswer();
-        } else if (!isCorrect) {
-          // Retry typing attempt
+        } else if (!isCorrect && Date.now() - wrongCheckAtRef.current >= 400) {
+          // Retry typing attempt. The 400ms guard ignores an Enter that
+          // arrives immediately after the wrong check itself (key repeat
+          // or a reflexive double Enter), so the diff stays visible long
+          // enough to read before it clears.
           setIsChecked(false);
           setDiffResult(null);
           if (currentQuestion && isTypingQuestionType(currentQuestion.type)) {

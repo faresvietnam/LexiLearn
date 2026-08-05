@@ -543,6 +543,9 @@ describe('LearningSessionView session completion', () => {
   });
 
   it('clears the typed answer back to blank when retrying with Enter', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-30T07:00:00.000Z'));
+
     render(
       <LearningSessionView
         questions={[question]}
@@ -561,6 +564,8 @@ describe('LearningSessionView session completion', () => {
     fireEvent.change(answerInput, { target: { value: 'remmber' } });
     fireEvent.click(screen.getByRole('button', { name: /Check/i }));
 
+    // Past the key-repeat debounce window, so this Enter is a real retry.
+    vi.setSystemTime(new Date('2026-07-30T07:00:01.000Z'));
     fireEvent.keyDown(window, { key: 'Enter' });
 
     expect(answerInput.value).toBe('');
@@ -597,6 +602,40 @@ describe('LearningSessionView session completion', () => {
     fireEvent.click(screen.getByRole('button', { name: /Thử lại/i }));
 
     expect(rootInput.value).toBe('');
+  });
+
+  it('ignores an Enter that arrives immediately after a wrong check so the diff stays readable', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-30T08:00:00.000Z'));
+
+    render(
+      <LearningSessionView
+        questions={[question]}
+        settings={settings}
+        isExtraReview={false}
+        onMeaningCardUpdated={() => undefined}
+        onAttempt={() => undefined}
+        onFinishSession={() => undefined}
+        onExitSession={() => undefined}
+      />
+    );
+
+    const answerInput = screen.getByPlaceholderText(
+      'Gõ từ tiếng Anh tại đây...',
+    ) as HTMLInputElement;
+    fireEvent.change(answerInput, { target: { value: 'remmber' } });
+    fireEvent.keyDown(window, { key: 'Enter' });
+
+    // A second Enter landing in the same instant (key repeat, or a
+    // reflexive double-tap) must not wipe the answer or the diff.
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(answerInput.value).toBe('remmber');
+    expect(screen.getByText('- Bạn nhập:')).toBeInTheDocument();
+
+    // An Enter that arrives after the debounce window is a real retry.
+    vi.setSystemTime(new Date('2026-07-30T08:00:01.000Z'));
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(answerInput.value).toBe('');
   });
 });
 
