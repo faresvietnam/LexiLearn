@@ -219,6 +219,87 @@ describe('App session creation concurrency', () => {
   });
 });
 
+describe('App insufficient-card session start', () => {
+  it('shows a generic not-enough-cards message when fewer than 5 cards are already due', async () => {
+    loadLearnerState.mockResolvedValue({
+      data: {
+        settings: INITIAL_SETTINGS,
+        studyScope: INITIAL_STUDY_SCOPE,
+        decks: INITIAL_DECKS,
+        tags: INITIAL_TAGS,
+        words: [
+          {
+            ...INITIAL_WORDS[0],
+            id: 'only-word-1',
+            meanings: [{
+              ...INITIAL_WORDS[0].meanings[0],
+              id: 'only-meaning-1',
+              wordId: 'only-word-1',
+              nextReviewDate: '2000-01-01',
+              history: [],
+            }],
+          },
+        ],
+        globalWords: [],
+      },
+      error: null,
+    });
+    render(<App />);
+
+    const startButton = await screen.findByRole('button', { name: 'Continue Learning' });
+    fireEvent.click(startButton);
+
+    expect(
+      await screen.findByText(/Chưa đủ từ vựng cần học trong Study Scope hiện tại/),
+    ).toBeInTheDocument();
+  });
+
+  it('shows a countdown when the not-enough-cards session has only future-due cards', async () => {
+    const futureIso = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
+    loadLearnerState.mockResolvedValue({
+      data: {
+        settings: INITIAL_SETTINGS,
+        studyScope: INITIAL_STUDY_SCOPE,
+        decks: INITIAL_DECKS,
+        tags: INITIAL_TAGS,
+        words: [
+          {
+            ...INITIAL_WORDS[0],
+            id: 'future-word-1',
+            meanings: [{
+              ...INITIAL_WORDS[0].meanings[0],
+              id: 'future-meaning-1',
+              wordId: 'future-word-1',
+              fsrsState: 2,
+              nextReviewDate: futureIso,
+              history: [{
+                id: 'h-future-1',
+                date: '2026-07-01T00:00:00.000Z',
+                stage: 1,
+                isFirstAttemptCorrect: true,
+                attemptsCount: 1,
+                hintLevelUsed: 0,
+                responseTimeMs: 1000,
+                errorTypes: [],
+              }],
+            }],
+          },
+        ],
+        globalWords: [],
+      },
+      error: null,
+    });
+    render(<App />);
+
+    const startButton = await screen.findByRole('button', { name: 'Continue Learning' });
+    fireEvent.click(startButton);
+
+    expect(
+      await screen.findByText(/Chưa đủ từ vựng cần học.*quay lại sau/),
+    ).toBeInTheDocument();
+  });
+});
+
 describe('App authenticated identity state', () => {
   it('does not carry an active learning session into a different user identity', async () => {
     createStudySession.mockResolvedValue({data: 'session-1', error: null});

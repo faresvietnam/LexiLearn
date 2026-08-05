@@ -38,6 +38,7 @@ import { SettingsView } from './components/SettingsView';
 import { AdminWorkspace } from './components/AdminWorkspace';
 import { RootWordInsightsView } from './components/RootWordInsightsView';
 import { buildSessionQuestions } from './utils/sessionBuilder';
+import { findNextReview, formatReviewCountdown } from './features/scheduling/reviewCountdown';
 import {getSupabaseClient} from './lib/supabase';
 import {
   saveAiProviderSettings,
@@ -310,15 +311,20 @@ function AuthenticatedApp({
       }
       newWordsLimitOverride = Math.max(0, settings.newWordsPerDay - usage.data);
     }
-    const {questions} = buildSessionQuestions(
+    const {questions, insufficientCards} = buildSessionQuestions(
       words,
       studyScope,
       settings,
       isExtraReview,
       newWordsLimitOverride,
     );
-    if (questions.length === 0) {
-      showToast('Không có từ vựng nào cần học trong Study Scope hiện tại!');
+    if (insufficientCards) {
+      const countdown = findNextReview(words, new Date());
+      showToast(
+        countdown.kind === 'scheduled'
+          ? `Chưa đủ từ vựng cần học trong Study Scope hiện tại — quay lại sau ${formatReviewCountdown(countdown)}.`
+          : 'Chưa đủ từ vựng cần học trong Study Scope hiện tại (cần tối thiểu 5 card).',
+      );
       return;
     }
     await activateLearningSession(questions, isExtraReview);
