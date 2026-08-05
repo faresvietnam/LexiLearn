@@ -2,6 +2,8 @@ import { Word, MeaningCard, Question, StudyScope, UserSettings } from '../types'
 import {calculateForgettingRisk} from '../features/scheduling/forgettingRisk';
 import { isReviewDue, isReviewDueWithin, SHORT_TERM_WINDOW_MS } from '../features/scheduling/reviewCountdown';
 
+const MIN_DISTINCT_CARDS_FOR_SESSION = 5;
+
 export interface SessionQueueItem {
   word: Word;
   meaningCard: MeaningCard;
@@ -135,6 +137,15 @@ export function buildSessionQuestions(
   const limitReached = reviewCards.length > reviewLimit;
 
   const selectedNew = newCards.slice(0, newWordsLimit);
+
+  if (selectedReviews.length + selectedNew.length < MIN_DISTINCT_CARDS_FOR_SESSION) {
+    return {
+      questions: [],
+      totalAvailableReviews,
+      limitReached,
+      insufficientCards: true,
+    };
+  }
 
   // Interleave 4 reviews per 1 new word if new words present
   const finalQueue: SessionQueueItem[] = [];

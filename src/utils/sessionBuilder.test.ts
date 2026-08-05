@@ -120,15 +120,15 @@ describe('buildSessionQuestions', () => {
     });
 
     const session = buildSessionQuestions(
-      [word('critical-future', [criticalCard])],
+      [word('critical-future', [criticalCard]), ...fillerReviewWords(9)],
       scope,
       settings,
     );
 
-    expect(session.questions).toHaveLength(1);
+    expect(session.questions).toHaveLength(10);
     expect(session.questions[0].word.id).toBe('critical-future');
     expect(session.questions[0].isNewWord).toBe(false);
-    expect(session.totalAvailableReviews).toBe(1);
+    expect(session.totalAvailableReviews).toBe(10);
   });
 
   it.each([
@@ -162,14 +162,15 @@ describe('buildSessionQuestions', () => {
     });
 
     const session = buildSessionQuestions(
-      [word('scheduled', [scheduledCard])],
+      [word('scheduled', [scheduledCard]), ...fillerReviewWords(9)],
       scope,
       settings,
     );
 
-    expect(session.questions).toHaveLength(1);
-    expect(session.questions[0].isNewWord).toBe(false);
-    expect(session.totalAvailableReviews).toBe(1);
+    expect(realIds(session)).toEqual(['scheduled']);
+    const target = session.questions.find((q) => q.word.id === 'scheduled');
+    expect(target?.isNewWord).toBe(false);
+    expect(session.totalAvailableReviews).toBe(10);
   });
 
   it('treats FSRS state 0 as new even when legacy history exists', () => {
@@ -179,13 +180,13 @@ describe('buildSessionQuestions', () => {
     });
 
     const session = buildSessionQuestions(
-      [word('new-fsrs-card', [newCard])],
+      [word('new-fsrs-card', [newCard]), ...fillerReviewWords(9)],
       scope,
       settings,
     );
 
-    expect(session.questions).toHaveLength(1);
-    expect(session.questions[0].isNewWord).toBe(true);
+    const target = session.questions.find((q) => q.word.id === 'new-fsrs-card');
+    expect(target?.isNewWord).toBe(true);
   });
 
   it('excludes strong cards from extra review', () => {
@@ -202,7 +203,8 @@ describe('buildSessionQuestions', () => {
   });
 
   it('uses only multiple-choice questions before new learners are asked to type', () => {
-    const words = ['one', 'two', 'three', 'four'].map((id) =>
+    const ids = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+    const words = ids.map((id) =>
       word(id, [meaningCard(id, {
         fsrsState: 0,
         history: [],
@@ -222,16 +224,12 @@ describe('buildSessionQuestions', () => {
 
     const session = buildSessionQuestions(words, scope, settings);
 
-    expect(session.questions.map(({type}) => type)).toEqual([
-      'en_to_vn_mc',
-      'vn_to_en_mc',
-      'en_to_vn_mc',
-      'vn_to_en_mc',
-    ]);
-    for (const question of session.questions) {
+    expect(session.questions).toHaveLength(10);
+    for (const [index, question] of session.questions.entries()) {
       expect(question.stage).toBe(1);
       expect(question.mcOptions?.length).toBeGreaterThan(0);
       expect(question.type).not.toBe('sentence_completion');
+      expect(question.type).toBe(index % 2 === 0 ? 'en_to_vn_mc' : 'vn_to_en_mc');
     }
   });
 
@@ -252,11 +250,16 @@ describe('buildSessionQuestions', () => {
         approvalStatus: 'approved',
       }],
     });
-    const session = buildSessionQuestions([word('new', [card])], scope, settings);
+    const session = buildSessionQuestions(
+      [word('new', [card]), ...fillerReviewWords(9)],
+      scope,
+      settings,
+    );
 
-    expect(session.questions[0].stage).toBe(2);
-    expect(session.questions[0].type).toBe('sentence_completion');
-    expect(session.questions[0].expectedAnswer).toBe('new');
+    const target = session.questions.find((q) => q.word.id === 'new');
+    expect(target?.stage).toBe(2);
+    expect(target?.type).toBe('sentence_completion');
+    expect(target?.expectedAnswer).toBe('new');
   });
 
   it('falls back to full-word typing when a staged card has no word parts', () => {
@@ -265,14 +268,15 @@ describe('buildSessionQuestions', () => {
       nextReviewDate: '2020-01-01',
     });
     const session = buildSessionQuestions(
-      [word('decide', [card])],
+      [word('decide', [card]), ...fillerReviewWords(9)],
       scope,
       settings,
     );
 
-    expect(session.questions[0].stage).toBe(3);
-    expect(session.questions[0].type).toBe('full_word_typing');
-    expect(session.questions[0].wordParts).toEqual([]);
+    const target = session.questions.find((q) => q.word.id === 'decide');
+    expect(target?.stage).toBe(3);
+    expect(target?.type).toBe('full_word_typing');
+    expect(target?.wordParts).toEqual([]);
   });
 
   it('uses Vietnamese meaning for word-part selection and requires multiple parts', () => {
@@ -285,10 +289,11 @@ describe('buildSessionQuestions', () => {
       {id: 're', text: 're', type: 'prefix', order: 0},
       {id: 'pair', text: 'pair', type: 'root', order: 1},
     ];
-    const compoundSession = buildSessionQuestions([compound], scope, settings);
-    expect(compoundSession.questions[0].type).toBe('word_part_selection');
-    expect(compoundSession.questions[0].prompt).toContain('sửa chữa');
-    expect(compoundSession.questions[0].prompt).not.toContain('repair');
+    const compoundSession = buildSessionQuestions([compound, ...fillerReviewWords(9)], scope, settings);
+    const compoundTarget = compoundSession.questions.find((q) => q.word.id === 'repair');
+    expect(compoundTarget?.type).toBe('word_part_selection');
+    expect(compoundTarget?.prompt).toContain('sửa chữa');
+    expect(compoundTarget?.prompt).not.toContain('repair');
 
     const typingCard = meaningCard('typing', {
       meaning: 'đi vào',
@@ -300,10 +305,11 @@ describe('buildSessionQuestions', () => {
       {id: 'com', text: 'com', type: 'root', order: 0},
       {id: 'e', text: 'e', type: 'suffix', order: 1},
     ];
-    const typingSession = buildSessionQuestions([typingWord], scope, settings);
-    expect(typingSession.questions[0].type).toBe('word_part_typing');
-    expect(typingSession.questions[0].prompt).toContain('đi vào');
-    expect(typingSession.questions[0].prompt).not.toContain('come');
+    const typingSession = buildSessionQuestions([typingWord, ...fillerReviewWords(9)], scope, settings);
+    const typingTarget = typingSession.questions.find((q) => q.word.id === 'come');
+    expect(typingTarget?.type).toBe('word_part_typing');
+    expect(typingTarget?.prompt).toContain('đi vào');
+    expect(typingTarget?.prompt).not.toContain('come');
 
     const rootOnly = word('remain', [meaningCard('remain', {
       meaning: 'còn lại',
@@ -311,8 +317,9 @@ describe('buildSessionQuestions', () => {
       nextReviewDate: '2000-01-01',
     })]);
     rootOnly.wordStructure = [{id: 'remain', text: 'remain', type: 'root', order: 0}];
-    const rootOnlySession = buildSessionQuestions([rootOnly], scope, settings);
-    expect(rootOnlySession.questions[0].type).toBe('full_word_typing');
+    const rootOnlySession = buildSessionQuestions([rootOnly, ...fillerReviewWords(9)], scope, settings);
+    const rootOnlyTarget = rootOnlySession.questions.find((q) => q.word.id === 'remain');
+    expect(rootOnlyTarget?.type).toBe('full_word_typing');
   });
 
   it('spaces adjacent cards from the same word when another word is available in extra review', () => {
@@ -344,23 +351,27 @@ describe('buildSessionQuestions', () => {
     const paused = word('paused', [meaningCard('paused', { nextReviewDate: '2000-01-01' })], 'paused');
 
     const session = buildSessionQuestions(
-      [eligible, otherDeck, excludedTag, paused],
+      [eligible, otherDeck, excludedTag, paused, ...fillerReviewWords(9)],
       selectedDeckScope,
       settings
     );
+    const ids = session.questions.map((q) => q.word.id);
 
-    expect(session.questions.map((question) => question.word.id)).toEqual(['eligible']);
+    expect(ids).toContain('eligible');
+    expect(ids).not.toContain('other-deck');
+    expect(ids).not.toContain('excluded-tag');
+    expect(ids).not.toContain('paused');
+    expect(ids).toHaveLength(10);
   });
 
   it('enforces review and new-word limits', () => {
-    const limitedSettings = { ...settings, reviewLimitPerDay: 2, newWordsPerDay: 2 };
+    const limitedSettings = { ...settings, reviewLimitPerDay: 2, newWordsPerDay: 8 };
+    const newIds = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'];
     const words = [
       word('review-low', [meaningCard('review-low', { nextReviewDate: '2000-01-01', memoryScore: 10 })]),
       word('review-mid', [meaningCard('review-mid', { nextReviewDate: '2000-01-01', memoryScore: 20 })]),
       word('review-high', [meaningCard('review-high', { nextReviewDate: '2000-01-01', memoryScore: 30 })]),
-      word('new-one', [meaningCard('new-one', { history: [] })]),
-      word('new-two', [meaningCard('new-two', { history: [] })]),
-      word('new-three', [meaningCard('new-three', { history: [] })]),
+      ...newIds.map((n) => word(`new-${n}`, [meaningCard(`new-${n}`, { history: [] })])),
     ];
 
     const session = buildSessionQuestions(words, scope, limitedSettings);
@@ -368,8 +379,7 @@ describe('buildSessionQuestions', () => {
     expect(session.questions.map((question) => question.word.id)).toEqual([
       'review-low',
       'review-mid',
-      'new-one',
-      'new-two',
+      'new-one', 'new-two', 'new-three', 'new-four', 'new-five', 'new-six', 'new-seven', 'new-eight',
     ]);
     expect(session.totalAvailableReviews).toBe(3);
     expect(session.limitReached).toBe(true);
@@ -452,5 +462,27 @@ describe('buildSessionQuestions', () => {
     const session = buildSessionQuestions(words, scope, settings);
 
     expect(realIds(session)).toEqual(['due-in-3', 'due-in-12']);
+  });
+
+  it('reports insufficientCards and no questions when fewer than 5 distinct cards qualify', () => {
+    const words = [
+      word('one', [meaningCard('one', { nextReviewDate: '2000-01-01' })]),
+      word('two', [meaningCard('two', { nextReviewDate: '2000-01-01' })]),
+      word('three', [meaningCard('three', { nextReviewDate: '2000-01-01' })]),
+    ];
+
+    const session = buildSessionQuestions(words, scope, settings);
+
+    expect(session.questions).toEqual([]);
+    expect(session.insufficientCards).toBe(true);
+  });
+
+  it('does not report insufficientCards once at least 5 distinct cards qualify', () => {
+    const words = fillerReviewWords(5);
+
+    const session = buildSessionQuestions(words, scope, settings);
+
+    expect(session.insufficientCards).toBe(false);
+    expect(session.questions.length).toBeGreaterThan(0);
   });
 });
