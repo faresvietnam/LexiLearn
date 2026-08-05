@@ -32,14 +32,26 @@ import type {ScheduledLearningCard} from '../features/scheduling/fsrsScheduler';
 import type {SkillScoreInput} from '../features/scheduling/skillScores';
 import {formatRelativeDueTime} from '../features/scheduling/relativeDueTime';
 
-function maskSentenceAnswer(sentence: string, answer: string): string {
+export function maskSentenceAnswer(sentence: string, answer: string): string {
   if (/_{3,}/.test(sentence)) return sentence;
   const escapedAnswer = answer.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (!escapedAnswer) return sentence;
-  return sentence.replace(
-    new RegExp(`\\b${escapedAnswer}\\b`, 'i'),
-    '_____ ',
-  ).replace(/_____\s+([,.!?;:])/g, '_____$1').trim();
+  if (escapedAnswer) {
+    // Try an exact whole-word match first, then fall back to matching the
+    // answer as a prefix (e.g. "transport" answer inside "transported" sentence).
+    for (const pattern of [`\\b${escapedAnswer}\\b`, `\\b${escapedAnswer}\\w*\\b`]) {
+      const masked = sentence.replace(new RegExp(pattern, 'i'), '_____');
+      if (masked !== sentence) {
+        return masked.replace(/\s{2,}/g, ' ').trim();
+      }
+    }
+  }
+  // Last resort: the answer isn't found in the sentence at all — still show
+  // a blank (on the last word) so the learner knows where to type.
+  const words = sentence.trim().split(/\s+/);
+  if (words.length === 0 || words[0] === '') return sentence;
+  const trailingPunct = words[words.length - 1].match(/[.!?;:,]+$/)?.[0] ?? '';
+  words[words.length - 1] = `_____${trailingPunct}`;
+  return words.join(' ');
 }
 const TYPED_ANSWER_QUESTION_TYPES: readonly QuestionType[] = [
   'full_word_typing',
