@@ -18,6 +18,7 @@ import {
 
 const {
   completeStudySession,
+  createPrivateWord,
   createStudySession,
   getLearningCardSchedule,
   getDailyNewWordUsage,
@@ -30,6 +31,7 @@ const {
   authState,
 } = vi.hoisted(() => ({
   completeStudySession: vi.fn(),
+  createPrivateWord: vi.fn(),
   createStudySession: vi.fn(),
   getLearningCardSchedule: vi.fn(),
   getDailyNewWordUsage: vi.fn(),
@@ -65,6 +67,7 @@ vi.mock('./features/persistence/vocabularyRepository', async (importOriginal) =>
   ...await importOriginal<
     typeof import('./features/persistence/vocabularyRepository')
   >(),
+  createPrivateWord,
   loadLearnerState,
 }));
 
@@ -95,6 +98,7 @@ function deferredSessionResult() {
 beforeEach(() => {
   authState.userId = 'user-1';
   createStudySession.mockReset();
+  createPrivateWord.mockReset();
   completeStudySession.mockReset();
   getLearningCardSchedule.mockReset();
   pauseStudySession.mockReset();
@@ -135,6 +139,10 @@ beforeEach(() => {
   });
   getStudyAttemptAnalytics.mockResolvedValue({data: [], error: null});
   submitLearningReview.mockResolvedValue({data: null, error: null});
+  createPrivateWord.mockImplementation(async (_userId, word) => ({
+    data: word,
+    error: null,
+  }));
 });
 
 afterEach(() => {
@@ -296,5 +304,24 @@ describe('App FSRS review scheduling', () => {
       'meaning_unprecedented_1',
     );
     expect(submitLearningReview).toHaveBeenCalled();
+  });
+});
+
+describe('App private vocabulary creation', () => {
+  it('does not call create_private_word for an existing private word', async () => {
+    render(<App />);
+
+    fireEvent.click(await screen.findByText('Thêm từ mới'));
+    fireEvent.change(screen.getByPlaceholderText('e.g. transportation'), {
+      target: {value: ' Unprecedented '},
+    });
+    fireEvent.change(screen.getByPlaceholderText('e.g. Giao thông vận tải'), {
+      target: {value: 'chưa từng có tiền lệ'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Lưu từ vựng'}));
+
+    await waitFor(() => {
+      expect(createPrivateWord).not.toHaveBeenCalled();
+    });
   });
 });

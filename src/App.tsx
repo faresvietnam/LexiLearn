@@ -550,6 +550,14 @@ function AuthenticatedApp({
   };
 
   const handleAddWord = async (newWord: Word) => {
+    const normalizedWord = newWord.word.trim().toLowerCase();
+    if (words.some((word) =>
+      !word.isGlobal && word.word.trim().toLowerCase() === normalizedWord
+    )) {
+      showToast(`Từ "${normalizedWord}" đã có trong danh sách học cá nhân.`);
+      return false;
+    }
+
     let savedWord = newWord;
     if (client && user) {
       const result = await createPrivateWord(user.id, newWord);
