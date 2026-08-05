@@ -2,7 +2,7 @@ import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { State } from 'ts-fsrs';
-import { LearningSessionView } from './LearningSessionView';
+import { LearningSessionView, maskSentenceAnswer } from './LearningSessionView';
 import {
   scheduleCard,
   type LearningCardFsrsRow,
@@ -1009,5 +1009,29 @@ describe('LearningSessionView in-session relearn reinsertion', () => {
 
     expect(screen.getByText(/Câu \d+ \/ 8/)).toBeInTheDocument();
     expect(targetCardRatings).toEqual(['Again', 'Again']);
+  });
+});
+
+describe('maskSentenceAnswer', () => {
+  it('leaves an already-blanked sentence untouched', () => {
+    expect(maskSentenceAnswer('The goods were _____ by truck.', 'transport'))
+      .toBe('The goods were _____ by truck.');
+  });
+
+  it('blanks an exact whole-word match', () => {
+    expect(maskSentenceAnswer('I always play tennis.', 'play'))
+      .toBe('I always _____ tennis.');
+  });
+
+  it('blanks an inflected form of the answer (AI sentences rarely use the base form)', () => {
+    expect(maskSentenceAnswer('The goods were transported by truck.', 'transport'))
+      .toBe('The goods were _____ by truck.');
+    expect(maskSentenceAnswer('She is running every morning.', 'run'))
+      .toBe('She is _____ every morning.');
+  });
+
+  it('still shows a blank when the answer is not found in the sentence at all', () => {
+    expect(maskSentenceAnswer('This sentence has nothing to do with it.', 'unrelated'))
+      .toBe('This sentence has nothing to do with _____.');
   });
 });
