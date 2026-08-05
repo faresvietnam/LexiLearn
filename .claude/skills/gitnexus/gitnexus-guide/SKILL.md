@@ -17,55 +17,6 @@ For any task involving code understanding, debugging, impact analysis, or refact
 
 > If step 1 warns the index is stale, run `node .gitnexus/run.cjs analyze` in the terminal first.
 
-## LexiLearn Quick Start
-
-This repository is indexed as `LexiLearn`. Use this copyable sequence:
-
-```text
-# Read this MCP resource using the host client's resource-read command:
-gitnexus://repo/LexiLearn/context
-
-query({
-  repo: "LexiLearn",
-  search_query: "submitLearningReview"
-})
-
-context({
-  repo: "LexiLearn",
-  name: "submitLearningReview",
-  file_path: "src/features/persistence/sessionRepository.ts"
-})
-
-impact({
-  repo: "LexiLearn",
-  target: "submitLearningReview",
-  direction: "upstream"
-})
-
-# After editing, inspect all staged and unstaged changes:
-detect_changes({ repo: "LexiLearn", scope: "all" })
-
-# Before a commit/PR, optionally inspect the full branch delta:
-detect_changes({
-  repo: "LexiLearn",
-  scope: "compare",
-  base_ref: "main"
-})
-```
-
-The `context` result shows callers, callees, file location, and participating
-execution flows. In the current index, `submitLearningReview` is called by
-`handleReviewCompleted`, calls `getSupabaseClient`, and participates in the
-`SubmitLearningReview → GetPublicConfiguration` flow.
-
-Before editing any function, class, or method, review the upstream `impact`
-result and warn the user if risk is HIGH or CRITICAL. Before committing, use
-`scope: "all"` for the working diff or `scope: "compare"` for the full branch
-delta from `main`.
-
-Use `query` for relationships and execution flows; use text search only for
-literal file-content matches.
-
 ## Skills
 
 | Task                                         | Skill to read       |

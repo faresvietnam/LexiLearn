@@ -111,7 +111,8 @@ export function createAnalyzeHandler(
           }),
         },
       );
-    } catch {
+    } catch (error) {
+      console.error('AI provider unreachable', error);
       return json(503, {error: 'AI provider is temporarily unavailable.'});
     }
 
@@ -119,9 +120,19 @@ export function createAnalyzeHandler(
       providerResponse.status >= 300
       && providerResponse.status < 400
     ) {
+      console.error(
+        'AI provider redirected',
+        providerResponse.status,
+        await providerResponse.text(),
+      );
       return json(502, {error: 'AI provider returned an invalid response.'});
     }
     if (!providerResponse.ok) {
+      console.error(
+        'AI provider request failed',
+        providerResponse.status,
+        await providerResponse.text(),
+      );
       return json(providerFailureStatus(providerResponse.status), {
         error: providerResponse.status === 429
           ? 'AI provider rate limit exceeded.'

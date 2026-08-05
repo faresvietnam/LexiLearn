@@ -42,31 +42,3 @@ This project is indexed by GitNexus as **LexiLearn** (1443 symbols, 2687 relatio
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
-
-<!-- ponytail:start -->
-# Ponytail — Minimal Implementation
-
-Use the `ponytail` skill at **full** intensity for every coding task. GitNexus
-determines what the change affects; Ponytail determines the smallest correct
-change after the flow and root cause are understood.
-
-## Order of Work
-
-1. Use GitNexus to understand the flow and run required impact analysis.
-2. Apply the Ponytail ladder: skip speculative work, reuse existing code, then
-   prefer standard-library, native-platform, or installed-dependency solutions.
-3. Write the fewest files and shortest diff that fully satisfies the request.
-4. Leave one focused runnable check for non-trivial logic.
-5. Run GitNexus `detect_changes()` before committing.
-
-## Never Do
-
-- Do not add speculative abstractions, dependencies, boilerplate, or scaffolding.
-- Do not duplicate a helper or pattern that already exists in the repository.
-- Do not simplify away validation, data-loss prevention, security, or accessibility.
-- Do not choose a small symptom patch when one shared root-cause fix covers all callers.
-
-To change intensity, use `ponytail lite`, `ponytail full`, or `ponytail ultra`.
-Disable it only when the user explicitly says `stop ponytail` or `normal mode`.
-
-<!-- ponytail:end -->
