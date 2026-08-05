@@ -6,6 +6,7 @@ export type ReviewCountdownState =
   | {kind: 'none'};
 
 const HOUR = 60 * 60_000;
+export const SHORT_TERM_WINDOW_MS = 15 * 60_000;
 
 const timeZoneParts = (date: Date, timezone: string) => {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -64,6 +65,18 @@ export function isReviewDue(
 ): boolean {
   const target = parseReviewDate(nextReviewDate, timezone);
   return target !== null && target.getTime() <= now.getTime();
+}
+
+export function isReviewDueWithin(
+  nextReviewDate: string | undefined,
+  windowMs: number,
+  now = new Date(),
+  timezone = 'Asia/Ho_Chi_Minh',
+): boolean {
+  const target = parseReviewDate(nextReviewDate, timezone);
+  if (!target) return false;
+  const msUntilDue = target.getTime() - now.getTime();
+  return msUntilDue > 0 && msUntilDue <= windowMs;
 }
 
 export function formatReviewCountdown(state: ReviewCountdownState): string {

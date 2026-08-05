@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import type {Word} from '../../types';
-import {findNextReview, formatReviewCountdown, isReviewDue} from './reviewCountdown';
+import {findNextReview, formatReviewCountdown, isReviewDue, isReviewDueWithin} from './reviewCountdown';
 
 const word = (id: string, state: 0 | 1 | 2 | 3, nextReviewDate: string): Word => ({
   id, word: id, wordStructure: [], wordFamily: [], isGlobal: false, approvalStatus: 'approved',
@@ -58,5 +58,30 @@ describe('review countdown', () => {
     if (result.kind === 'scheduled') {
       expect(result.target.toISOString()).toBe('2026-07-30T21:00:00.000Z');
     }
+  });
+});
+
+describe('isReviewDueWithin', () => {
+  const now = new Date('2026-07-31T05:00:00.000Z');
+  const windowMs = 15 * 60_000;
+
+  it('is false for a card already due', () => {
+    expect(isReviewDueWithin('2026-07-31T04:59:00.000Z', windowMs, now)).toBe(false);
+  });
+
+  it('is true for a card due in 10 minutes', () => {
+    expect(isReviewDueWithin('2026-07-31T05:10:00.000Z', windowMs, now)).toBe(true);
+  });
+
+  it('is true for a card due exactly at the 15-minute boundary', () => {
+    expect(isReviewDueWithin('2026-07-31T05:15:00.000Z', windowMs, now)).toBe(true);
+  });
+
+  it('is false for a card due just past the window', () => {
+    expect(isReviewDueWithin('2026-07-31T05:15:01.000Z', windowMs, now)).toBe(false);
+  });
+
+  it('is false when there is no next review date', () => {
+    expect(isReviewDueWithin(undefined, windowMs, now)).toBe(false);
   });
 });
