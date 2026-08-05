@@ -1,0 +1,72 @@
+<!-- gitnexus:start -->
+# GitNexus — Code Intelligence
+
+This project is indexed by GitNexus as **LexiLearn** (1412 symbols, 2638 relationships, 103 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+
+> Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
+
+## Always Do
+
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows. For regression review, compare against the default branch: `detect_changes({scope: "compare", base_ref: "main"})`.
+- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
+- When exploring unfamiliar code, use `query({search_query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `context({name: "symbolName"})`.
+- For security review, `explain({target: "fileOrSymbol"})` lists taint findings (source→sink flows; needs `analyze --pdg`).
+
+## Never Do
+
+- NEVER edit a function, class, or method without first running `impact` on it.
+- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
+- NEVER rename symbols with find-and-replace — use `rename` which understands the call graph.
+- NEVER commit changes without running `detect_changes()` to check affected scope.
+
+## Resources
+
+| Resource | Use for |
+|----------|---------|
+| `gitnexus://repo/LexiLearn/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/LexiLearn/clusters` | All functional areas |
+| `gitnexus://repo/LexiLearn/processes` | All execution flows |
+| `gitnexus://repo/LexiLearn/process/{name}` | Step-by-step execution trace |
+
+## CLI
+
+| Task | Read this skill file |
+|------|---------------------|
+| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
+
+<!-- gitnexus:end -->
+
+<!-- ponytail:start -->
+# Ponytail — Minimal Implementation
+
+Use the `ponytail` skill at **full** intensity for every coding task. GitNexus
+determines what the change affects; Ponytail determines the smallest correct
+change after the flow and root cause are understood.
+
+## Order of Work
+
+1. Use GitNexus to understand the flow and run required impact analysis.
+2. Apply the Ponytail ladder: skip speculative work, reuse existing code, then
+   prefer standard-library, native-platform, or installed-dependency solutions.
+3. Write the fewest files and shortest diff that fully satisfies the request.
+4. Leave one focused runnable check for non-trivial logic.
+5. Run GitNexus `detect_changes()` before committing.
+
+## Never Do
+
+- Do not add speculative abstractions, dependencies, boilerplate, or scaffolding.
+- Do not duplicate a helper or pattern that already exists in the repository.
+- Do not simplify away validation, data-loss prevention, security, or accessibility.
+- Do not choose a small symptom patch when one shared root-cause fix covers all callers.
+
+To change intensity, use `ponytail lite`, `ponytail full`, or `ponytail ultra`.
+Disable it only when the user explicitly says `stop ponytail` or `normal mode`.
+
+<!-- ponytail:end -->
