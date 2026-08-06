@@ -771,25 +771,25 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
                 autoFocus
                 className="w-full px-5 py-4 rounded-2xl bg-white border border-slate-300 text-center text-2xl font-bold font-mono text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 shadow-sm transition"
               />
+            </div>
+          )}
 
-              {/* Character Diff Feedback display on incorrect attempt */}
-              {isChecked && !isCorrect && diffResult && (
-                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-center space-y-2">
-                  <div className="text-xs font-bold uppercase text-rose-700 flex items-center justify-center gap-1">
-                    <AlertCircle className="w-4 h-4" />
-                    <span>Lỗi nhập liệu - Character Diff</span>
-                  </div>
+          {/* Character Diff Feedback display on incorrect attempt (full-word & word-part typing) */}
+          {isChecked && !isCorrect && diffResult && (
+            <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-center space-y-2">
+              <div className="text-xs font-bold uppercase text-rose-700 flex items-center justify-center gap-1">
+                <AlertCircle className="w-4 h-4" />
+                <span>Lỗi nhập liệu - Character Diff</span>
+              </div>
 
-                  <CharacterDiffComparison
-                    userInput={diffResult.normalizedUser}
-                    expectedInput={diffResult.normalizedExpected}
-                  />
+              <CharacterDiffComparison
+                userInput={diffResult.normalizedUser}
+                expectedInput={diffResult.normalizedExpected}
+              />
 
-                  <p className="text-xs text-rose-700 font-medium">
-                    Lỗi phát hiện: {diffResult.errorTypes.join(', ') || 'Chưa đúng chính tả'}. Hãy sửa và Enter để thử lại!
-                  </p>
-                </div>
-              )}
+              <p className="text-xs text-rose-700 font-medium">
+                Lỗi phát hiện: {diffResult.errorTypes.join(', ') || 'Chưa đúng chính tả'}. Hãy sửa và Enter để thử lại!
+              </p>
             </div>
           )}
         </div>
