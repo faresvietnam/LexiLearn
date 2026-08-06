@@ -251,6 +251,31 @@ function expandQueueForVariants(
   return Array.from({ length: total }, (_, i) => queue[i % queue.length]);
 }
 
+// Ranks distractor candidates by relevance to the target word/meaning:
+// shared tags outweigh same deck, which outweighs same part of speech.
+function scoreDistractorCandidate(word: Word, meaningCard: MeaningCard, candidate: Word): number {
+  const tagOverlap = candidate.tags.filter((t) => word.tags.includes(t)).length;
+  const deckMatch = candidate.deckId === word.deckId ? 1 : 0;
+  const posMatch = candidate.meanings[0]?.partOfSpeech === meaningCard.partOfSpeech ? 1 : 0;
+  return tagOverlap * 100 + deckMatch * 10 + posMatch;
+}
+
+function pickDistractors<T>(
+  word: Word,
+  meaningCard: MeaningCard,
+  allWords: Word[],
+  count: number,
+  labelFn: (w: Word) => T,
+): T[] {
+  return allWords
+    .filter((w) => w.id !== word.id && w.meanings.length > 0)
+    .sort(() => Math.random() - 0.5) // randomizes ties before the stable sort below
+    .sort((a, b) => scoreDistractorCandidate(word, meaningCard, b)
+      - scoreDistractorCandidate(word, meaningCard, a))
+    .slice(0, count)
+    .map(labelFn);
+}
+
 function convertQueueToQuestions(queue: SessionQueueItem[], allWords: Word[]): Question[] {
   return queue.map((item, index) => {
     const { word, meaningCard, stage } = item;
@@ -277,10 +302,7 @@ function convertQueueToQuestions(queue: SessionQueueItem[], allWords: Word[]): Q
     // Build distractors for MC
     let mcOptions: Question['mcOptions'] = [];
     if (qType === 'en_to_vn_mc') {
-      const distractors = allWords
-        .filter((w) => w.id !== word.id && w.meanings.length > 0)
-        .map((w) => w.meanings[0].meaning)
-        .slice(0, 3);
+      const distractors = pickDistractors(word, meaningCard, allWords, 3, (w) => w.meanings[0].meaning);
 
       const options = [
         { id: 'opt_correct', label: meaningCard.meaning, isCorrect: true },
@@ -292,10 +314,7 @@ function convertQueueToQuestions(queue: SessionQueueItem[], allWords: Word[]): Q
         keyShortcut: String(i + 1),
       }));
     } else if (qType === 'vn_to_en_mc') {
-      const distractors = allWords
-        .filter((w) => w.id !== word.id)
-        .map((w) => w.word)
-        .slice(0, 3);
+      const distractors = pickDistractors(word, meaningCard, allWords, 3, (w) => w.word);
 
       const options = [
         { id: 'opt_correct', label: word.word, isCorrect: true },

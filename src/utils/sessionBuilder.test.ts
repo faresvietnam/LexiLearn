@@ -238,6 +238,37 @@ describe('buildSessionQuestions', () => {
     }
   });
 
+  it('prefers a same-tag, same-deck, same-part-of-speech word as an MC distractor', () => {
+    const target = word('target-word', [meaningCard('target-word', {
+      fsrsState: 0, history: [], partOfSpeech: 'noun', meaning: 'quả táo',
+    })], 'active');
+    target.tags = ['fruit'];
+    target.deckId = 'deck-1';
+
+    const relevant = word('relevant-word', [meaningCard('relevant-word', {
+      fsrsState: 0, history: [], partOfSpeech: 'noun', meaning: 'quả cam',
+    })], 'active');
+    relevant.tags = ['fruit'];
+    relevant.deckId = 'deck-1';
+
+    const unrelated = ['u1', 'u2', 'u3', 'u4'].map((id) => {
+      const w = word(id, [meaningCard(id, {
+        fsrsState: 0, history: [], partOfSpeech: 'verb', meaning: `unrelated ${id}`,
+      })], 'active');
+      w.deckId = 'other-deck';
+      return w;
+    });
+
+    const words = [target, relevant, ...unrelated];
+    const session = buildSessionQuestions(words, scope, settings);
+
+    const question = session.questions.find((q) => q.word.id === 'target-word')!;
+    const labels = question.mcOptions?.map((o) => o.label) ?? [];
+    const expectedRelevantLabel = question.type === 'en_to_vn_mc' ? 'quả cam' : 'relevant-word';
+
+    expect(labels).toContain(expectedRelevantLabel);
+  });
+
   it('uses sentence completion at Stage 2 when word parts are unavailable', () => {
     const card = meaningCard('new', {
       fsrsState: 2,
