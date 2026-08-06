@@ -66,6 +66,14 @@ function isTypingQuestionType(type: QuestionType): boolean {
   return TYPED_ANSWER_QUESTION_TYPES.includes(type);
 }
 
+// Stage 4 reveals the first word part as a hint; the learner types the rest.
+function getInitialPartTypingValues(question: Question | undefined): { [partId: string]: string } {
+  if (!question || question.type !== 'word_part_typing' || question.stage !== 4) return {};
+  const parts = question.wordParts || [];
+  if (parts.length < 2) return {};
+  return { [parts[0].id]: parts[0].text };
+}
+
 import { CharacterDiffComparison } from './CharacterDiffComparison';
 
 interface LearningSessionViewProps {
@@ -164,7 +172,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
     setSelectedMcOption(null);
     setSelectedParts([]);
     setTypingValue('');
-    setPartTypingValues({});
+    setPartTypingValues(getInitialPartTypingValues(currentQuestion));
     setIsChecked(false);
     setIsCorrect(false);
     setAttemptsCount(0);
@@ -439,7 +447,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
           setDiffResult(null);
           if (currentQuestion && isTypingQuestionType(currentQuestion.type)) {
             setTypingValue('');
-            setPartTypingValues({});
+            setPartTypingValues(getInitialPartTypingValues(currentQuestion));
           }
           inputRef.current?.focus();
         }
@@ -716,24 +724,33 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
                   Stage 4: hỗ trợ một phần — hãy hoàn thiện các thành phần còn thiếu
                 </div>
               )}
-              {currentQuestion.wordParts?.map((part, partIndex) => (
-                <div key={part.id} className="flex flex-col items-center gap-1">
-                  <span className="text-xs text-slate-500 uppercase font-bold">{part.type}</span>
-                  <input
-                    type="text"
-                    value={partTypingValues[part.id] || ''}
-                    autoFocus={partIndex === 0}
-                    onChange={(e) => {
-                      if (isChecked && !isCorrect) {
-                        setIsChecked(false);
-                      }
-                      setPartTypingValues({ ...partTypingValues, [part.id]: e.target.value });
-                    }}
-                    placeholder={currentQuestion.stage === 4 ? `${part.type}...` : part.type}
-                    className="w-32 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-center font-mono font-bold text-lg text-slate-900 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
-                  />
-                </div>
-              ))}
+              {currentQuestion.wordParts?.map((part, partIndex) => {
+                const isRevealed = currentQuestion.stage === 4 && partIndex === 0;
+                return (
+                  <div key={part.id} className="flex flex-col items-center gap-1">
+                    <span className="text-xs text-slate-500 uppercase font-bold">{part.type}</span>
+                    <input
+                      type="text"
+                      value={partTypingValues[part.id] || ''}
+                      autoFocus={currentQuestion.stage === 4 ? partIndex === 1 : partIndex === 0}
+                      readOnly={isRevealed}
+                      onChange={(e) => {
+                        if (isRevealed) return;
+                        if (isChecked && !isCorrect) {
+                          setIsChecked(false);
+                        }
+                        setPartTypingValues({ ...partTypingValues, [part.id]: e.target.value });
+                      }}
+                      placeholder={currentQuestion.stage === 4 ? `${part.type}...` : part.type}
+                      className={`w-32 px-3 py-2 rounded-xl border text-center font-mono font-bold text-lg transition ${
+                        isRevealed
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-700 cursor-default'
+                          : 'bg-slate-50 border-slate-200 text-slate-900 focus:outline-none focus:border-indigo-500 focus:bg-white'
+                      }`}
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -800,7 +817,7 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
                 setDiffResult(null);
                 if (isTypingQuestionType(currentQuestion.type)) {
                   setTypingValue('');
-                  setPartTypingValues({});
+                  setPartTypingValues(getInitialPartTypingValues(currentQuestion));
                 }
                 setTimeout(() => inputRef.current?.focus(), 50);
               }}
