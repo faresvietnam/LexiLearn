@@ -29,35 +29,47 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('Dashboard review countdown', () => {
-  it('shows a countdown to when enough cards will be due, not just the single earliest one', () => {
+describe('Dashboard hero headline', () => {
+  it('shows the absolute come-back time when not enough cards are due yet', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-31T05:00:00.000Z'));
     const dueWords = ['d1', 'd2', 'd3'].map((id) => makeWord(id, 2, '2026-07-31T04:00:00.000Z'));
     const futureWords = [
       makeWord('soon', 2, '2026-07-31T06:00:00.000Z'), // +1h
-      makeWord('later', 2, '2026-07-31T08:00:00.000Z'), // +3h
+      makeWord('later', 2, '2026-07-31T08:00:00.000Z'), // +3h -> 15:00 ICT
     ];
     renderDashboard([...dueWords, ...futureWords]);
-    expect(screen.getByText('Ôn lại sau')).toBeInTheDocument();
     // 3 already qualify; 2 more are needed to reach 5 — the 2nd-soonest
     // future card ("later", not "soon") is the one that closes the gap.
-    expect(screen.getByText('3 giờ')).toBeInTheDocument();
+    expect(screen.getByText('Hãy quay lại lúc 15:00')).toBeInTheDocument();
   });
 
-  it('shows ready-now once at least 5 cards already qualify', () => {
+  it('keeps the default headline once at least 5 cards already qualify', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-31T05:00:00.000Z'));
     const words = ['a', 'b', 'c', 'd', 'e'].map((id) => makeWord(id, 2, '2026-07-31T04:00:00.000Z'));
     renderDashboard(words);
-    expect(screen.getByText('0 giờ')).toBeInTheDocument();
+    expect(screen.getByText('Sẵn sàng học bài hôm nay!')).toBeInTheDocument();
   });
 
-  it('shows — when there is not enough vocabulary in scope to ever reach 5', () => {
+  it('keeps the default headline when there is not enough vocabulary in scope to ever reach 5', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-31T05:00:00.000Z'));
     renderDashboard([makeWord('only', 2, '2026-07-31T04:00:00.000Z')]);
-    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.getByText('Sẵn sàng học bài hôm nay!')).toBeInTheDocument();
+  });
+});
+
+describe('Dashboard new-words-remaining tile', () => {
+  it('counts distinct words with at least one never-started meaning', () => {
+    const words = [
+      makeWord('new1', 0, '2026-07-31T04:00:00.000Z'),
+      makeWord('new2', 0, '2026-07-31T04:00:00.000Z'),
+      makeWord('started', 2, '2026-07-31T04:00:00.000Z'),
+    ];
+    renderDashboard(words);
+    const tile = screen.getByText('Từ mới chưa học').parentElement!;
+    expect(within(tile).getByText('2')).toBeInTheDocument();
   });
 });
 

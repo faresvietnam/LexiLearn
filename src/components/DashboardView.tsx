@@ -14,8 +14,20 @@ import {
 } from 'lucide-react';
 import { Word, StudyScope, UserSettings, MemoryStrength } from '../types';
 import {buildReviewForecast} from '../features/scheduling/reviewForecast';
-import { formatReviewCountdown, isReviewDue, type ReviewCountdownState } from '../features/scheduling/reviewCountdown';
+import { isReviewDue, type ReviewCountdownState } from '../features/scheduling/reviewCountdown';
 import { buildSessionQuestions } from '../utils/sessionBuilder';
+
+const dateKey = (date: Date, timezone: string) =>
+  new Intl.DateTimeFormat('en-CA', {timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit'}).format(date);
+
+const formatComeBackAt = (target: Date, now: Date, timezone = 'Asia/Ho_Chi_Minh'): string => {
+  const time = new Intl.DateTimeFormat('vi-VN', {timeZone: timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23'}).format(target);
+  const isToday = dateKey(target, timezone) === dateKey(now, timezone);
+  const datePart = isToday
+    ? ''
+    : ` ngày ${new Intl.DateTimeFormat('vi-VN', {timeZone: timezone, day: '2-digit', month: '2-digit'}).format(target)}`;
+  return `Hãy quay lại lúc ${time}${datePart}`;
+};
 
 interface DashboardViewProps {
   words: Word[];
@@ -116,7 +128,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const totalMeaningCards = strongCount + stableCount + weakCount + criticalCount;
 
-  // "Ôn lại sau" answers "when can I next start a session" — that requires
+  // nextReview answers "when can I next start a session" — that requires
   // the same 5-distinct-card minimum buildSessionQuestions enforces, not
   // just whether any single card is due (which disagreed with the actual
   // start-session gate whenever due cards existed but fewer than 5 total).
@@ -131,6 +143,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         }
       : {kind: 'none'}
     : {kind: 'due'};
+  const heroTitle = nextReview.kind === 'scheduled'
+    ? formatComeBackAt(nextReview.target, now)
+    : 'Sẵn sàng học bài hôm nay!';
+  const newWordsRemainingCount = activeWords.filter((word) =>
+    word.meanings.some((m) => m.fsrsState === 0),
+  ).length;
   const forecast = buildReviewForecast(words, studyScope, now, 'Asia/Ho_Chi_Minh');
 
   // Sort frequently forgotten words by error rate descending
@@ -157,7 +175,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             <h1 className="text-3xl font-bold text-slate-900 tracking-tight">
-              Sẵn sàng học bài hôm nay!
+              {heroTitle}
             </h1>
             <p className="text-slate-500 text-sm leading-relaxed">
               Hệ thống tự động điều chỉnh độ khó và nhắc lại từ vựng đúng thời điểm dựa trên lịch sử nhớ từ của bạn.
@@ -183,8 +201,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
               </div>
               <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
-                <div className="text-xs text-slate-500 font-medium">Ôn lại sau</div>
-                <div className="text-2xl font-bold text-slate-800">{formatReviewCountdown(nextReview)}</div>
+                <div className="text-xs text-slate-500 font-medium">Từ mới chưa học</div>
+                <div className="text-2xl font-bold text-slate-800">{newWordsRemainingCount}</div>
               </div>
             </div>
           </div>
