@@ -38,4 +38,21 @@ describe('buildReviewForecast', () => {
 
     expect(forecast[0]).toMatchObject({dateKey: '2026-07-31', count: 1});
   });
+
+  it('counts a word with two meanings due the same day only once', () => {
+    const multiMeaningWord: Word = {
+      id: 'fruit', word: 'fruit', wordStructure: [], wordFamily: [], isGlobal: false, approvalStatus: 'approved',
+      createdBy: 'user-1', createdAt: '2026-07-01', deckId: 'deck-1', tags: [], status: 'active',
+      meanings: [
+        {id: 'fruit-noun', wordId: 'fruit', meaning: 'trái cây', partOfSpeech: 'noun', exampleSentences: [],
+          memoryStrength: 'strong', memoryScore: 80, fsrsState: 2, nextReviewDate: '2026-08-01T05:00:00.000Z',
+          reviewIntervalDays: 1, firstAttemptErrorRate: 0, forgottenWordParts: [], history: []},
+        {id: 'fruit-verb', wordId: 'fruit', meaning: 'ra quả', partOfSpeech: 'verb', exampleSentences: [],
+          memoryStrength: 'weak', memoryScore: 40, fsrsState: 2, nextReviewDate: '2026-08-01T06:00:00.000Z',
+          reviewIntervalDays: 1, firstAttemptErrorRate: 0, forgottenWordParts: [], history: []},
+      ],
+    };
+    const forecast = buildReviewForecast([multiMeaningWord], scope, new Date('2026-07-31T05:00:00.000Z'));
+    expect(forecast[1]).toMatchObject({dateKey: '2026-08-01', count: 1});
+  });
 });

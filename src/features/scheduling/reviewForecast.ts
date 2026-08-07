@@ -27,20 +27,20 @@ export function buildReviewForecast(
   days = 7,
 ): ReviewForecastDay[] {
   const todayStudyDate = getStudyDate(now, timezone);
-  const activeCards = words
-    .filter((word) => {
-      if (word.status !== 'active') return false;
-      if (studyScope.activeDeckIds.length > 0 && !studyScope.activeDeckIds.includes(word.deckId)) return false;
-      if (studyScope.excludedTagIds.some((tag) => word.tags.includes(tag))) return false;
-      if (studyScope.pausedWordIds.includes(word.id)) return false;
-      return true;
-    })
-    .flatMap((word) => word.meanings)
-    .filter((meaning) => (meaning.fsrsState ?? 0) !== 0);
+  const activeWords = words.filter((word) => {
+    if (word.status !== 'active') return false;
+    if (studyScope.activeDeckIds.length > 0 && !studyScope.activeDeckIds.includes(word.deckId)) return false;
+    if (studyScope.excludedTagIds.some((tag) => word.tags.includes(tag))) return false;
+    if (studyScope.pausedWordIds.includes(word.id)) return false;
+    return true;
+  });
 
   return Array.from({length: days}, (_, offset) => {
     const dateKey = addStudyDays(todayStudyDate, offset);
-    const count = activeCards.filter((meaning) => {
+    // Count distinct WORDS due, not meaning-cards — a word with several
+    // meanings due the same day is still just one word to open and review.
+    const count = activeWords.filter((word) => word.meanings.some((meaning) => {
+      if ((meaning.fsrsState ?? 0) === 0) return false;
       const dueDate = reviewStudyDate(meaning.nextReviewDate, timezone);
       if (dueDate === null) return false;
 
@@ -54,7 +54,7 @@ export function buildReviewForecast(
       }
 
       return offset === 0 ? dueDate <= todayStudyDate : dueDate === dateKey;
-    }).length;
+    })).length;
     const date = new Date(`${dateKey}T12:00:00.000Z`);
     return {
       dateKey,
