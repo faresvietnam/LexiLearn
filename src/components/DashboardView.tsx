@@ -86,6 +86,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       // FSRS state is the source of truth for new cards. Legacy cards without
       // persisted FSRS state continue through the existing review/at-risk flow.
+      // Never-studied cards default to memoryStrength 'critical' in the DB,
+      // so they must stay excluded here too or they'd inflate the Critical
+      // bucket with words the learner hasn't even attempted yet.
       if (m.fsrsState === 0) {
       } else {
         if (isReviewDue(m.nextReviewDate, now, 'Asia/Ho_Chi_Minh')) {
@@ -102,12 +105,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             nextReview: m.nextReviewDate,
           });
         }
-      }
 
-      if (m.memoryStrength === 'strong') strongCount++;
-      else if (m.memoryStrength === 'stable') stableCount++;
-      else if (m.memoryStrength === 'weak') weakCount++;
-      else if (m.memoryStrength === 'critical') criticalCount++;
+        if (m.memoryStrength === 'strong') strongCount++;
+        else if (m.memoryStrength === 'stable') stableCount++;
+        else if (m.memoryStrength === 'weak') weakCount++;
+        else if (m.memoryStrength === 'critical') criticalCount++;
+      }
     });
   });
 

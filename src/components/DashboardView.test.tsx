@@ -1,4 +1,4 @@
-import {cleanup, render, screen} from '@testing-library/react';
+import {cleanup, render, screen, within} from '@testing-library/react';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import type {Word} from '../types';
 import {INITIAL_SETTINGS, INITIAL_STUDY_SCOPE} from '../data/mockData';
@@ -58,5 +58,18 @@ describe('Dashboard review countdown', () => {
     vi.setSystemTime(new Date('2026-07-31T05:00:00.000Z'));
     renderDashboard([makeWord('only', 2, '2026-07-31T04:00:00.000Z')]);
     expect(screen.getByText('—')).toBeInTheDocument();
+  });
+});
+
+describe('Dashboard memory strength distribution', () => {
+  it('excludes never-studied cards from the Critical bucket', () => {
+    // The DB defaults memory_strength to 'critical' for brand-new cards
+    // (fsrsState 0), so counting them here would falsely inflate "at risk"
+    // words the learner hasn't even attempted yet.
+    const newWord = makeWord('new1', 0, '2026-07-31T04:00:00.000Z');
+    newWord.meanings[0].memoryStrength = 'critical';
+    renderDashboard([newWord]);
+    const criticalButton = screen.getByText('Critical (<25%)').closest('button')!;
+    expect(within(criticalButton).getByText('0')).toBeInTheDocument();
   });
 });
