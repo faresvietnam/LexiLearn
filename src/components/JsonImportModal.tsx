@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, ArrowRight } from 'lucide-react';
+import { CheckCircle2, ArrowRight, Copy, Check } from 'lucide-react';
 import { Word, Deck, Tag } from '../types';
 import {parseJsonImport, type ParsedJsonEntry} from '../features/import/jsonImportParser';
 import {matchDeckByName, matchTagByName, resolveJsonImportWords} from '../features/import/jsonImportResolver';
@@ -45,6 +45,60 @@ const SAMPLE_JSON = `[
   }
 ]`;
 
+const buildJsonPrompt = (tagNames: string[]): string => {
+  const tagList = (tagNames.length > 0 ? tagNames : ['general']).map((name) => `"${name}"`).join(', ');
+  return `Bạn là chuyên gia biên soạn từ vựng tiếng Anh. Hãy tạo một file JSON danh sách từ vựng theo ĐÚNG định dạng dưới đây để import vào app học từ vựng.
+
+YÊU CẦU NỘI DUNG:
+- Chủ đề: [CHỦ ĐỀ, ví dụ: "đồ ăn/thực phẩm"]
+- Số lượng từ: [SỐ LƯỢNG, ví dụ: 15]
+- Deck: LUÔN LUÔN là "begin" cho mọi từ, không đổi.
+- Tag: LUÔN LUÔN chọn ít nhất 1 tag phù hợp nhất với nghĩa của từng từ trong danh sách sau, không được để trống: [${tagList}]. Nếu từ mang nhiều chủ đề thì chọn tối đa 2 tag phù hợp nhất.
+- Trình độ: [ví dụ: cơ bản / trung cấp / nâng cao]
+
+ĐỊNH DẠNG BẮT BUỘC — trả về đúng 1 JSON array, không thêm text/markdown/giải thích nào khác, không dùng \`\`\`:
+
+[
+  {
+    "word": "bread",
+    "ipa": "/bred/",
+    "meanings": [
+      {
+        "meaning_vi": "bánh mì",
+        "part_of_speech": "noun",
+        "definition_en": "A food made from flour, water, and yeast, then baked.",
+        "examples": [
+          {"sentence": "She bought a loaf of bread for breakfast."},
+          {"sentence": "This bread is fresh and soft."},
+          {"sentence": "He spread butter on a slice of bread."}
+        ]
+      }
+    ],
+    "parts": [],
+    "deck_name": "begin",
+    "tag_names": ["food"]
+  }
+]
+
+QUY TẮC BẮT BUỘC:
+1. "word": chữ thường, không dấu câu, không trùng từ nào khác trong danh sách.
+2. "meanings": mảng KHÔNG được rỗng. Nếu từ có nhiều từ loại/nghĩa khác nhau (vd vừa là danh từ vừa là động từ), thêm nhiều phần tử vào mảng này thay vì nhồi chung 1 nghĩa.
+   - "meaning_vi": bắt buộc, nghĩa tiếng Việt (có thể ghi 2-3 nghĩa gần nhau, cách nhau bằng ";").
+   - "part_of_speech": bắt buộc, đúng 1 giá trị: "noun" | "verb" | "adjective" | "adverb" | "preposition" | ...
+   - "definition_en": định nghĩa tiếng Anh ngắn, đơn giản, dễ hiểu.
+   - "examples": đúng 3 câu ví dụ tiếng Anh tự nhiên, đúng ngữ pháp, mỗi câu chỉ cần field "sentence".
+3. "parts": CHỈ điền khi từ là từ ghép/có tiền tố-hậu tố rõ ràng (vd "pineapple" = "pine"+"apple", "watermelon" = "water"+"melon", "transportation" = "trans"+"port"+"ation"). Mỗi phần tử gồm:
+   - "text": phần của từ
+   - "type": bắt buộc đúng 1 trong: "prefix" | "root" | "base" | "suffix" | "combining_form" | "compound_component"
+   - "meaning": nghĩa của thành phần đó (tùy chọn)
+   Nếu từ không tách được rõ ràng, để "parts": [].
+4. "deck_name": luôn luôn là "begin" cho mọi từ trong danh sách.
+5. "tag_names": luôn luôn có ít nhất 1 phần tử, chọn từ danh sách tag đã nêu ở trên — không bao giờ để mảng rỗng.
+6. Chỉ trả về đúng các field nêu trên, không thêm field khác.
+
+Hãy tạo JSON theo đúng yêu cầu trên.`;
+};
+
 type PreviewRow = {
   entry: ParsedJsonEntry;
   route: ImportRoute;
@@ -77,6 +131,17 @@ export const JsonImportModal: React.FC<JsonImportModalProps> = ({
   const [duplicateCount, setDuplicateCount] = useState(0);
   const [isImporting, setIsImporting] = useState(false);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
+  const [promptCopied, setPromptCopied] = useState(false);
+
+  const handleCopyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(buildJsonPrompt(tags.map((tag) => tag.name)));
+      setPromptCopied(true);
+      setTimeout(() => setPromptCopied(false), 2000);
+    } catch {
+      // Clipboard permission can be denied by the browser; nothing else to do.
+    }
+  };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -153,6 +218,19 @@ export const JsonImportModal: React.FC<JsonImportModalProps> = ({
                 </button>
               </div>
             )}
+            <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-200 space-y-2">
+              <p className="text-sm font-bold text-indigo-900">
+                Chưa có file JSON? Copy prompt bên dưới rồi dán vào ChatGPT/Gemini để AI tạo file JSON đúng định dạng cho bạn.
+              </p>
+              <button
+                type="button"
+                onClick={() => void handleCopyPrompt()}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition flex items-center gap-1.5"
+              >
+                {promptCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{promptCopied ? 'Đã copy!' : 'Copy prompt tạo JSON'}</span>
+              </button>
+            </div>
             <div className="space-y-1">
               <label htmlFor="json-file" className="text-xs font-bold text-slate-700">
                 Tải file JSON

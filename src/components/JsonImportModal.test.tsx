@@ -69,4 +69,29 @@ describe('JsonImportModal validation flow', () => {
     expect(await screen.findByText(/import json thành công/i)).toBeInTheDocument();
     expect(onConfirmImport).toHaveBeenCalledTimes(1);
   });
+
+  it('copies a JSON-generation prompt naming the deck and the user\'s tags', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {clipboard: {writeText}});
+
+    render(
+      <JsonImportModal
+        existingWords={[]}
+        decks={[]}
+        tags={[{id: 'tag_food', name: 'food', color: '#000'}]}
+        onCreateDeck={vi.fn()}
+        onCreateTag={vi.fn()}
+        onConfirmImport={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', {name: /copy prompt tạo json/i}));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const copiedText = writeText.mock.calls[0][0] as string;
+    expect(copiedText).toContain('"begin"');
+    expect(copiedText).toContain('"food"');
+    expect(await screen.findByText('Đã copy!')).toBeInTheDocument();
+  });
 });
