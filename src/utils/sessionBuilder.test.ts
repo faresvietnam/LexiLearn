@@ -421,6 +421,28 @@ describe('buildSessionQuestions', () => {
     expect(session.limitReached).toBe(true);
   });
 
+  it('spends the daily new-word quota per word, not per meaning', () => {
+    const words = [
+      word('multi', [
+        meaningCard('multi-noun', { fsrsState: 0, history: [], partOfSpeech: 'noun' }),
+        meaningCard('multi-verb', { fsrsState: 0, history: [], partOfSpeech: 'verb' }),
+      ]),
+      word('single', [meaningCard('single', { fsrsState: 0, history: [] })]),
+      ...fillerReviewWords(3),
+    ];
+
+    const session = buildSessionQuestions(words, scope, settings, false, 1);
+
+    const newWordIds = new Set(
+      session.questions.filter((q) => q.isNewWord).map((q) => q.word.id),
+    );
+    expect(newWordIds).toEqual(new Set(['multi']));
+    const multiMeaningIds = session.questions
+      .filter((q) => q.word.id === 'multi')
+      .map((q) => q.targetMeaningCard.id);
+    expect(new Set(multiMeaningIds)).toEqual(new Set(['multi-noun', 'multi-verb']));
+  });
+
   it('still includes new cards when a critical review is due', () => {
     const words = [
       word('critical', [

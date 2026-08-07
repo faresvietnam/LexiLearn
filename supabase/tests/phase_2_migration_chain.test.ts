@@ -50,6 +50,9 @@ describe('database migration chain', () => {
       '20260804074151_add_openai_compatible_provider.sql',
       '20260804081036_add_openai_token_configured_flag.sql',
       '20260804090000_relax_import_row_number_check.sql',
+      '20260807000000_fix_create_private_word_tag_ids_uuid_cast.sql',
+      '20260807010000_fix_admin_user_stats_word_level_new_word_count.sql',
+      '20260807080000_word_level_new_word_quota.sql',
     ]);
   });
 

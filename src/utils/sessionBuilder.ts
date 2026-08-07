@@ -151,7 +151,23 @@ export function buildSessionQuestions(
   const selectedReviews = reviewCards.slice(0, reviewLimit);
   const limitReached = reviewCards.length > reviewLimit;
 
-  const selectedNew = newCards.slice(0, newWordsLimit);
+  // Spend the daily new-word quota per WORD, not per meaning — a word with
+  // multiple meanings should cost one "new word" slot, while every meaning
+  // of an admitted word still gets queued.
+  const newWordOrder: string[] = [];
+  const newCardsByWord = new Map<string, SessionQueueItem[]>();
+  newCards.forEach((item) => {
+    const key = item.word.id;
+    if (!newCardsByWord.has(key)) {
+      newCardsByWord.set(key, []);
+      newWordOrder.push(key);
+    }
+    newCardsByWord.get(key)!.push(item);
+  });
+  const admittedWordCount = Math.min(newWordOrder.length, newWordsLimit);
+  const selectedNew = newWordOrder
+    .slice(0, newWordsLimit)
+    .flatMap((key) => newCardsByWord.get(key)!);
 
   if (selectedReviews.length + selectedNew.length < MIN_DISTINCT_CARDS_FOR_SESSION) {
     const deficit = MIN_DISTINCT_CARDS_FOR_SESSION - (selectedReviews.length + selectedNew.length);
@@ -164,8 +180,8 @@ export function buildSessionQuestions(
     // New words aren't time-gated — only today's quota blocks them. If more
     // are waiting than today's quota lets through, the next quota reset
     // (tomorrow's study-day boundary) may close the gap on its own.
-    const potentialNewAfterReset = Math.min(newCards.length, settings.newWordsPerDay || 10);
-    const quotaResetHelps = newCards.length > selectedNew.length
+    const potentialNewAfterReset = Math.min(newWordOrder.length, settings.newWordsPerDay || 10);
+    const quotaResetHelps = newWordOrder.length > admittedWordCount
       && selectedReviews.length + potentialNewAfterReset >= MIN_DISTINCT_CARDS_FOR_SESSION;
     const quotaResetAt = quotaResetHelps
       ? getNextStudyDayBoundary(now, 'Asia/Ho_Chi_Minh').toISOString()
