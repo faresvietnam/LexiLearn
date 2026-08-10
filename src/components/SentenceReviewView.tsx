@@ -135,6 +135,9 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
           <WordOrderQuestion
             key={card.id}
             sentence={card.englishSentence}
+            distractorPool={sentenceCards
+              .filter((other) => other.id !== card.id)
+              .flatMap((other) => other.englishSentence.trim().split(/\s+/))}
             onResolve={handleWordOrderResolve}
           />
         ) : showDiff ? (

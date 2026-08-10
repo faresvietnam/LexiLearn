@@ -2,8 +2,12 @@ import React, {useRef, useState} from 'react';
 
 interface WordOrderQuestionProps {
   sentence: string;
+  distractorPool?: string[];
   onResolve: (result: {isCorrect: boolean; wrongAttempts: number; responseTimeMs: number}) => void;
 }
+
+const MIN_DISTRACTORS = 3;
+const MAX_DISTRACTORS = 5;
 
 function shuffle<T>(items: T[]): T[] {
   const shuffled = [...items];
@@ -14,10 +18,24 @@ function shuffle<T>(items: T[]): T[] {
   return shuffled;
 }
 
-export const WordOrderQuestion: React.FC<WordOrderQuestionProps> = ({sentence, onResolve}) => {
+function pickDistractors(pool: string[], ownWords: string[]): string[] {
+  const ownWordsLower = new Set(ownWords.map((word) => word.toLowerCase()));
+  const uniqueCandidates = Array.from(new Set(
+    pool.filter((word) => !ownWordsLower.has(word.toLowerCase())),
+  ));
+  const count = MIN_DISTRACTORS + Math.floor(Math.random() * (MAX_DISTRACTORS - MIN_DISTRACTORS + 1));
+  return shuffle(uniqueCandidates).slice(0, count);
+}
+
+export const WordOrderQuestion: React.FC<WordOrderQuestionProps> = ({
+  sentence,
+  distractorPool = [],
+  onResolve,
+}) => {
   const tokensRef = useRef(sentence.trim().split(/\s+/));
   const tokens = tokensRef.current;
-  const [pool, setPool] = useState<string[]>(() => shuffle(tokens));
+  const distractorsRef = useRef(pickDistractors(distractorPool, tokens));
+  const [pool, setPool] = useState<string[]>(() => shuffle([...tokens, ...distractorsRef.current]));
   const [answer, setAnswer] = useState<string[]>([]);
   const [wrongAttempts, setWrongAttempts] = useState(0);
   const [showWrongHint, setShowWrongHint] = useState(false);
@@ -116,7 +134,7 @@ export const WordOrderQuestion: React.FC<WordOrderQuestionProps> = ({sentence, o
       <button
         type="button"
         onClick={handleCheck}
-        disabled={pool.length > 0}
+        disabled={answer.length !== tokens.length}
         className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl transition"
       >
         Kiểm tra

@@ -74,4 +74,42 @@ describe('WordOrderQuestion', () => {
       wrongAttempts: 2,
     }));
   });
+
+  it('adds 3-5 distractor chips from the pool, never duplicating the sentence\'s own words', () => {
+    render(
+      <WordOrderQuestion
+        sentence="The cat sleeps."
+        distractorPool={['dog', 'runs', 'quickly', 'The', 'happy', 'bird', 'sings', 'loudly']}
+        onResolve={vi.fn()}
+      />,
+    );
+
+    const allButtons = screen.getAllByRole('button').map((button) => button.textContent);
+    const ownWords = ['The', 'cat', 'sleeps.'];
+    const distractorButtons = allButtons.filter(
+      (label) => label !== 'Kiểm tra' && !ownWords.includes(label ?? ''),
+    );
+
+    expect(distractorButtons.length).toBeGreaterThanOrEqual(3);
+    expect(distractorButtons.length).toBeLessThanOrEqual(5);
+    distractorButtons.forEach((label) => {
+      expect(ownWords.some((word) => word.toLowerCase() === label?.toLowerCase())).toBe(false);
+    });
+  });
+
+  it('enables Kiểm tra once the answer reaches the sentence length, even with distractor chips left in the pool', () => {
+    render(
+      <WordOrderQuestion
+        sentence="The cat sleeps."
+        distractorPool={['dog', 'runs', 'quickly', 'happy', 'bird']}
+        onResolve={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', {name: 'The'}));
+    fireEvent.click(screen.getByRole('button', {name: 'cat'}));
+    fireEvent.click(screen.getByRole('button', {name: 'sleeps.'}));
+
+    expect(screen.getByRole('button', {name: 'Kiểm tra'})).not.toBeDisabled();
+  });
 });
