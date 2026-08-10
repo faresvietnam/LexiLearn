@@ -7,28 +7,47 @@ afterEach(() => {
 });
 
 describe('playSentenceAudio', () => {
-  it('plays the given audio URL when present', () => {
+  it('plays the given audio URL and resolves when playback ends', async () => {
+    const listeners: Record<string, () => void> = {};
     const play = vi.fn().mockResolvedValue(undefined);
-    vi.stubGlobal('Audio', vi.fn().mockImplementation(() => ({play})));
+    const addEventListener = vi.fn((event: string, handler: () => void) => {
+      listeners[event] = handler;
+    });
+    vi.stubGlobal('Audio', vi.fn().mockImplementation(() => ({play, addEventListener})));
 
-    playSentenceAudio('The cat sleeps.', 'https://example.com/cat.mp3');
-
+    const promise = playSentenceAudio('The cat sleeps.', 'https://example.com/cat.mp3');
     expect(globalThis.Audio).toHaveBeenCalledWith('https://example.com/cat.mp3');
     expect(play).toHaveBeenCalledOnce();
+
+    listeners.ended();
+    await expect(promise).resolves.toBeUndefined();
   });
 
-  it('falls back to browser speech synthesis when no audio URL is given', () => {
+  it('falls back to browser speech synthesis and resolves when speech ends', async () => {
+    const listeners: Record<string, () => void> = {};
     const speak = vi.fn();
     const cancel = vi.fn();
     vi.stubGlobal('speechSynthesis', {speak, cancel});
     vi.stubGlobal(
       'SpeechSynthesisUtterance',
-      vi.fn().mockImplementation((text: string) => ({text})),
+      vi.fn().mockImplementation((text: string) => ({
+        text,
+        addEventListener: (event: string, handler: () => void) => {
+          listeners[event] = handler;
+        },
+      })),
     );
 
-    playSentenceAudio('The cat sleeps.');
-
+    const promise = playSentenceAudio('The cat sleeps.');
     expect(cancel).toHaveBeenCalledOnce();
     expect(speak).toHaveBeenCalledWith(expect.objectContaining({text: 'The cat sleeps.'}));
+
+    listeners.end();
+    await expect(promise).resolves.toBeUndefined();
+  });
+
+  it('resolves immediately when neither an audio URL nor speech synthesis is available', async () => {
+    vi.stubGlobal('speechSynthesis', undefined);
+    await expect(playSentenceAudio('The cat sleeps.')).resolves.toBeUndefined();
   });
 });

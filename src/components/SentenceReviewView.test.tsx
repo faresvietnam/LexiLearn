@@ -1,12 +1,19 @@
 import React from 'react';
 import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {afterEach, describe, expect, it, vi} from 'vitest';
+
+const {playSentenceAudio} = vi.hoisted(() => ({
+  playSentenceAudio: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('../utils/playSentenceAudio', () => ({playSentenceAudio}));
+
 import {SentenceReviewView} from './SentenceReviewView';
 import type {SentenceCard} from '../types';
 
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 function buildCard(overrides: Partial<SentenceCard> = {}): SentenceCard {
@@ -116,6 +123,7 @@ describe('SentenceReviewView', () => {
   });
 
   it('renders the word-order question for a not-yet-mastered card and rates a correct, on-pace arrangement Good', async () => {
+    vi.useFakeTimers();
     let now = 0;
     vi.spyOn(performance, 'now').mockImplementation(() => now);
     const onSubmitReview = vi.fn().mockResolvedValue(true);
@@ -128,7 +136,12 @@ describe('SentenceReviewView', () => {
     now = 4_000; // matches expectedWordOrderResponseTimeMs(3) -> normal pace
     fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
 
-    await waitFor(() => expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', 'Good'));
+    expect(onSubmitReview).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(playSentenceAudio).toHaveBeenCalledWith('The cat sleeps.', undefined);
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', 'Good');
   });
 
   it('rates Again after 3 wrong word-order attempts and advances on continue', async () => {

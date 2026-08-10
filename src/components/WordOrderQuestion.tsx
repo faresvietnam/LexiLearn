@@ -1,13 +1,16 @@
 import React, {useRef, useState} from 'react';
+import {playSentenceAudio} from '../utils/playSentenceAudio';
 
 interface WordOrderQuestionProps {
   sentence: string;
+  audioUrl?: string;
   distractorPool?: string[];
   onResolve: (result: {isCorrect: boolean; wrongAttempts: number; responseTimeMs: number}) => void;
 }
 
 const MIN_DISTRACTORS = 3;
 const MAX_DISTRACTORS = 5;
+const CORRECT_PAUSE_MS = 1_000;
 
 function shuffle<T>(items: T[]): T[] {
   const shuffled = [...items];
@@ -27,8 +30,13 @@ function pickDistractors(pool: string[], ownWords: string[]): string[] {
   return shuffle(uniqueCandidates).slice(0, count);
 }
 
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export const WordOrderQuestion: React.FC<WordOrderQuestionProps> = ({
   sentence,
+  audioUrl,
   distractorPool = [],
   onResolve,
 }) => {
@@ -40,6 +48,7 @@ export const WordOrderQuestion: React.FC<WordOrderQuestionProps> = ({
   const [wrongAttempts, setWrongAttempts] = useState(0);
   const [showWrongHint, setShowWrongHint] = useState(false);
   const [showReveal, setShowReveal] = useState(false);
+  const [showCorrect, setShowCorrect] = useState(false);
   const startTimeRef = useRef(performance.now());
 
   const moveToAnswer = (poolIndex: number) => {
@@ -54,13 +63,23 @@ export const WordOrderQuestion: React.FC<WordOrderQuestionProps> = ({
     setAnswer((current) => current.filter((_, i) => i !== answerIndex));
   };
 
+  const resolveCorrect = async (responseTimeMs: number) => {
+    await wait(CORRECT_PAUSE_MS);
+    await playSentenceAudio(sentence, audioUrl);
+    await wait(CORRECT_PAUSE_MS);
+    onResolve({isCorrect: true, wrongAttempts, responseTimeMs});
+  };
+
   const handleCheck = () => {
+    if (showCorrect || showReveal) return;
+
     const isCorrect = answer.length === tokens.length
       && answer.every((word, i) => word.toLowerCase() === tokens[i].toLowerCase());
     const responseTimeMs = performance.now() - startTimeRef.current;
 
     if (isCorrect) {
-      onResolve({isCorrect: true, wrongAttempts, responseTimeMs});
+      setShowCorrect(true);
+      void resolveCorrect(responseTimeMs);
       return;
     }
 
@@ -93,6 +112,24 @@ export const WordOrderQuestion: React.FC<WordOrderQuestionProps> = ({
         >
           Tiếp tục
         </button>
+      </div>
+    );
+  }
+
+  if (showCorrect) {
+    return (
+      <div className="space-y-4 text-center">
+        <p className="text-lg font-bold text-emerald-600">Chính xác!</p>
+        <div className="flex flex-wrap justify-center gap-2">
+          {tokens.map((word, i) => (
+            <span
+              key={`correct-${i}`}
+              className="px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-800 font-semibold"
+            >
+              {word}
+            </span>
+          ))}
+        </div>
       </div>
     );
   }
@@ -134,7 +171,6 @@ export const WordOrderQuestion: React.FC<WordOrderQuestionProps> = ({
       <button
         type="button"
         onClick={handleCheck}
-        disabled={answer.length !== tokens.length}
         className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl transition"
       >
         Kiểm tra
