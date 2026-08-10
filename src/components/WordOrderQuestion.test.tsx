@@ -40,6 +40,39 @@ describe('WordOrderQuestion', () => {
     expect(screen.getByRole('button', {name: 'cat'})).toBeInTheDocument();
   });
 
+  it('drags a pool word and drops it at a specific position within the answer row, shifting others aside', () => {
+    render(<WordOrderQuestion sentence="The cat sleeps." onResolve={vi.fn()} />);
+
+    // Place "cat" then "sleeps" first (skipping "The").
+    fireEvent.click(screen.getByRole('button', {name: 'cat'}));
+    fireEvent.click(screen.getByRole('button', {name: 'sleeps'}));
+
+    // Drag "The" from the pool and drop it onto "cat" — should insert before "cat".
+    fireEvent.dragStart(screen.getByRole('button', {name: 'The'}));
+    fireEvent.drop(screen.getByRole('button', {name: 'cat'}));
+
+    const answerRow = screen.getByTestId('word-order-answer');
+    const orderedLabels = Array.from(answerRow.querySelectorAll('button')).map((el) => el.textContent);
+    expect(orderedLabels).toEqual(['The', 'cat', 'sleeps']);
+  });
+
+  it('drags a chip to reorder within the answer row itself', () => {
+    render(<WordOrderQuestion sentence="The cat sleeps." onResolve={vi.fn()} />);
+
+    // Place in the wrong order: cat, The, sleeps.
+    fireEvent.click(screen.getByRole('button', {name: 'cat'}));
+    fireEvent.click(screen.getByRole('button', {name: 'The'}));
+    fireEvent.click(screen.getByRole('button', {name: 'sleeps'}));
+
+    // Drag "cat" (first) and drop it onto "sleeps" (last) to fix the order.
+    fireEvent.dragStart(screen.getByRole('button', {name: 'cat'}));
+    fireEvent.drop(screen.getByRole('button', {name: 'sleeps'}));
+
+    const answerRow = screen.getByTestId('word-order-answer');
+    const orderedLabels = Array.from(answerRow.querySelectorAll('button')).map((el) => el.textContent);
+    expect(orderedLabels).toEqual(['The', 'cat', 'sleeps']);
+  });
+
   it('counts an incomplete arrangement as a wrong attempt instead of blocking the check', () => {
     render(<WordOrderQuestion sentence="The cat sleeps." onResolve={vi.fn()} />);
 
