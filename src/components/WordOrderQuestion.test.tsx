@@ -15,12 +15,19 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+function placeCorrectOrder() {
+  fireEvent.click(screen.getByRole('button', {name: 'The'}));
+  fireEvent.click(screen.getByRole('button', {name: 'cat'}));
+  fireEvent.click(screen.getByRole('button', {name: 'sleeps'}));
+  fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
+}
+
 describe('WordOrderQuestion', () => {
   it('renders every word as a chip; Kiểm tra is clickable even before any word is placed', () => {
     render(<WordOrderQuestion sentence="The cat sleeps." onResolve={vi.fn()} />);
 
     expect(screen.getByRole('button', {name: 'Kiểm tra'})).not.toBeDisabled();
-    ['The', 'cat', 'sleeps.'].forEach((word) => {
+    ['The', 'cat', 'sleeps'].forEach((word) => {
       expect(screen.getByRole('button', {name: word})).toBeInTheDocument();
     });
   });
@@ -42,7 +49,7 @@ describe('WordOrderQuestion', () => {
     expect(screen.getByText('Sai rồi, thử lại.')).toBeInTheDocument();
   });
 
-  it('shows a correct pause, plays the audio, then resolves after another pause', async () => {
+  it('plays the audio immediately on a correct answer and waits for Tiếp tục instead of auto-advancing', async () => {
     vi.useFakeTimers();
     const onResolve = vi.fn();
     render(
@@ -53,57 +60,121 @@ describe('WordOrderQuestion', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', {name: 'The'}));
-    fireEvent.click(screen.getByRole('button', {name: 'cat'}));
-    fireEvent.click(screen.getByRole('button', {name: 'sleeps.'}));
-    fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
+    placeCorrectOrder();
 
     expect(screen.getByText('Chính xác!')).toBeInTheDocument();
-    expect(onResolve).not.toHaveBeenCalled();
-    expect(playSentenceAudio).not.toHaveBeenCalled();
-
-    await vi.advanceTimersByTimeAsync(1000);
     expect(playSentenceAudio).toHaveBeenCalledWith('The cat sleeps.', 'https://example.com/cat.mp3');
+
+    // No auto-advance, even after time passes.
+    await vi.advanceTimersByTimeAsync(10_000);
     expect(onResolve).not.toHaveBeenCalled();
 
-    await vi.advanceTimersByTimeAsync(1000);
+    fireEvent.click(screen.getByRole('button', {name: /Tiếp tục/}));
     expect(onResolve).toHaveBeenCalledWith(expect.objectContaining({
       isCorrect: true,
       wrongAttempts: 0,
     }));
   });
 
-  it('shows a wrong hint for the first two wrong orders (keeping the arrangement), then reveals on the third', () => {
+  it('continues from the correct pause when Enter is pressed', () => {
     const onResolve = vi.fn();
     render(<WordOrderQuestion sentence="The cat sleeps." onResolve={onResolve} />);
+
+    placeCorrectOrder();
+    fireEvent.keyDown(window, {key: 'Enter'});
+    expect(onResolve).toHaveBeenCalledWith(expect.objectContaining({isCorrect: true}));
+  });
+
+  it('replays the audio when p is pressed during the correct pause', () => {
+    render(
+      <WordOrderQuestion
+        sentence="The cat sleeps."
+        audioUrl="https://example.com/cat.mp3"
+        onResolve={vi.fn()}
+      />,
+    );
+
+    placeCorrectOrder();
+    expect(playSentenceAudio).toHaveBeenCalledTimes(1);
+
+    fireEvent.keyDown(window, {key: 'p'});
+    expect(playSentenceAudio).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows a wrong hint for the first two wrong orders (keeping the arrangement), auto-plays audio and reveals on the third', () => {
+    const onResolve = vi.fn();
+    render(
+      <WordOrderQuestion
+        sentence="The cat sleeps."
+        audioUrl="https://example.com/cat.mp3"
+        onResolve={onResolve}
+      />,
+    );
     const submitWrongOrder = () => {
       fireEvent.click(screen.getByRole('button', {name: 'cat'}));
       fireEvent.click(screen.getByRole('button', {name: 'The'}));
-      fireEvent.click(screen.getByRole('button', {name: 'sleeps.'}));
+      fireEvent.click(screen.getByRole('button', {name: 'sleeps'}));
       fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
     };
     const undoAll = () => {
       fireEvent.click(screen.getByRole('button', {name: 'cat'}));
       fireEvent.click(screen.getByRole('button', {name: 'The'}));
-      fireEvent.click(screen.getByRole('button', {name: 'sleeps.'}));
+      fireEvent.click(screen.getByRole('button', {name: 'sleeps'}));
     };
 
     submitWrongOrder();
     expect(screen.getByText('Sai rồi, thử lại.')).toBeInTheDocument();
+    expect(playSentenceAudio).not.toHaveBeenCalled();
     undoAll();
 
     submitWrongOrder();
     expect(screen.getByText('Sai rồi, thử lại.')).toBeInTheDocument();
+    expect(playSentenceAudio).not.toHaveBeenCalled();
     undoAll();
 
     submitWrongOrder();
     expect(screen.getByText('The cat sleeps.')).toBeInTheDocument();
+    expect(playSentenceAudio).toHaveBeenCalledWith('The cat sleeps.', 'https://example.com/cat.mp3');
 
-    fireEvent.click(screen.getByRole('button', {name: 'Tiếp tục'}));
+    fireEvent.click(screen.getByRole('button', {name: /Tiếp tục/}));
     expect(onResolve).toHaveBeenCalledWith(expect.objectContaining({
       isCorrect: false,
       wrongAttempts: 2,
     }));
+  });
+
+  it('continues from the reveal when Enter is pressed, and replays audio on p', () => {
+    const onResolve = vi.fn();
+    render(
+      <WordOrderQuestion
+        sentence="The cat sleeps."
+        audioUrl="https://example.com/cat.mp3"
+        onResolve={onResolve}
+      />,
+    );
+    const submitWrongOrder = () => {
+      fireEvent.click(screen.getByRole('button', {name: 'cat'}));
+      fireEvent.click(screen.getByRole('button', {name: 'The'}));
+      fireEvent.click(screen.getByRole('button', {name: 'sleeps'}));
+      fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
+    };
+    const undoAll = () => {
+      fireEvent.click(screen.getByRole('button', {name: 'cat'}));
+      fireEvent.click(screen.getByRole('button', {name: 'The'}));
+      fireEvent.click(screen.getByRole('button', {name: 'sleeps'}));
+    };
+    submitWrongOrder();
+    undoAll();
+    submitWrongOrder();
+    undoAll();
+    submitWrongOrder();
+
+    const callsAfterReveal = playSentenceAudio.mock.calls.length;
+    fireEvent.keyDown(window, {key: 'p'});
+    expect(playSentenceAudio.mock.calls.length).toBe(callsAfterReveal + 1);
+
+    fireEvent.keyDown(window, {key: 'Enter'});
+    expect(onResolve).toHaveBeenCalledWith(expect.objectContaining({isCorrect: false}));
   });
 
   it('adds 3-5 distractor chips from the pool, never duplicating the sentence\'s own words', () => {
@@ -116,7 +187,7 @@ describe('WordOrderQuestion', () => {
     );
 
     const allButtons = screen.getAllByRole('button').map((button) => button.textContent);
-    const ownWords = ['The', 'cat', 'sleeps.'];
+    const ownWords = ['The', 'cat', 'sleeps'];
     const distractorButtons = allButtons.filter(
       (label) => label !== 'Kiểm tra' && !ownWords.includes(label ?? ''),
     );
@@ -126,5 +197,24 @@ describe('WordOrderQuestion', () => {
     distractorButtons.forEach((label) => {
       expect(ownWords.some((word) => word.toLowerCase() === label?.toLowerCase())).toBe(false);
     });
+  });
+
+  it('never shows two distractor chips for the same word after stripping punctuation and case', () => {
+    render(
+      <WordOrderQuestion
+        sentence="The cat sleeps."
+        distractorPool={['dog', 'Dog.', 'dog,', 'runs', 'Runs.', 'quickly', 'Quickly,']}
+        onResolve={vi.fn()}
+      />,
+    );
+
+    const allButtons = screen.getAllByRole('button').map((button) => button.textContent);
+    const ownWords = ['The', 'cat', 'sleeps'];
+    const distractorLabels = allButtons.filter(
+      (label) => label !== 'Kiểm tra' && !ownWords.includes(label ?? ''),
+    ) as string[];
+
+    const lowerLabels = distractorLabels.map((label) => label.toLowerCase());
+    expect(new Set(lowerLabels).size).toBe(lowerLabels.length);
   });
 });

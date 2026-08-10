@@ -1,4 +1,4 @@
-import React, {useRef, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {playSentenceAudio} from '../utils/playSentenceAudio';
 
 interface WordOrderQuestionProps {
@@ -10,7 +10,8 @@ interface WordOrderQuestionProps {
 
 const MIN_DISTRACTORS = 3;
 const MAX_DISTRACTORS = 5;
-const CORRECT_PAUSE_MS = 1_000;
+
+type Phase = 'answering' | 'correct' | 'revealed';
 
 function shuffle<T>(items: T[]): T[] {
   const shuffled = [...items];
@@ -21,17 +22,28 @@ function shuffle<T>(items: T[]): T[] {
   return shuffled;
 }
 
+function stripPunctuation(word: string): string {
+  return word.replace(/^[,.]+|[,.]+$/g, '');
+}
+
 function pickDistractors(pool: string[], ownWords: string[]): string[] {
   const ownWordsLower = new Set(ownWords.map((word) => word.toLowerCase()));
-  const uniqueCandidates = Array.from(new Set(
-    pool.filter((word) => !ownWordsLower.has(word.toLowerCase())),
-  ));
+  const seenLower = new Set<string>();
+  const uniqueCandidates: string[] = [];
+  for (const raw of pool) {
+    const word = stripPunctuation(raw);
+    const lower = word.toLowerCase();
+    if (!word || ownWordsLower.has(lower) || seenLower.has(lower)) continue;
+    seenLower.add(lower);
+    uniqueCandidates.push(word);
+  }
   const count = MIN_DISTRACTORS + Math.floor(Math.random() * (MAX_DISTRACTORS - MIN_DISTRACTORS + 1));
   return shuffle(uniqueCandidates).slice(0, count);
 }
 
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function isTextInputElement(target: EventTarget | null): boolean {
+  const tagName = (target as HTMLElement | null)?.tagName;
+  return tagName === 'INPUT' || tagName === 'TEXTAREA';
 }
 
 export const WordOrderQuestion: React.FC<WordOrderQuestionProps> = ({
@@ -40,16 +52,16 @@ export const WordOrderQuestion: React.FC<WordOrderQuestionProps> = ({
   distractorPool = [],
   onResolve,
 }) => {
-  const tokensRef = useRef(sentence.trim().split(/\s+/));
+  const tokensRef = useRef(sentence.trim().split(/\s+/).map(stripPunctuation));
   const tokens = tokensRef.current;
   const distractorsRef = useRef(pickDistractors(distractorPool, tokens));
   const [pool, setPool] = useState<string[]>(() => shuffle([...tokens, ...distractorsRef.current]));
   const [answer, setAnswer] = useState<string[]>([]);
   const [wrongAttempts, setWrongAttempts] = useState(0);
   const [showWrongHint, setShowWrongHint] = useState(false);
-  const [showReveal, setShowReveal] = useState(false);
-  const [showCorrect, setShowCorrect] = useState(false);
+  const [phase, setPhase] = useState<Phase>('answering');
   const startTimeRef = useRef(performance.now());
+  const resolvedResponseTimeRef = useRef(0);
 
   const moveToAnswer = (poolIndex: number) => {
     setShowWrongHint(false);
@@ -63,60 +75,70 @@ export const WordOrderQuestion: React.FC<WordOrderQuestionProps> = ({
     setAnswer((current) => current.filter((_, i) => i !== answerIndex));
   };
 
-  const resolveCorrect = async (responseTimeMs: number) => {
-    await wait(CORRECT_PAUSE_MS);
-    await playSentenceAudio(sentence, audioUrl);
-    await wait(CORRECT_PAUSE_MS);
-    onResolve({isCorrect: true, wrongAttempts, responseTimeMs});
-  };
-
   const handleCheck = () => {
-    if (showCorrect || showReveal) return;
+    if (phase !== 'answering') return;
 
     const isCorrect = answer.length === tokens.length
       && answer.every((word, i) => word.toLowerCase() === tokens[i].toLowerCase());
-    const responseTimeMs = performance.now() - startTimeRef.current;
+    resolvedResponseTimeRef.current = performance.now() - startTimeRef.current;
 
     if (isCorrect) {
-      setShowCorrect(true);
-      void resolveCorrect(responseTimeMs);
+      setPhase('correct');
+      void playSentenceAudio(sentence, audioUrl);
       return;
     }
 
     const nextWrongAttempts = wrongAttempts + 1;
     setWrongAttempts(nextWrongAttempts);
     if (nextWrongAttempts >= 3) {
-      setShowReveal(true);
+      setPhase('revealed');
+      void playSentenceAudio(sentence, audioUrl);
     } else {
       setShowWrongHint(true);
     }
   };
 
-  const handleContinueAfterReveal = () => {
-    onResolve({
-      isCorrect: false,
-      wrongAttempts: 2,
-      responseTimeMs: performance.now() - startTimeRef.current,
-    });
+  const handleContinue = () => {
+    if (phase === 'correct') {
+      onResolve({isCorrect: true, wrongAttempts, responseTimeMs: resolvedResponseTimeRef.current});
+    } else if (phase === 'revealed') {
+      onResolve({isCorrect: false, wrongAttempts: 2, responseTimeMs: resolvedResponseTimeRef.current});
+    }
   };
 
-  if (showReveal) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Enter' && phase !== 'answering') {
+        event.preventDefault();
+        handleContinue();
+      } else if ((event.key === 'p' || event.key === 'P') && !isTextInputElement(event.target)) {
+        event.preventDefault();
+        void playSentenceAudio(sentence, audioUrl);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
+  if (phase === 'revealed') {
     return (
       <div className="space-y-4">
         <p className="text-sm text-slate-500 text-center">Đáp án đúng:</p>
         <p className="text-lg font-semibold text-slate-900 text-center">{sentence}</p>
         <button
           type="button"
-          onClick={handleContinueAfterReveal}
+          onClick={handleContinue}
           className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition"
         >
-          Tiếp tục
+          Tiếp tục (Enter)
         </button>
+        <p className="text-xs text-slate-400 text-center">Nhấn P để nghe lại</p>
       </div>
     );
   }
 
-  if (showCorrect) {
+  if (phase === 'correct') {
     return (
       <div className="space-y-4 text-center">
         <p className="text-lg font-bold text-emerald-600">Chính xác!</p>
@@ -130,6 +152,14 @@ export const WordOrderQuestion: React.FC<WordOrderQuestionProps> = ({
             </span>
           ))}
         </div>
+        <button
+          type="button"
+          onClick={handleContinue}
+          className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition"
+        >
+          Tiếp tục (Enter)
+        </button>
+        <p className="text-xs text-slate-400">Nhấn P để nghe lại</p>
       </div>
     );
   }

@@ -1,4 +1,4 @@
-import React, {useRef, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {Volume2} from 'lucide-react';
 import {SentenceCard} from '../types';
 import type {AutomaticRating} from '../features/scheduling/automaticRating';
@@ -25,6 +25,11 @@ function wordCount(sentence: string): number {
   return sentence.trim().split(/\s+/).filter(Boolean).length;
 }
 
+function isTextInputElement(target: EventTarget | null): boolean {
+  const tagName = (target as HTMLElement | null)?.tagName;
+  return tagName === 'INPUT' || tagName === 'TEXTAREA';
+}
+
 export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
   sentenceCards,
   onSubmitReview,
@@ -38,6 +43,8 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
   const [wrongAttempts, setWrongAttempts] = useState(0);
   const [showWrongHint, setShowWrongHint] = useState(false);
   const [showDiff, setShowDiff] = useState(false);
+  const [showCorrectPause, setShowCorrectPause] = useState(false);
+  const [pendingRating, setPendingRating] = useState<AutomaticRating | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const startTimeRef = useRef(performance.now());
 
@@ -51,6 +58,8 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
     setWrongAttempts(0);
     setShowWrongHint(false);
     setShowDiff(false);
+    setShowCorrectPause(false);
+    setPendingRating(null);
     startTimeRef.current = performance.now();
   };
 
@@ -67,16 +76,19 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!card || showDiff || isSubmitting) return;
+    if (!card || showDiff || showCorrectPause || isSubmitting) return;
 
     const isCorrect = normalizeText(typedAnswer) === normalizeText(card.englishSentence);
     if (isCorrect) {
       const responseTimeMs = performance.now() - startTimeRef.current;
-      await submitAndAdvance(deriveSentenceRating({
+      const rating = deriveSentenceRating({
         wrongAttemptsBeforeSuccess: wrongAttempts,
         responseTimeMs,
         expectedResponseTimeMs: expectedTypingResponseTimeMs(wordCount(card.englishSentence)),
-      }));
+      });
+      setPendingRating(rating);
+      setShowCorrectPause(true);
+      void playSentenceAudio(card.englishSentence, card.audioUrl);
       return;
     }
 
@@ -84,10 +96,16 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
     setWrongAttempts(nextWrongAttempts);
     if (nextWrongAttempts >= 3) {
       setShowDiff(true);
+      void playSentenceAudio(card.englishSentence, card.audioUrl);
     } else {
       setShowWrongHint(true);
       setTypedAnswer('');
     }
+  };
+
+  const handleContinueAfterCorrect = () => {
+    if (!pendingRating) return;
+    void submitAndAdvance(pendingRating);
   };
 
   const handleContinueAfterDiff = () => void submitAndAdvance('Again');
@@ -103,6 +121,23 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
       : 'Again';
     void submitAndAdvance(rating);
   };
+
+  useEffect(() => {
+    if (questionKind !== 'typing') return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Enter' && (showCorrectPause || showDiff)) {
+        event.preventDefault();
+        if (showCorrectPause) handleContinueAfterCorrect();
+        else handleContinueAfterDiff();
+      } else if ((event.key === 'p' || event.key === 'P') && !isTextInputElement(event.target)) {
+        event.preventDefault();
+        if (card) void playSentenceAudio(card.englishSentence, card.audioUrl);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [questionKind, showCorrectPause, showDiff, pendingRating, card]);
 
   if (!card) {
     return (
@@ -141,6 +176,20 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
               .flatMap((other) => other.englishSentence.trim().split(/\s+/))}
             onResolve={handleWordOrderResolve}
           />
+        ) : showCorrectPause ? (
+          <div className="space-y-4 text-center">
+            <p className="text-lg font-bold text-emerald-600">Chính xác!</p>
+            <p className="text-lg font-semibold text-slate-900">{card.englishSentence}</p>
+            <button
+              type="button"
+              onClick={handleContinueAfterCorrect}
+              disabled={isSubmitting}
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition"
+            >
+              Tiếp tục (Enter)
+            </button>
+            <p className="text-xs text-slate-400">Nhấn P để nghe lại</p>
+          </div>
         ) : showDiff ? (
           <div className="space-y-4">
             <CharacterDiffComparison userInput={typedAnswer} expectedInput={card.englishSentence} />
@@ -160,7 +209,7 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
               disabled={isSubmitting}
               className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition"
             >
-              Tiếp tục
+              Tiếp tục (Enter)
             </button>
           </div>
         ) : (

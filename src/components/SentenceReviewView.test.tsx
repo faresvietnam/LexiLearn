@@ -50,7 +50,7 @@ describe('SentenceReviewView', () => {
     expect(screen.getByText('Không còn câu nào cần ôn tập.')).toBeInTheDocument();
   });
 
-  it('shows the Vietnamese sentence as the prompt and rates Good on a correct first try', async () => {
+  it('pauses after a correct typed answer, plays audio immediately, and waits for Tiếp tục', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.9);
     let now = 0;
     vi.spyOn(performance, 'now').mockImplementation(() => now);
@@ -64,7 +64,39 @@ describe('SentenceReviewView', () => {
     now = 12_000; // matches expectedTypingResponseTimeMs(3) for "The cat sleeps." -> normal pace
     fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
 
+    expect(screen.getByText('Chính xác!')).toBeInTheDocument();
+    expect(playSentenceAudio).toHaveBeenCalledWith('The cat sleeps.', undefined);
+    expect(onSubmitReview).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', {name: /Tiếp tục/}));
     await waitFor(() => expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', 'Good'));
+  });
+
+  it('continues from the correct pause on Enter, and replays audio on p', () => {
+    const onSubmitReview = vi.fn().mockResolvedValue(true);
+    render(<SentenceReviewView sentenceCards={[buildCard({fsrsState: 2})]} onSubmitReview={onSubmitReview} />);
+
+    fireEvent.change(screen.getByLabelText('Viết lại câu tiếng Anh'), {
+      target: {value: 'The cat sleeps.'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
+    expect(playSentenceAudio).toHaveBeenCalledTimes(1);
+
+    fireEvent.keyDown(window, {key: 'p'});
+    expect(playSentenceAudio).toHaveBeenCalledTimes(2);
+
+    fireEvent.keyDown(window, {key: 'Enter'});
+    expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', expect.any(String));
+  });
+
+  it('ignores p while the answer input has focus', () => {
+    render(<SentenceReviewView sentenceCards={[buildCard({fsrsState: 2})]} onSubmitReview={vi.fn()} />);
+
+    const input = screen.getByLabelText('Viết lại câu tiếng Anh');
+    input.focus();
+    fireEvent.keyDown(input, {key: 'p'});
+
+    expect(playSentenceAudio).not.toHaveBeenCalled();
   });
 
   it('shows the image as the prompt when random picks image', () => {
@@ -83,19 +115,22 @@ describe('SentenceReviewView', () => {
     submit();
     expect(await screen.findByText('Sai rồi, thử lại.')).toBeInTheDocument();
     expect(screen.queryByTestId('character-diff-user-row')).not.toBeInTheDocument();
+    expect(playSentenceAudio).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText('Viết lại câu tiếng Anh'), {target: {value: 'wrong two'}});
     submit();
     expect(await screen.findByText('Sai rồi, thử lại.')).toBeInTheDocument();
     expect(screen.queryByTestId('character-diff-user-row')).not.toBeInTheDocument();
+    expect(playSentenceAudio).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText('Viết lại câu tiếng Anh'), {target: {value: 'The cat sleeps.'}});
     submit();
+    fireEvent.click(screen.getByRole('button', {name: /Tiếp tục/}));
 
     await waitFor(() => expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', 'Hard'));
   });
 
-  it('reveals the diff and rates Again after the 3rd wrong attempt, advancing on continue', async () => {
+  it('auto-plays audio on the 3rd-wrong-attempt reveal and continues on Enter', async () => {
     const cards = [
       buildCard({fsrsState: 2}),
       buildCard({id: 'sentence-2', englishSentence: 'Dogs bark.', fsrsState: 2}),
@@ -116,14 +151,15 @@ describe('SentenceReviewView', () => {
     submit();
 
     expect(await screen.findByTestId('character-diff-user-row')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', {name: 'Tiếp tục'}));
+    expect(playSentenceAudio).toHaveBeenCalledWith('The cat sleeps.', undefined);
+
+    fireEvent.keyDown(window, {key: 'Enter'});
 
     await waitFor(() => expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', 'Again'));
     await waitFor(() => expect(screen.getByText('Câu 2 / 2')).toBeInTheDocument());
   });
 
   it('renders the word-order question for a not-yet-mastered card and rates a correct, on-pace arrangement Good', async () => {
-    vi.useFakeTimers();
     let now = 0;
     vi.spyOn(performance, 'now').mockImplementation(() => now);
     const onSubmitReview = vi.fn().mockResolvedValue(true);
@@ -132,16 +168,15 @@ describe('SentenceReviewView', () => {
     expect(screen.getByText('Sắp xếp thành câu tiếng Anh')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', {name: 'The'}));
     fireEvent.click(screen.getByRole('button', {name: 'cat'}));
-    fireEvent.click(screen.getByRole('button', {name: 'sleeps.'}));
+    fireEvent.click(screen.getByRole('button', {name: 'sleeps'}));
     now = 4_000; // matches expectedWordOrderResponseTimeMs(3) -> normal pace
     fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
 
     expect(onSubmitReview).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(1_000);
     expect(playSentenceAudio).toHaveBeenCalledWith('The cat sleeps.', undefined);
-    await vi.advanceTimersByTimeAsync(1_000);
 
-    expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', 'Good');
+    fireEvent.click(screen.getByRole('button', {name: /Tiếp tục/}));
+    await waitFor(() => expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', 'Good'));
   });
 
   it('rates Again after 3 wrong word-order attempts and advances on continue', async () => {
@@ -154,13 +189,13 @@ describe('SentenceReviewView', () => {
     const submitWrongOrder = () => {
       fireEvent.click(screen.getByRole('button', {name: 'cat'}));
       fireEvent.click(screen.getByRole('button', {name: 'The'}));
-      fireEvent.click(screen.getByRole('button', {name: 'sleeps.'}));
+      fireEvent.click(screen.getByRole('button', {name: 'sleeps'}));
       fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
     };
     const undoAll = () => {
       fireEvent.click(screen.getByRole('button', {name: 'cat'}));
       fireEvent.click(screen.getByRole('button', {name: 'The'}));
-      fireEvent.click(screen.getByRole('button', {name: 'sleeps.'}));
+      fireEvent.click(screen.getByRole('button', {name: 'sleeps'}));
     };
 
     submitWrongOrder();
@@ -170,7 +205,7 @@ describe('SentenceReviewView', () => {
     submitWrongOrder();
 
     expect(await screen.findByText('The cat sleeps.')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', {name: 'Tiếp tục'}));
+    fireEvent.click(screen.getByRole('button', {name: /Tiếp tục/}));
 
     await waitFor(() => expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', 'Again'));
     await waitFor(() => expect(screen.getByText('Câu 2 / 2')).toBeInTheDocument());
