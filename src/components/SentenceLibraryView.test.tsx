@@ -51,7 +51,7 @@ describe('SentenceLibraryView', () => {
     expect(screen.getByText(/Chưa có câu nào/)).toBeInTheDocument();
   });
 
-  it('lists a card and calls onDeleteSentenceCard on delete click', () => {
+  it('lists a card and calls onDeleteSentenceCard on delete click, without also playing audio', () => {
     const onDeleteSentenceCard = vi.fn().mockResolvedValue(true);
     render(
       <SentenceLibraryView
@@ -64,9 +64,10 @@ describe('SentenceLibraryView', () => {
     expect(screen.getByText('The cat sleeps.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', {name: 'Xoá câu: The cat sleeps.'}));
     expect(onDeleteSentenceCard).toHaveBeenCalledWith(CARD);
+    expect(playSentenceAudio).not.toHaveBeenCalled();
   });
 
-  it('plays the audio when the sentence text is clicked, with no separate speaker button', () => {
+  it('plays the audio when anywhere on the card is clicked, with no separate speaker button', () => {
     render(
       <SentenceLibraryView
         sentenceCards={[CARD]}
@@ -77,8 +78,21 @@ describe('SentenceLibraryView', () => {
 
     expect(screen.queryByLabelText(/Nghe câu/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', {name: 'The cat sleeps.'}));
+    fireEvent.click(screen.getByTestId('sentence-card'));
     expect(playSentenceAudio).toHaveBeenCalledWith('The cat sleeps.', undefined);
+  });
+
+  it('does not play audio when clicking Sửa or Xoá on the card', () => {
+    render(
+      <SentenceLibraryView
+        sentenceCards={[CARD]}
+        onEditSentenceCard={vi.fn()}
+        onDeleteSentenceCard={vi.fn().mockResolvedValue(true)}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', {name: 'Sửa câu: The cat sleeps.'}));
+    expect(playSentenceAudio).not.toHaveBeenCalled();
   });
 
   it('opens the edit form pre-filled and saves through onEditSentenceCard', async () => {

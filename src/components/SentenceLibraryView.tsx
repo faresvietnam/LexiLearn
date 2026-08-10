@@ -65,7 +65,9 @@ export const SentenceLibraryView: React.FC<SentenceLibraryViewProps> = ({
               return (
                 <div
                   key={card.id}
-                  className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm"
+                  data-testid="sentence-card"
+                  onClick={() => playSentenceAudio(card.englishSentence, card.audioUrl)}
+                  className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm cursor-pointer hover:border-indigo-300 hover:shadow-md transition"
                 >
                   <img src={card.imageUrl} alt="" className="w-full h-32 object-cover" />
                   <div className="p-4 space-y-2">
@@ -82,13 +84,7 @@ export const SentenceLibraryView: React.FC<SentenceLibraryViewProps> = ({
                     <p className="text-[11px] text-slate-400">
                       Ôn tiếp theo: {formatRelativeDueTime(card.nextReviewDate)}
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => playSentenceAudio(card.englishSentence, card.audioUrl)}
-                      className="block text-left text-sm font-semibold text-slate-900 hover:text-indigo-600 transition"
-                    >
-                      {card.englishSentence}
-                    </button>
+                    <p className="text-sm font-semibold text-slate-900">{card.englishSentence}</p>
                     {card.ipa && (
                       <p className="text-xs text-indigo-600 font-mono">{card.ipa}</p>
                     )}
@@ -96,7 +92,10 @@ export const SentenceLibraryView: React.FC<SentenceLibraryViewProps> = ({
                     <div className="flex justify-end gap-2 pt-2">
                       <button
                         type="button"
-                        onClick={() => setEditingCard(card)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setEditingCard(card);
+                        }}
                         aria-label={`Sửa câu: ${card.englishSentence}`}
                         className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition"
                       >
@@ -104,7 +103,10 @@ export const SentenceLibraryView: React.FC<SentenceLibraryViewProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => void onDeleteSentenceCard(card)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void onDeleteSentenceCard(card);
+                        }}
                         aria-label={`Xoá câu: ${card.englishSentence}`}
                         className="p-2 rounded-lg text-rose-600 hover:bg-rose-50 transition"
                       >
