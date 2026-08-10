@@ -126,4 +126,34 @@ describe('SentenceLibraryView', () => {
     expect(screen.queryByText('Sentence number 1.')).not.toBeInTheDocument();
     expect(screen.getByText('Trang 2 / 2')).toBeInTheDocument();
   });
+
+  it('shows the time remaining until the next review', () => {
+    render(
+      <SentenceLibraryView
+        sentenceCards={[buildCard({nextReviewDate: '2026-08-11T00:00:00.000Z'})]}
+        onEditSentenceCard={vi.fn()}
+        onDeleteSentenceCard={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/Ôn tiếp theo:/)).toBeInTheDocument();
+  });
+
+  it('sorts cards by soonest next review date first', () => {
+    const cards = [
+      buildCard({id: 'sentence-later', englishSentence: 'Later sentence.', nextReviewDate: '2026-08-20T00:00:00.000Z'}),
+      buildCard({id: 'sentence-soonest', englishSentence: 'Soonest sentence.', nextReviewDate: '2026-08-10T00:00:00.000Z'}),
+      buildCard({id: 'sentence-middle', englishSentence: 'Middle sentence.', nextReviewDate: '2026-08-15T00:00:00.000Z'}),
+    ];
+    render(
+      <SentenceLibraryView
+        sentenceCards={cards}
+        onEditSentenceCard={vi.fn()}
+        onDeleteSentenceCard={vi.fn()}
+      />,
+    );
+
+    const sentenceTexts = screen.getAllByText(/sentence\./i).map((el) => el.textContent);
+    expect(sentenceTexts).toEqual(['Soonest sentence.', 'Middle sentence.', 'Later sentence.']);
+  });
 });

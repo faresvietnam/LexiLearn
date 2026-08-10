@@ -3,6 +3,7 @@ import {Pencil, Trash2, Volume2} from 'lucide-react';
 import {SentenceCard} from '../types';
 import type {SentenceCardInput} from '../features/persistence/sentenceRepository';
 import {deriveSentenceMemoryStrength} from '../features/scheduling/sentenceRating';
+import {formatRelativeDueTime} from '../features/scheduling/relativeDueTime';
 import {playSentenceAudio} from '../utils/playSentenceAudio';
 import {AddSentenceForm} from './AddSentenceForm';
 
@@ -36,10 +37,13 @@ export const SentenceLibraryView: React.FC<SentenceLibraryViewProps> = ({
   const [editingCard, setEditingCard] = useState<SentenceCard | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
-  const totalPages = Math.max(1, Math.ceil(sentenceCards.length / PAGE_SIZE));
+  const sortedCards = [...sentenceCards].sort(
+    (a, b) => Date.parse(a.nextReviewDate) - Date.parse(b.nextReviewDate),
+  );
+  const totalPages = Math.max(1, Math.ceil(sortedCards.length / PAGE_SIZE));
   const pageStart = (currentPage - 1) * PAGE_SIZE;
-  const pageEnd = Math.min(pageStart + PAGE_SIZE, sentenceCards.length);
-  const pageCards = sentenceCards.slice(pageStart, pageEnd);
+  const pageEnd = Math.min(pageStart + PAGE_SIZE, sortedCards.length);
+  const pageCards = sortedCards.slice(pageStart, pageEnd);
 
   useEffect(() => {
     setCurrentPage((page) => Math.min(page, totalPages));
@@ -75,6 +79,9 @@ export const SentenceLibraryView: React.FC<SentenceLibraryViewProps> = ({
                         {LEARNING_STATUS_LABEL[card.fsrsState]}
                       </span>
                     </div>
+                    <p className="text-[11px] text-slate-400">
+                      Ôn tiếp theo: {formatRelativeDueTime(card.nextReviewDate)}
+                    </p>
                     <p className="text-sm font-semibold text-slate-900">{card.englishSentence}</p>
                     {card.ipa && (
                       <p className="text-xs text-indigo-600 font-mono">{card.ipa}</p>
@@ -114,7 +121,7 @@ export const SentenceLibraryView: React.FC<SentenceLibraryViewProps> = ({
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 text-sm text-slate-600">
             <span>
-              Hiển thị {pageStart + 1}–{pageEnd} / {sentenceCards.length} câu
+              Hiển thị {pageStart + 1}–{pageEnd} / {sortedCards.length} câu
             </span>
             <div className="flex items-center gap-3">
               <button
