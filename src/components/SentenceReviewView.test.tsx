@@ -40,14 +40,35 @@ function buildCard(overrides: Partial<SentenceCard> = {}): SentenceCard {
 }
 
 describe('SentenceReviewView', () => {
-  it('shows the empty state when no card is due', () => {
+  it('shows a "not enough cards" message and the memory-strength distribution when fewer than 5 sentences exist', () => {
     render(
       <SentenceReviewView
-        sentenceCards={[buildCard({nextReviewDate: '2099-01-01T00:00:00.000Z'})]}
+        sentenceCards={[buildCard({nextReviewDate: '2099-01-01T00:00:00.000Z', fsrsState: 2, fsrsRetrievability: 0.9})]}
         onSubmitReview={vi.fn()}
       />,
     );
-    expect(screen.getByText('Không còn câu nào cần ôn tập.')).toBeInTheDocument();
+    expect(screen.getByText('Cần thêm ít nhất 4 câu nữa để đủ 5 câu ôn tập.')).toBeInTheDocument();
+    expect(screen.getByText('Số câu đang có: 1')).toBeInTheDocument();
+    expect(screen.getByText('Phân bố mức ghi nhớ (Memory Strength)')).toBeInTheDocument();
+  });
+
+  it('shows an empty-library message when there are no sentences at all', () => {
+    render(<SentenceReviewView sentenceCards={[]} onSubmitReview={vi.fn()} />);
+    expect(screen.getByText('Chưa có câu nào.')).toBeInTheDocument();
+    expect(screen.getByText('Số câu đang có: 0')).toBeInTheDocument();
+  });
+
+  it('shows when to come back once at least 5 sentences exist but none are due yet', () => {
+    const cards = Array.from({length: 5}, (_, i) => buildCard({
+      id: `sentence-${i + 1}`,
+      nextReviewDate: new Date(Date.UTC(2099, 0, 1 + i, 8, 0, 0)).toISOString(),
+      fsrsState: 2,
+    }));
+    render(<SentenceReviewView sentenceCards={cards} onSubmitReview={vi.fn()} />);
+
+    // The 5th-soonest card (index 4) sets the "come back at" time.
+    expect(screen.getByText(/Hãy quay lại lúc/)).toBeInTheDocument();
+    expect(screen.getByText('Số câu đang có: 5')).toBeInTheDocument();
   });
 
   it('pauses after a correct typed answer, plays audio immediately, and waits for Tiếp tục', async () => {

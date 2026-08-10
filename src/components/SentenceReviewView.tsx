@@ -1,12 +1,14 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {Volume2} from 'lucide-react';
+import {BrainCircuit, Volume2} from 'lucide-react';
 import {SentenceCard} from '../types';
 import type {AutomaticRating} from '../features/scheduling/automaticRating';
 import {
+  deriveSentenceMemoryStrength,
   deriveSentenceRating,
   expectedTypingResponseTimeMs,
   expectedWordOrderResponseTimeMs,
 } from '../features/scheduling/sentenceRating';
+import {formatComeBackAt} from '../features/scheduling/relativeDueTime';
 import {normalizeText} from '../utils/charDiff';
 import {playSentenceAudio} from '../utils/playSentenceAudio';
 import {CharacterDiffComparison} from './CharacterDiffComparison';
@@ -140,9 +142,82 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
   }, [questionKind, showCorrectPause, showDiff, pendingRating, card]);
 
   if (!card) {
+    const total = sentenceCards.length;
+    const MIN_CARDS_FOR_SESSION = 5;
+    const strengths = {strong: 0, stable: 0, weak: 0, critical: 0};
+    sentenceCards.forEach((c) => { strengths[deriveSentenceMemoryStrength(c)] += 1; });
+
+    let headline: string;
+    if (total === 0) {
+      headline = 'Chưa có câu nào.';
+    } else if (total < MIN_CARDS_FOR_SESSION) {
+      headline = `Cần thêm ít nhất ${MIN_CARDS_FOR_SESSION - total} câu nữa để đủ ${MIN_CARDS_FOR_SESSION} câu ôn tập.`;
+    } else {
+      const fifthSoonest = [...sentenceCards]
+        .sort((a, b) => Date.parse(a.nextReviewDate) - Date.parse(b.nextReviewDate))[MIN_CARDS_FOR_SESSION - 1];
+      headline = formatComeBackAt(new Date(fifthSoonest.nextReviewDate), new Date());
+    }
+
     return (
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center space-y-2">
-        <h2 className="text-xl font-bold text-slate-900">Không còn câu nào cần ôn tập.</h2>
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16 space-y-6">
+        <div className="text-center space-y-1">
+          <h2 className="text-xl font-bold text-slate-900">{headline}</h2>
+          <p className="text-sm text-slate-500">Số câu đang có: {total}</p>
+        </div>
+
+        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <BrainCircuit className="w-5 h-5 text-indigo-600" />
+              <span>Phân bố mức ghi nhớ (Memory Strength)</span>
+            </h3>
+            <span className="text-xs text-slate-500 font-medium">{total} câu</span>
+          </div>
+
+          <div className="h-5 w-full bg-slate-100 rounded-full overflow-hidden flex shadow-inner">
+            {total > 0 ? (
+              <>
+                <div title={`Strong: ${strengths.strong}`} style={{width: `${(strengths.strong / total) * 100}%`}} className="bg-emerald-500" />
+                <div title={`Stable: ${strengths.stable}`} style={{width: `${(strengths.stable / total) * 100}%`}} className="bg-blue-500" />
+                <div title={`Weak: ${strengths.weak}`} style={{width: `${(strengths.weak / total) * 100}%`}} className="bg-amber-500" />
+                <div title={`Critical: ${strengths.critical}`} style={{width: `${(strengths.critical / total) * 100}%`}} className="bg-rose-500" />
+              </>
+            ) : (
+              <div className="w-full text-center text-xs text-slate-400 py-1">Chưa có dữ liệu</div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+            <div className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200/80">
+              <div className="flex items-center gap-1.5 text-xs text-emerald-800 font-bold">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                <span>Strong (&gt;80%)</span>
+              </div>
+              <div className="text-xl font-bold text-slate-900 mt-1">{strengths.strong}</div>
+            </div>
+            <div className="p-3 rounded-2xl bg-blue-50/70 border border-blue-200/80">
+              <div className="flex items-center gap-1.5 text-xs text-blue-800 font-bold">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                <span>Stable (50-80%)</span>
+              </div>
+              <div className="text-xl font-bold text-slate-900 mt-1">{strengths.stable}</div>
+            </div>
+            <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200/80">
+              <div className="flex items-center gap-1.5 text-xs text-amber-800 font-bold">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                <span>Weak (25-50%)</span>
+              </div>
+              <div className="text-xl font-bold text-slate-900 mt-1">{strengths.weak}</div>
+            </div>
+            <div className="p-3 rounded-2xl bg-rose-50/70 border border-rose-200/80">
+              <div className="flex items-center gap-1.5 text-xs text-rose-800 font-bold">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                <span>Critical (&lt;25%)</span>
+              </div>
+              <div className="text-xl font-bold text-slate-900 mt-1">{strengths.critical}</div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
