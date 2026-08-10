@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {Pencil, Trash2, Volume2} from 'lucide-react';
+import {Pencil, Trash2} from 'lucide-react';
 import {SentenceCard} from '../types';
 import type {SentenceCardInput} from '../features/persistence/sentenceRepository';
 import {deriveSentenceMemoryStrength} from '../features/scheduling/sentenceRating';
@@ -82,20 +82,18 @@ export const SentenceLibraryView: React.FC<SentenceLibraryViewProps> = ({
                     <p className="text-[11px] text-slate-400">
                       Ôn tiếp theo: {formatRelativeDueTime(card.nextReviewDate)}
                     </p>
-                    <p className="text-sm font-semibold text-slate-900">{card.englishSentence}</p>
+                    <button
+                      type="button"
+                      onClick={() => playSentenceAudio(card.englishSentence, card.audioUrl)}
+                      className="block text-left text-sm font-semibold text-slate-900 hover:text-indigo-600 transition"
+                    >
+                      {card.englishSentence}
+                    </button>
                     {card.ipa && (
                       <p className="text-xs text-indigo-600 font-mono">{card.ipa}</p>
                     )}
                     <p className="text-sm text-slate-500">{card.vietnameseSentence}</p>
                     <div className="flex justify-end gap-2 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => playSentenceAudio(card.englishSentence, card.audioUrl)}
-                        aria-label={`Nghe câu: ${card.englishSentence}`}
-                        className="p-2 rounded-lg text-indigo-600 hover:bg-indigo-50 transition"
-                      >
-                        <Volume2 className="w-4 h-4" />
-                      </button>
                       <button
                         type="button"
                         onClick={() => setEditingCard(card)}

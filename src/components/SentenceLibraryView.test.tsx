@@ -1,10 +1,19 @@
 import React from 'react';
 import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {afterEach, describe, expect, it, vi} from 'vitest';
+
+const {playSentenceAudio} = vi.hoisted(() => ({
+  playSentenceAudio: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('../utils/playSentenceAudio', () => ({playSentenceAudio}));
+
 import {SentenceLibraryView} from './SentenceLibraryView';
 import type {SentenceCard} from '../types';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 const CARD: SentenceCard = {
   id: 'sentence-1',
@@ -55,6 +64,21 @@ describe('SentenceLibraryView', () => {
     expect(screen.getByText('The cat sleeps.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', {name: 'Xoá câu: The cat sleeps.'}));
     expect(onDeleteSentenceCard).toHaveBeenCalledWith(CARD);
+  });
+
+  it('plays the audio when the sentence text is clicked, with no separate speaker button', () => {
+    render(
+      <SentenceLibraryView
+        sentenceCards={[CARD]}
+        onEditSentenceCard={vi.fn()}
+        onDeleteSentenceCard={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByLabelText(/Nghe câu/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', {name: 'The cat sleeps.'}));
+    expect(playSentenceAudio).toHaveBeenCalledWith('The cat sleeps.', undefined);
   });
 
   it('opens the edit form pre-filled and saves through onEditSentenceCard', async () => {
