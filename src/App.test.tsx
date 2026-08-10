@@ -393,7 +393,7 @@ describe('App private vocabulary creation', () => {
   it('does not call create_private_word for an existing private word', async () => {
     render(<App />);
 
-    fireEvent.click(await screen.findByText('Thêm từ mới'));
+    fireEvent.click(await screen.findByText('Add data'));
     fireEvent.change(screen.getByPlaceholderText('e.g. transportation'), {
       target: {value: ' Unprecedented '},
     });

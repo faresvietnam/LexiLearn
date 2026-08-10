@@ -15,6 +15,7 @@ import {
   StudyAttemptInput,
   MeaningCard,
   Question,
+  SentenceCard,
 } from './types';
 import {
   INITIAL_WORDS,
@@ -90,6 +91,18 @@ import {
 import {routeImportedRow} from './features/import/importRouting';
 import {resolveJsonImportWords} from './features/import/jsonImportResolver';
 import {getStudyDate} from './lib/studyDate';
+import {
+  createSentenceCard,
+  deleteSentenceCard,
+  loadSentenceCards,
+  submitSentenceReview,
+  updateSentenceCard,
+  type SentenceCardInput,
+} from './features/persistence/sentenceRepository';
+import {AddSentenceForm} from './components/AddSentenceForm';
+import {SentenceLibraryView} from './components/SentenceLibraryView';
+import {SentenceReviewView} from './components/SentenceReviewView';
+import {SubTabToggle} from './components/SubTabToggle';
 
 export default function App() {
   const auth = useAuth();
@@ -163,6 +176,11 @@ function AuthenticatedApp({
   const [selectedWordDetail, setSelectedWordDetail] = useState<Word | null>(null);
   const [vocabularyMemoryFilter, setVocabularyMemoryFilter] = useState<MemoryStrength | null>(null);
 
+  // Sentence Cards State
+  const [sentenceCards, setSentenceCards] = useState<SentenceCard[]>([]);
+  const [addDataSubTab, setAddDataSubTab] = useState<'word' | 'sentence'>('word');
+  const [dataLibrarySubTab, setDataLibrarySubTab] = useState<'word' | 'sentence'>('word');
+
   // Notification Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -179,7 +197,11 @@ function AuthenticatedApp({
     setSettings(null);
     setAttemptAnalytics([]);
     setDailyNewWordsStarted(0);
+    setSentenceCards([]);
 
+    void loadSentenceCards(user.id).then((result) => {
+      if (alive && result.data) setSentenceCards(result.data);
+    });
     void loadLearnerState(user.id).then((result) => {
       if (!alive) return;
       if (result.error) {
@@ -559,6 +581,69 @@ function AuthenticatedApp({
     return true;
   };
 
+  const handleCreateSentenceCard = async (input: SentenceCardInput): Promise<boolean> => {
+    if (!client || !user) return false;
+    const result = await createSentenceCard(user.id, input);
+    if (result.error || !result.data) {
+      showToast(result.error ?? 'Không thể lưu câu.');
+      return false;
+    }
+    setSentenceCards((prev) => [result.data as SentenceCard, ...prev]);
+    showToast('Đã thêm câu mới.');
+    return true;
+  };
+
+  const handleUpdateSentenceCard = async (
+    id: string,
+    input: SentenceCardInput,
+  ): Promise<boolean> => {
+    if (!client || !user) return false;
+    const existing = sentenceCards.find((card) => card.id === id);
+    const result = await updateSentenceCard(user.id, id, input);
+    if (result.error || !result.data) {
+      showToast(result.error ?? 'Không thể lưu câu.');
+      return false;
+    }
+    if (existing && existing.imageObjectKey !== input.imageObjectKey) {
+      await deleteWordImage(existing.imageObjectKey);
+    }
+    const updatedCard = result.data;
+    setSentenceCards((prev) => prev.map((card) => (card.id === id ? updatedCard : card)));
+    showToast('Đã cập nhật câu.');
+    return true;
+  };
+
+  const handleDeleteSentenceCard = async (card: SentenceCard): Promise<boolean> => {
+    if (!window.confirm(`Xoá vĩnh viễn câu "${card.englishSentence}"? Không thể khôi phục.`)) {
+      return false;
+    }
+    if (!client || !user) return false;
+    const result = await deleteSentenceCard(user.id, card.id);
+    if (result.error) {
+      showToast(result.error);
+      return false;
+    }
+    await deleteWordImage(card.imageObjectKey);
+    setSentenceCards((prev) => prev.filter(({id}) => id !== card.id));
+    showToast(`Đã xoá câu "${card.englishSentence}".`);
+    return true;
+  };
+
+  const handleSubmitSentenceReview = async (
+    cardId: string,
+    rating: AutomaticRating,
+  ): Promise<boolean> => {
+    if (!client || !user) return false;
+    const result = await submitSentenceReview(user.id, cardId, rating, new Date());
+    if (result.error || !result.data) {
+      showToast(result.error ?? 'Không thể lưu kết quả ôn tập.');
+      return false;
+    }
+    const updatedCard = result.data;
+    setSentenceCards((prev) => prev.map((card) => (card.id === cardId ? updatedCard : card)));
+    return true;
+  };
+
   const handleAddWord = async (newWord: Word) => {
     const normalizedWord = newWord.word.trim().toLowerCase();
     if (words.some((word) =>
@@ -918,6 +1003,13 @@ function AuthenticatedApp({
             </div>
           )}
 
+          {currentTab === 'sentence_review' && (
+            <SentenceReviewView
+              sentenceCards={sentenceCards}
+              onSubmitReview={handleSubmitSentenceReview}
+            />
+          )}
+
           {currentTab === 'rootword' && (
             <RootWordInsightsView
               words={words}
@@ -928,28 +1020,44 @@ function AuthenticatedApp({
           )}
 
           {currentTab === 'add_word' && (
-            <AddWordModal
-              decks={decks}
-              tags={tags}
-              globalWords={globalWords}
-              linkedGlobalWords={words
-                .filter(({isGlobal}) => isGlobal)
-                .map(({id, word, ipa}) => ({id, word, ipa}))
-              }
-              aiSettings={{
-                aiProvider: settings.aiProvider,
-                geminiApiKey: settings.geminiApiKey,
-                openAICompatibleTokenConfigured:
-                  settings.openAICompatibleTokenConfigured,
-              }}
-              onAddWord={async (newWord) => {
-                return handleAddWord(newWord);
-              }}
-              onLinkExistingGlobalWord={async (id) => {
-                return handleLinkExistingGlobalWord(id);
-              }}
-              onClose={() => setCurrentTab('vocabulary')}
-            />
+            <>
+              <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+                <SubTabToggle
+                  options={[{id: 'word', label: 'Từ vựng'}, {id: 'sentence', label: 'Câu'}]}
+                  activeId={addDataSubTab}
+                  onSelect={(id) => setAddDataSubTab(id as 'word' | 'sentence')}
+                />
+              </div>
+              {addDataSubTab === 'word' ? (
+                <AddWordModal
+                  decks={decks}
+                  tags={tags}
+                  globalWords={globalWords}
+                  linkedGlobalWords={words
+                    .filter(({isGlobal}) => isGlobal)
+                    .map(({id, word, ipa}) => ({id, word, ipa}))
+                  }
+                  aiSettings={{
+                    aiProvider: settings.aiProvider,
+                    geminiApiKey: settings.geminiApiKey,
+                    openAICompatibleTokenConfigured:
+                      settings.openAICompatibleTokenConfigured,
+                  }}
+                  onAddWord={async (newWord) => {
+                    return handleAddWord(newWord);
+                  }}
+                  onLinkExistingGlobalWord={async (id) => {
+                    return handleLinkExistingGlobalWord(id);
+                  }}
+                  onClose={() => setCurrentTab('vocabulary')}
+                />
+              ) : (
+                <AddSentenceForm
+                  onSave={handleCreateSentenceCard}
+                  onClose={() => setCurrentTab('vocabulary')}
+                />
+              )}
+            </>
           )}
 
           {currentTab === 'import_json' && (
@@ -967,18 +1075,35 @@ function AuthenticatedApp({
           )}
 
           {currentTab === 'vocabulary' && (
-            <VocabularyLibraryView
-              words={words}
-              decks={decks}
-              tags={tags}
-              initialMemoryFilter={vocabularyMemoryFilter}
-              onOpenAddWordModal={() => setCurrentTab('add_word')}
-              onOpenWordDetail={(w) => setSelectedWordDetail(w)}
-              onUpdateWordStatus={handleUpdateWordStatus}
-              onBulkUpdateStatus={handleBulkUpdateStatus}
-              onBulkMoveDeck={handleMoveWords}
-              onDeleteWord={handleDeleteWord}
-            />
+            <>
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+                <SubTabToggle
+                  options={[{id: 'word', label: 'Từ vựng'}, {id: 'sentence', label: 'Câu'}]}
+                  activeId={dataLibrarySubTab}
+                  onSelect={(id) => setDataLibrarySubTab(id as 'word' | 'sentence')}
+                />
+              </div>
+              {dataLibrarySubTab === 'word' ? (
+                <VocabularyLibraryView
+                  words={words}
+                  decks={decks}
+                  tags={tags}
+                  initialMemoryFilter={vocabularyMemoryFilter}
+                  onOpenAddWordModal={() => setCurrentTab('add_word')}
+                  onOpenWordDetail={(w) => setSelectedWordDetail(w)}
+                  onUpdateWordStatus={handleUpdateWordStatus}
+                  onBulkUpdateStatus={handleBulkUpdateStatus}
+                  onBulkMoveDeck={handleMoveWords}
+                  onDeleteWord={handleDeleteWord}
+                />
+              ) : (
+                <SentenceLibraryView
+                  sentenceCards={sentenceCards}
+                  onEditSentenceCard={handleUpdateSentenceCard}
+                  onDeleteSentenceCard={handleDeleteSentenceCard}
+                />
+              )}
+            </>
           )}
 
           {currentTab === 'decks_tags' && (

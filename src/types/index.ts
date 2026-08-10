@@ -268,3 +268,25 @@ export type JsonWordInput = {
   meanings: JsonWordMeaningInput[];
   parts?: JsonWordPartInput[];
 };
+
+export interface SentenceCard {
+  id: string;
+  imageUrl: string;
+  imageObjectKey: string;
+  englishSentence: string;
+  vietnameseSentence: string;
+  createdAt: string;
+
+  nextReviewDate: string;
+  lastReviewedDate?: string;
+  reviewIntervalDays: number;
+  fsrsState: FsrsState;
+  fsrsStability: number;
+  fsrsDifficulty: number;
+  fsrsElapsedDays: number;
+  fsrsScheduledDays: number;
+  fsrsLearningSteps: number;
+  fsrsReps: number;
+  fsrsLapses: number;
+  fsrsRetrievability: number;
+}

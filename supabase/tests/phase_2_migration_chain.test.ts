@@ -53,6 +53,7 @@ describe('database migration chain', () => {
       '20260807000000_fix_create_private_word_tag_ids_uuid_cast.sql',
       '20260807010000_fix_admin_user_stats_word_level_new_word_count.sql',
       '20260807080000_word_level_new_word_quota.sql',
+      '20260810120000_add_sentence_cards.sql',
     ]);
   });
 
