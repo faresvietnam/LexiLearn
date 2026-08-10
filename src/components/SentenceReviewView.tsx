@@ -1,11 +1,16 @@
-import React, {useState} from 'react';
+import React, {useRef, useState} from 'react';
 import {Volume2} from 'lucide-react';
 import {SentenceCard} from '../types';
 import type {AutomaticRating} from '../features/scheduling/automaticRating';
-import {deriveSentenceRating} from '../features/scheduling/sentenceRating';
+import {
+  deriveSentenceRating,
+  expectedTypingResponseTimeMs,
+  expectedWordOrderResponseTimeMs,
+} from '../features/scheduling/sentenceRating';
 import {normalizeText} from '../utils/charDiff';
 import {playSentenceAudio} from '../utils/playSentenceAudio';
 import {CharacterDiffComparison} from './CharacterDiffComparison';
+import {WordOrderQuestion} from './WordOrderQuestion';
 
 interface SentenceReviewViewProps {
   sentenceCards: SentenceCard[];
@@ -14,6 +19,10 @@ interface SentenceReviewViewProps {
 
 function pickPromptKind(): 'image' | 'vietnamese' {
   return Math.random() < 0.5 ? 'image' : 'vietnamese';
+}
+
+function wordCount(sentence: string): number {
+  return sentence.trim().split(/\s+/).filter(Boolean).length;
 }
 
 export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
@@ -30,8 +39,10 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
   const [showWrongHint, setShowWrongHint] = useState(false);
   const [showDiff, setShowDiff] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const startTimeRef = useRef(performance.now());
 
   const card = queue[index];
+  const questionKind = card && card.fsrsState === 2 ? 'typing' : 'word_order';
 
   const advance = () => {
     setIndex((current) => current + 1);
@@ -40,6 +51,18 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
     setWrongAttempts(0);
     setShowWrongHint(false);
     setShowDiff(false);
+    startTimeRef.current = performance.now();
+  };
+
+  const submitAndAdvance = async (rating: AutomaticRating) => {
+    if (!card) return;
+    setIsSubmitting(true);
+    try {
+      await onSubmitReview(card.id, rating);
+      advance();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -47,36 +70,38 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
     if (!card || showDiff || isSubmitting) return;
 
     const isCorrect = normalizeText(typedAnswer) === normalizeText(card.englishSentence);
-    setIsSubmitting(true);
-    try {
-      if (isCorrect) {
-        await onSubmitReview(card.id, deriveSentenceRating(wrongAttempts));
-        advance();
-        return;
-      }
+    if (isCorrect) {
+      const responseTimeMs = performance.now() - startTimeRef.current;
+      await submitAndAdvance(deriveSentenceRating({
+        wrongAttemptsBeforeSuccess: wrongAttempts,
+        responseTimeMs,
+        expectedResponseTimeMs: expectedTypingResponseTimeMs(wordCount(card.englishSentence)),
+      }));
+      return;
+    }
 
-      const nextWrongAttempts = wrongAttempts + 1;
-      setWrongAttempts(nextWrongAttempts);
-      if (nextWrongAttempts >= 3) {
-        setShowDiff(true);
-      } else {
-        setShowWrongHint(true);
-        setTypedAnswer('');
-      }
-    } finally {
-      setIsSubmitting(false);
+    const nextWrongAttempts = wrongAttempts + 1;
+    setWrongAttempts(nextWrongAttempts);
+    if (nextWrongAttempts >= 3) {
+      setShowDiff(true);
+    } else {
+      setShowWrongHint(true);
+      setTypedAnswer('');
     }
   };
 
-  const handleContinueAfterDiff = async () => {
+  const handleContinueAfterDiff = () => void submitAndAdvance('Again');
+
+  const handleWordOrderResolve = (result: {isCorrect: boolean; wrongAttempts: number; responseTimeMs: number}) => {
     if (!card) return;
-    setIsSubmitting(true);
-    try {
-      await onSubmitReview(card.id, 'Again');
-      advance();
-    } finally {
-      setIsSubmitting(false);
-    }
+    const rating = result.isCorrect
+      ? deriveSentenceRating({
+          wrongAttemptsBeforeSuccess: result.wrongAttempts,
+          responseTimeMs: result.responseTimeMs,
+          expectedResponseTimeMs: expectedWordOrderResponseTimeMs(wordCount(card.englishSentence)),
+        })
+      : 'Again';
+    void submitAndAdvance(rating);
   };
 
   if (!card) {
@@ -106,7 +131,13 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
           </p>
         )}
 
-        {showDiff ? (
+        {questionKind === 'word_order' ? (
+          <WordOrderQuestion
+            key={card.id}
+            sentence={card.englishSentence}
+            onResolve={handleWordOrderResolve}
+          />
+        ) : showDiff ? (
           <div className="space-y-4">
             <CharacterDiffComparison userInput={typedAnswer} expectedInput={card.englishSentence} />
             {card.ipa && (
@@ -121,7 +152,7 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => void handleContinueAfterDiff()}
+              onClick={handleContinueAfterDiff}
               disabled={isSubmitting}
               className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition"
             >
