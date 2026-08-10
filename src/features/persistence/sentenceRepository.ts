@@ -85,15 +85,19 @@ export async function loadSentenceCards(
   const client = getSupabaseClient();
   if (!client) return {data: null, error: LOAD_ERROR};
 
-  const {data, error} = await client
-    .from('sentence_cards')
-    .select(SENTENCE_CARD_SELECT)
-    .eq('owner_user_id', userId)
-    .order('next_review_at', {ascending: true});
+  try {
+    const {data, error} = await client
+      .from('sentence_cards')
+      .select(SENTENCE_CARD_SELECT)
+      .eq('owner_user_id', userId)
+      .order('next_review_at', {ascending: true});
 
-  return error || !data
-    ? {data: null, error: LOAD_ERROR}
-    : {data: (data as unknown as SentenceCardRow[]).map(mapSentenceCardRow), error: null};
+    return error || !data
+      ? {data: null, error: LOAD_ERROR}
+      : {data: (data as unknown as SentenceCardRow[]).map(mapSentenceCardRow), error: null};
+  } catch {
+    return {data: null, error: LOAD_ERROR};
+  }
 }
 
 export async function createSentenceCard(
@@ -103,21 +107,25 @@ export async function createSentenceCard(
   const client = getSupabaseClient();
   if (!client) return {data: null, error: SAVE_ERROR};
 
-  const {data, error} = await client
-    .from('sentence_cards')
-    .insert({
-      owner_user_id: userId,
-      image_url: input.imageUrl,
-      image_object_key: input.imageObjectKey,
-      english_sentence: input.englishSentence.trim(),
-      vietnamese_sentence: input.vietnameseSentence.trim(),
-    })
-    .select(SENTENCE_CARD_SELECT)
-    .single();
+  try {
+    const {data, error} = await client
+      .from('sentence_cards')
+      .insert({
+        owner_user_id: userId,
+        image_url: input.imageUrl,
+        image_object_key: input.imageObjectKey,
+        english_sentence: input.englishSentence.trim(),
+        vietnamese_sentence: input.vietnameseSentence.trim(),
+      })
+      .select(SENTENCE_CARD_SELECT)
+      .single();
 
-  return error || !data
-    ? {data: null, error: SAVE_ERROR}
-    : {data: mapSentenceCardRow(data as unknown as SentenceCardRow), error: null};
+    return error || !data
+      ? {data: null, error: SAVE_ERROR}
+      : {data: mapSentenceCardRow(data as unknown as SentenceCardRow), error: null};
+  } catch {
+    return {data: null, error: SAVE_ERROR};
+  }
 }
 
 export async function updateSentenceCard(
@@ -128,22 +136,26 @@ export async function updateSentenceCard(
   const client = getSupabaseClient();
   if (!client) return {data: null, error: SAVE_ERROR};
 
-  const {data, error} = await client
-    .from('sentence_cards')
-    .update({
-      image_url: input.imageUrl,
-      image_object_key: input.imageObjectKey,
-      english_sentence: input.englishSentence.trim(),
-      vietnamese_sentence: input.vietnameseSentence.trim(),
-    })
-    .eq('id', id)
-    .eq('owner_user_id', userId)
-    .select(SENTENCE_CARD_SELECT)
-    .single();
+  try {
+    const {data, error} = await client
+      .from('sentence_cards')
+      .update({
+        image_url: input.imageUrl,
+        image_object_key: input.imageObjectKey,
+        english_sentence: input.englishSentence.trim(),
+        vietnamese_sentence: input.vietnameseSentence.trim(),
+      })
+      .eq('id', id)
+      .eq('owner_user_id', userId)
+      .select(SENTENCE_CARD_SELECT)
+      .single();
 
-  return error || !data
-    ? {data: null, error: SAVE_ERROR}
-    : {data: mapSentenceCardRow(data as unknown as SentenceCardRow), error: null};
+    return error || !data
+      ? {data: null, error: SAVE_ERROR}
+      : {data: mapSentenceCardRow(data as unknown as SentenceCardRow), error: null};
+  } catch {
+    return {data: null, error: SAVE_ERROR};
+  }
 }
 
 export async function deleteSentenceCard(
@@ -153,16 +165,20 @@ export async function deleteSentenceCard(
   const client = getSupabaseClient();
   if (!client) return {data: null, error: DELETE_ERROR};
 
-  const {data, error} = await client
-    .from('sentence_cards')
-    .delete()
-    .eq('id', id)
-    .eq('owner_user_id', userId)
-    .select('id');
+  try {
+    const {data, error} = await client
+      .from('sentence_cards')
+      .delete()
+      .eq('id', id)
+      .eq('owner_user_id', userId)
+      .select('id');
 
-  return error || !data?.length
-    ? {data: null, error: DELETE_ERROR}
-    : {data: true, error: null};
+    return error || !data?.length
+      ? {data: null, error: DELETE_ERROR}
+      : {data: true, error: null};
+  } catch {
+    return {data: null, error: DELETE_ERROR};
+  }
 }
 
 function toSentenceScheduleUpdate(schedule: LearningCardScheduleUpdate) {
@@ -192,29 +208,33 @@ export async function submitSentenceReview(
   const client = getSupabaseClient();
   if (!client) return {data: null, error: REVIEW_ERROR};
 
-  const {data: row, error: readError} = await client
-    .from('sentence_cards')
-    .select(FSRS_ROW_SELECT)
-    .eq('id', id)
-    .eq('owner_user_id', userId)
-    .single();
-  if (readError || !row) return {data: null, error: REVIEW_ERROR};
+  try {
+    const {data: row, error: readError} = await client
+      .from('sentence_cards')
+      .select(FSRS_ROW_SELECT)
+      .eq('id', id)
+      .eq('owner_user_id', userId)
+      .single();
+    if (readError || !row) return {data: null, error: REVIEW_ERROR};
 
-  const {persistence} = scheduleCard(
-    row as unknown as LearningCardFsrsRow,
-    rating,
-    reviewedAt,
-  );
+    const {persistence} = scheduleCard(
+      row as unknown as LearningCardFsrsRow,
+      rating,
+      reviewedAt,
+    );
 
-  const {data, error} = await client
-    .from('sentence_cards')
-    .update(toSentenceScheduleUpdate(persistence))
-    .eq('id', id)
-    .eq('owner_user_id', userId)
-    .select(SENTENCE_CARD_SELECT)
-    .single();
+    const {data, error} = await client
+      .from('sentence_cards')
+      .update(toSentenceScheduleUpdate(persistence))
+      .eq('id', id)
+      .eq('owner_user_id', userId)
+      .select(SENTENCE_CARD_SELECT)
+      .single();
 
-  return error || !data
-    ? {data: null, error: REVIEW_ERROR}
-    : {data: mapSentenceCardRow(data as unknown as SentenceCardRow), error: null};
+    return error || !data
+      ? {data: null, error: REVIEW_ERROR}
+      : {data: mapSentenceCardRow(data as unknown as SentenceCardRow), error: null};
+  } catch {
+    return {data: null, error: REVIEW_ERROR};
+  }
 }
