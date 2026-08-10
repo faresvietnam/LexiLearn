@@ -15,6 +15,7 @@ const REVIEW_ERROR = 'Không thể lưu kết quả ôn tập. Vui lòng thử l
 
 const SENTENCE_CARD_SELECT = `
   id, image_url, image_object_key, english_sentence, vietnamese_sentence,
+  ipa, audio_url,
   created_at, next_review_at, last_reviewed_at, review_interval_days,
   fsrs_state_version, fsrs_state, fsrs_stability, fsrs_difficulty,
   fsrs_elapsed_days, fsrs_scheduled_days, fsrs_learning_steps, fsrs_reps,
@@ -33,6 +34,8 @@ type SentenceCardRow = {
   image_object_key: string;
   english_sentence: string;
   vietnamese_sentence: string;
+  ipa: string | null;
+  audio_url: string | null;
   created_at: string;
   next_review_at: string;
   last_reviewed_at: string | null;
@@ -56,6 +59,8 @@ function mapSentenceCardRow(row: SentenceCardRow): SentenceCard {
     imageObjectKey: row.image_object_key,
     englishSentence: row.english_sentence,
     vietnameseSentence: row.vietnamese_sentence,
+    ...(row.ipa ? {ipa: row.ipa} : {}),
+    ...(row.audio_url ? {audioUrl: row.audio_url} : {}),
     createdAt: row.created_at,
     nextReviewDate: row.next_review_at,
     ...(row.last_reviewed_at ? {lastReviewedDate: row.last_reviewed_at} : {}),
@@ -77,6 +82,8 @@ export type SentenceCardInput = {
   imageObjectKey: string;
   englishSentence: string;
   vietnameseSentence: string;
+  ipa?: string;
+  audioUrl?: string;
 };
 
 export async function loadSentenceCards(
@@ -116,6 +123,8 @@ export async function createSentenceCard(
         image_object_key: input.imageObjectKey,
         english_sentence: input.englishSentence.trim(),
         vietnamese_sentence: input.vietnameseSentence.trim(),
+        ipa: input.ipa?.trim() || null,
+        audio_url: input.audioUrl?.trim() || null,
       })
       .select(SENTENCE_CARD_SELECT)
       .single();
@@ -144,6 +153,8 @@ export async function updateSentenceCard(
         image_object_key: input.imageObjectKey,
         english_sentence: input.englishSentence.trim(),
         vietnamese_sentence: input.vietnameseSentence.trim(),
+        ipa: input.ipa?.trim() || null,
+        audio_url: input.audioUrl?.trim() || null,
       })
       .eq('id', id)
       .eq('owner_user_id', userId)

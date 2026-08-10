@@ -275,6 +275,8 @@ export interface SentenceCard {
   imageObjectKey: string;
   englishSentence: string;
   vietnameseSentence: string;
+  ipa?: string;
+  audioUrl?: string;
   createdAt: string;
 
   nextReviewDate: string;

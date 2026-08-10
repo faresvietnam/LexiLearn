@@ -1,7 +1,8 @@
 import React, {useState} from 'react';
-import {Pencil, Trash2} from 'lucide-react';
+import {Pencil, Trash2, Volume2} from 'lucide-react';
 import {SentenceCard} from '../types';
 import type {SentenceCardInput} from '../features/persistence/sentenceRepository';
+import {playSentenceAudio} from '../utils/playSentenceAudio';
 import {AddSentenceForm} from './AddSentenceForm';
 
 interface SentenceLibraryViewProps {
@@ -35,8 +36,19 @@ export const SentenceLibraryView: React.FC<SentenceLibraryViewProps> = ({
               <img src={card.imageUrl} alt="" className="w-full h-32 object-cover" />
               <div className="p-4 space-y-2">
                 <p className="text-sm font-semibold text-slate-900">{card.englishSentence}</p>
+                {card.ipa && (
+                  <p className="text-xs text-indigo-600 font-mono">{card.ipa}</p>
+                )}
                 <p className="text-sm text-slate-500">{card.vietnameseSentence}</p>
                 <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => playSentenceAudio(card.englishSentence, card.audioUrl)}
+                    aria-label={`Nghe câu: ${card.englishSentence}`}
+                    className="p-2 rounded-lg text-indigo-600 hover:bg-indigo-50 transition"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                  </button>
                   <button
                     type="button"
                     onClick={() => setEditingCard(card)}

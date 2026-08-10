@@ -71,6 +71,8 @@ describe('AddSentenceForm — create mode', () => {
       imageObjectKey: 'users/user-1/images/new.png',
       englishSentence: 'The cat sleeps.',
       vietnameseSentence: 'Con mèo đang ngủ.',
+      ipa: '',
+      audioUrl: '',
     }));
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
@@ -90,6 +92,38 @@ describe('AddSentenceForm — create mode', () => {
     await waitFor(() => expect(deleteWordImage).toHaveBeenCalledWith(
       'users/user-1/images/new.png',
     ));
+  });
+
+  it('passes optional IPA and audio URL through to onSave', async () => {
+    uploadWordImage.mockResolvedValue({
+      objectKey: 'users/user-1/images/new.png',
+      publicUrl: 'https://images.example/new.png',
+    });
+    const onSave = vi.fn().mockResolvedValue(true);
+    render(<AddSentenceForm onSave={onSave} onClose={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText('Ảnh minh họa'), {
+      target: {files: [new File(['image'], 'cat.png', {type: 'image/png'})]},
+    });
+    await screen.findByAltText('Ảnh minh họa xem trước');
+    fireEvent.change(screen.getByLabelText('Câu tiếng Anh'), {
+      target: {value: 'The cat sleeps.'},
+    });
+    fireEvent.change(screen.getByLabelText('Câu tiếng Việt'), {
+      target: {value: 'Con mèo đang ngủ.'},
+    });
+    fireEvent.change(screen.getByLabelText('Phiên âm (tuỳ chọn)'), {
+      target: {value: '/ðə kæt sliːps/'},
+    });
+    fireEvent.change(screen.getByLabelText('Link file âm thanh (tuỳ chọn)'), {
+      target: {value: 'https://example.com/cat.mp3'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Lưu câu'}));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      ipa: '/ðə kæt sliːps/',
+      audioUrl: 'https://example.com/cat.mp3',
+    })));
   });
 });
 

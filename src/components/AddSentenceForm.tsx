@@ -17,6 +17,8 @@ export const AddSentenceForm: React.FC<AddSentenceFormProps> = ({
 }) => {
   const [englishSentence, setEnglishSentence] = useState(initialCard?.englishSentence ?? '');
   const [vietnameseSentence, setVietnameseSentence] = useState(initialCard?.vietnameseSentence ?? '');
+  const [ipa, setIpa] = useState(initialCard?.ipa ?? '');
+  const [audioUrl, setAudioUrl] = useState(initialCard?.audioUrl ?? '');
   const [uploadedImage, setUploadedImage] = useState<UploadedImage | null>(
     initialCard
       ? {objectKey: initialCard.imageObjectKey, publicUrl: initialCard.imageUrl}
@@ -75,6 +77,8 @@ export const AddSentenceForm: React.FC<AddSentenceFormProps> = ({
         imageObjectKey: uploadedImage.objectKey,
         englishSentence,
         vietnameseSentence,
+        ipa,
+        audioUrl,
       });
     } finally {
       setIsSaving(false);
@@ -138,18 +142,46 @@ export const AddSentenceForm: React.FC<AddSentenceFormProps> = ({
               />
             </div>
           </div>
-          <div className="space-y-1.5">
-            <label htmlFor="sentence-en" className="text-xs font-bold text-slate-700">
-              Câu tiếng Anh
-            </label>
-            <textarea
-              id="sentence-en"
-              value={englishSentence}
-              onChange={(event) => setEnglishSentence(event.target.value)}
-              placeholder="e.g. The cat is sleeping on the sofa."
-              rows={10}
-              className="w-full h-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
-            />
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label htmlFor="sentence-en" className="text-xs font-bold text-slate-700">
+                Câu tiếng Anh
+              </label>
+              <textarea
+                id="sentence-en"
+                value={englishSentence}
+                onChange={(event) => setEnglishSentence(event.target.value)}
+                placeholder="e.g. The cat is sleeping on the sofa."
+                rows={6}
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="sentence-ipa" className="text-xs font-bold text-slate-700">
+                Phiên âm (tuỳ chọn)
+              </label>
+              <input
+                id="sentence-ipa"
+                type="text"
+                value={ipa}
+                onChange={(event) => setIpa(event.target.value)}
+                placeholder="e.g. /ðə kæt ɪz ˈsliːpɪŋ ɒn ðə ˈsoʊfə/"
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono focus:outline-none focus:border-indigo-500 focus:bg-white transition"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="sentence-audio" className="text-xs font-bold text-slate-700">
+                Link file âm thanh (tuỳ chọn)
+              </label>
+              <input
+                id="sentence-audio"
+                type="text"
+                value={audioUrl}
+                onChange={(event) => setAudioUrl(event.target.value)}
+                placeholder="https://.../sentence.mp3"
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
+              />
+            </div>
           </div>
         </div>
         <div className="flex justify-end gap-3">
