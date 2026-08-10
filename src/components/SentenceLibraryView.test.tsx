@@ -26,6 +26,10 @@ const CARD: SentenceCard = {
   fsrsRetrievability: 1,
 };
 
+function buildCard(overrides: Partial<SentenceCard>): SentenceCard {
+  return {...CARD, ...overrides};
+}
+
 describe('SentenceLibraryView', () => {
   it('shows an empty state with no cards', () => {
     render(
@@ -71,5 +75,55 @@ describe('SentenceLibraryView', () => {
       'sentence-1',
       expect.objectContaining({englishSentence: 'The cat sleeps.'}),
     ));
+  });
+
+  it('shows a memory-strength badge and learning-status label for each card', () => {
+    render(
+      <SentenceLibraryView
+        sentenceCards={[buildCard({fsrsState: 2, fsrsRetrievability: 0.9})]}
+        onEditSentenceCard={vi.fn()}
+        onDeleteSentenceCard={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('strong')).toBeInTheDocument();
+    expect(screen.getByText('Review')).toBeInTheDocument();
+  });
+
+  it('shows the weak badge and Mới label for a brand-new card', () => {
+    render(
+      <SentenceLibraryView
+        sentenceCards={[buildCard({fsrsState: 0})]}
+        onEditSentenceCard={vi.fn()}
+        onDeleteSentenceCard={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('weak')).toBeInTheDocument();
+    expect(screen.getByText('Mới')).toBeInTheDocument();
+  });
+
+  it('paginates at 20 cards per page', () => {
+    const cards = Array.from({length: 25}, (_, i) => buildCard({
+      id: `sentence-${i + 1}`,
+      englishSentence: `Sentence number ${i + 1}.`,
+    }));
+    render(
+      <SentenceLibraryView
+        sentenceCards={cards}
+        onEditSentenceCard={vi.fn()}
+        onDeleteSentenceCard={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Sentence number 1.')).toBeInTheDocument();
+    expect(screen.queryByText('Sentence number 21.')).not.toBeInTheDocument();
+    expect(screen.getByText('Trang 1 / 2')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', {name: 'Trang sau'}));
+
+    expect(screen.getByText('Sentence number 21.')).toBeInTheDocument();
+    expect(screen.queryByText('Sentence number 1.')).not.toBeInTheDocument();
+    expect(screen.getByText('Trang 2 / 2')).toBeInTheDocument();
   });
 });
