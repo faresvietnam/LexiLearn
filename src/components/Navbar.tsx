@@ -15,6 +15,7 @@ import {
   X,
   Sparkles,
   BrainCircuit,
+  Type,
 } from 'lucide-react';
 import { UserRole } from '../types';
 
@@ -54,10 +55,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   const navItems: NavItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'learn', label: 'Học ngay', icon: GraduationCap },
+    { id: 'sentence_review', label: 'Ôn tập câu', icon: Type },
     { id: 'rootword', label: 'Gốc từ & Morphology', icon: BrainCircuit },
-    { id: 'vocabulary', label: 'Thư viện từ vựng', icon: BookOpen },
+    { id: 'vocabulary', label: 'Data', icon: BookOpen },
     { id: 'decks_tags', label: 'Deck & Tags', icon: FolderTree },
-    { id: 'add_word', label: 'Thêm từ mới', icon: PlusCircle },
+    { id: 'add_word', label: 'Add data', icon: PlusCircle },
     { id: 'import_json', label: 'Import JSON', icon: FileJson },
     { id: 'analytics', label: 'Thống kê tiến trình', icon: BarChart3 },
     { id: 'settings', label: 'Cài đặt', icon: SettingsIcon },
