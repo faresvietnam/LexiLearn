@@ -65,6 +65,7 @@ export const WordOrderQuestion: React.FC<WordOrderQuestionProps> = ({
   const startTimeRef = useRef(performance.now());
   const resolvedResponseTimeRef = useRef(0);
   const dragSourceRef = useRef<ChipLocation | null>(null);
+  const resolvedRef = useRef(false);
 
   const moveToAnswer = (poolIndex: number) => {
     setShowWrongHint(false);
@@ -150,9 +151,12 @@ export const WordOrderQuestion: React.FC<WordOrderQuestionProps> = ({
   };
 
   const handleContinue = () => {
+    if (resolvedRef.current) return;
     if (phase === 'correct') {
+      resolvedRef.current = true;
       onResolve({isCorrect: true, wrongAttempts, responseTimeMs: resolvedResponseTimeRef.current});
     } else if (phase === 'revealed') {
+      resolvedRef.current = true;
       onResolve({isCorrect: false, wrongAttempts: 2, responseTimeMs: resolvedResponseTimeRef.current});
     }
   };

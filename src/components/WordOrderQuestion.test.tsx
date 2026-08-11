@@ -250,4 +250,29 @@ describe('WordOrderQuestion', () => {
     const lowerLabels = distractorLabels.map((label) => label.toLowerCase());
     expect(new Set(lowerLabels).size).toBe(lowerLabels.length);
   });
+
+  it('calls onResolve only once even when Tiếp tục is clicked rapidly more than once', () => {
+    const onResolve = vi.fn();
+    render(<WordOrderQuestion sentence="The cat sleeps." onResolve={onResolve} />);
+
+    placeCorrectOrder();
+    const continueButton = screen.getByRole('button', {name: /Tiếp tục/});
+    fireEvent.click(continueButton);
+    fireEvent.click(continueButton);
+    fireEvent.click(continueButton);
+
+    expect(onResolve).toHaveBeenCalledOnce();
+  });
+
+  it('calls onResolve only once even when Enter is pressed rapidly more than once', () => {
+    const onResolve = vi.fn();
+    render(<WordOrderQuestion sentence="The cat sleeps." onResolve={onResolve} />);
+
+    placeCorrectOrder();
+    fireEvent.keyDown(window, {key: 'Enter'});
+    fireEvent.keyDown(window, {key: 'Enter'});
+    fireEvent.keyDown(window, {key: 'Enter'});
+
+    expect(onResolve).toHaveBeenCalledOnce();
+  });
 });

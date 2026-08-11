@@ -93,6 +93,53 @@ describe('SentenceReviewView', () => {
     await waitFor(() => expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', 'Good'));
   });
 
+  it('does not skip a card when Tiếp tục is clicked rapidly more than once after a correct typed answer', async () => {
+    const cards = [
+      buildCard({fsrsState: 2}),
+      buildCard({id: 'sentence-2', englishSentence: 'Dogs bark.', fsrsState: 2}),
+      buildCard({id: 'sentence-3', englishSentence: 'Birds sing.', fsrsState: 2}),
+    ];
+    const onSubmitReview = vi.fn().mockResolvedValue(true);
+    render(<SentenceReviewView sentenceCards={cards} onSubmitReview={onSubmitReview} />);
+
+    fireEvent.change(screen.getByLabelText('Viết lại câu tiếng Anh'), {
+      target: {value: 'The cat sleeps.'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
+
+    const continueButton = screen.getByRole('button', {name: /Tiếp tục/});
+    fireEvent.click(continueButton);
+    fireEvent.click(continueButton);
+    fireEvent.click(continueButton);
+
+    await waitFor(() => expect(onSubmitReview).toHaveBeenCalledOnce());
+    expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', expect.any(String));
+    await waitFor(() => expect(screen.getByText('Câu 2 / 3')).toBeInTheDocument());
+  });
+
+  it('does not skip a card when Enter is pressed rapidly more than once after a correct typed answer', async () => {
+    const cards = [
+      buildCard({fsrsState: 2}),
+      buildCard({id: 'sentence-2', englishSentence: 'Dogs bark.', fsrsState: 2}),
+      buildCard({id: 'sentence-3', englishSentence: 'Birds sing.', fsrsState: 2}),
+    ];
+    const onSubmitReview = vi.fn().mockResolvedValue(true);
+    render(<SentenceReviewView sentenceCards={cards} onSubmitReview={onSubmitReview} />);
+
+    fireEvent.change(screen.getByLabelText('Viết lại câu tiếng Anh'), {
+      target: {value: 'The cat sleeps.'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
+
+    fireEvent.keyDown(window, {key: 'Enter'});
+    fireEvent.keyDown(window, {key: 'Enter'});
+    fireEvent.keyDown(window, {key: 'Enter'});
+
+    await waitFor(() => expect(onSubmitReview).toHaveBeenCalledOnce());
+    expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', expect.any(String));
+    await waitFor(() => expect(screen.getByText('Câu 2 / 3')).toBeInTheDocument());
+  });
+
   it('continues from the correct pause on Enter, and replays audio on p', () => {
     const onSubmitReview = vi.fn().mockResolvedValue(true);
     render(<SentenceReviewView sentenceCards={[buildCard({fsrsState: 2})]} onSubmitReview={onSubmitReview} />);

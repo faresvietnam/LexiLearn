@@ -49,6 +49,7 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
   const [pendingRating, setPendingRating] = useState<AutomaticRating | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const startTimeRef = useRef(performance.now());
+  const submittingRef = useRef(false);
 
   const card = queue[index];
   const questionKind = card && card.fsrsState === 2 ? 'typing' : 'word_order';
@@ -66,12 +67,14 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
   };
 
   const submitAndAdvance = async (rating: AutomaticRating) => {
-    if (!card) return;
+    if (!card || submittingRef.current) return;
+    submittingRef.current = true;
     setIsSubmitting(true);
     try {
       await onSubmitReview(card.id, rating);
       advance();
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
     }
   };
