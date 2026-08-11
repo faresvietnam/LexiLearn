@@ -632,16 +632,16 @@ function AuthenticatedApp({
   const handleSubmitSentenceReview = async (
     cardId: string,
     rating: AutomaticRating,
-  ): Promise<boolean> => {
-    if (!client || !user) return false;
+  ): Promise<SentenceCard | null> => {
+    if (!client || !user) return null;
     const result = await submitSentenceReview(user.id, cardId, rating, new Date());
     if (result.error || !result.data) {
       showToast(result.error ?? 'Không thể lưu kết quả ôn tập.');
-      return false;
+      return null;
     }
     const updatedCard = result.data;
     setSentenceCards((prev) => prev.map((card) => (card.id === cardId ? updatedCard : card)));
-    return true;
+    return updatedCard;
   };
 
   const handleAddWord = async (newWord: Word) => {

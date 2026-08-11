@@ -75,7 +75,7 @@ describe('SentenceReviewView', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.9);
     let now = 0;
     vi.spyOn(performance, 'now').mockImplementation(() => now);
-    const onSubmitReview = vi.fn().mockResolvedValue(true);
+    const onSubmitReview = vi.fn().mockResolvedValue(buildCard({fsrsState: 2, fsrsRetrievability: 1}));
     render(<SentenceReviewView sentenceCards={[buildCard({fsrsState: 2})]} onSubmitReview={onSubmitReview} />);
 
     expect(screen.getByText('Con mèo đang ngủ.')).toBeInTheDocument();
@@ -99,7 +99,7 @@ describe('SentenceReviewView', () => {
       buildCard({id: 'sentence-2', englishSentence: 'Dogs bark.', fsrsState: 2}),
       buildCard({id: 'sentence-3', englishSentence: 'Birds sing.', fsrsState: 2}),
     ];
-    const onSubmitReview = vi.fn().mockResolvedValue(true);
+    const onSubmitReview = vi.fn().mockResolvedValue(buildCard({fsrsState: 2, fsrsRetrievability: 1}));
     render(<SentenceReviewView sentenceCards={cards} onSubmitReview={onSubmitReview} />);
 
     fireEvent.change(screen.getByLabelText('Viết lại câu tiếng Anh'), {
@@ -123,7 +123,7 @@ describe('SentenceReviewView', () => {
       buildCard({id: 'sentence-2', englishSentence: 'Dogs bark.', fsrsState: 2}),
       buildCard({id: 'sentence-3', englishSentence: 'Birds sing.', fsrsState: 2}),
     ];
-    const onSubmitReview = vi.fn().mockResolvedValue(true);
+    const onSubmitReview = vi.fn().mockResolvedValue(buildCard({fsrsState: 2, fsrsRetrievability: 1}));
     render(<SentenceReviewView sentenceCards={cards} onSubmitReview={onSubmitReview} />);
 
     fireEvent.change(screen.getByLabelText('Viết lại câu tiếng Anh'), {
@@ -141,7 +141,7 @@ describe('SentenceReviewView', () => {
   });
 
   it('continues from the correct pause on Enter, and replays audio on p', () => {
-    const onSubmitReview = vi.fn().mockResolvedValue(true);
+    const onSubmitReview = vi.fn().mockResolvedValue(buildCard({fsrsState: 2, fsrsRetrievability: 1}));
     render(<SentenceReviewView sentenceCards={[buildCard({fsrsState: 2})]} onSubmitReview={onSubmitReview} />);
 
     fireEvent.change(screen.getByLabelText('Viết lại câu tiếng Anh'), {
@@ -175,7 +175,7 @@ describe('SentenceReviewView', () => {
   });
 
   it('shows a plain wrong hint (no diff) for the first two wrong attempts, then Hard on the correct 3rd try', async () => {
-    const onSubmitReview = vi.fn().mockResolvedValue(true);
+    const onSubmitReview = vi.fn().mockResolvedValue(buildCard({fsrsState: 2, fsrsRetrievability: 1}));
     render(<SentenceReviewView sentenceCards={[buildCard({fsrsState: 2})]} onSubmitReview={onSubmitReview} />);
     const submit = () => fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
 
@@ -203,7 +203,7 @@ describe('SentenceReviewView', () => {
       buildCard({fsrsState: 2}),
       buildCard({id: 'sentence-2', englishSentence: 'Dogs bark.', fsrsState: 2}),
     ];
-    const onSubmitReview = vi.fn().mockResolvedValue(true);
+    const onSubmitReview = vi.fn().mockResolvedValue(buildCard({fsrsState: 2, fsrsRetrievability: 1}));
     render(<SentenceReviewView sentenceCards={cards} onSubmitReview={onSubmitReview} />);
     const submit = () => fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
 
@@ -230,7 +230,7 @@ describe('SentenceReviewView', () => {
   it('renders the word-order question for a not-yet-mastered card and rates a correct, on-pace arrangement Good', async () => {
     let now = 0;
     vi.spyOn(performance, 'now').mockImplementation(() => now);
-    const onSubmitReview = vi.fn().mockResolvedValue(true);
+    const onSubmitReview = vi.fn().mockResolvedValue(buildCard({fsrsState: 2, fsrsRetrievability: 1}));
     render(<SentenceReviewView sentenceCards={[buildCard({fsrsState: 0})]} onSubmitReview={onSubmitReview} />);
 
     expect(screen.getByText('Sắp xếp thành câu tiếng Anh')).toBeInTheDocument();
@@ -252,7 +252,7 @@ describe('SentenceReviewView', () => {
       buildCard({fsrsState: 0}),
       buildCard({id: 'sentence-2', englishSentence: 'Dogs bark.', fsrsState: 0}),
     ];
-    const onSubmitReview = vi.fn().mockResolvedValue(true);
+    const onSubmitReview = vi.fn().mockResolvedValue(buildCard({fsrsState: 2, fsrsRetrievability: 1}));
     render(<SentenceReviewView sentenceCards={cards} onSubmitReview={onSubmitReview} />);
     const submitWrongOrder = () => {
       fireEvent.click(screen.getByRole('button', {name: 'cat'}));
@@ -276,6 +276,40 @@ describe('SentenceReviewView', () => {
     fireEvent.click(screen.getByRole('button', {name: /Tiếp tục/}));
 
     await waitFor(() => expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', 'Again'));
+    await waitFor(() => expect(screen.getByText('Câu 2 / 2')).toBeInTheDocument());
+  });
+
+  it('reinserts a card later in the queue when its post-review strength has not reached Stable yet', async () => {
+    const cards = [
+      buildCard({fsrsState: 2, fsrsRetrievability: 1}),
+      buildCard({id: 'sentence-2', englishSentence: 'Dogs bark.', fsrsState: 2, fsrsRetrievability: 1}),
+    ];
+    const onSubmitReview = vi.fn().mockResolvedValue(buildCard({fsrsState: 1, fsrsRetrievability: 1}));
+    render(<SentenceReviewView sentenceCards={cards} onSubmitReview={onSubmitReview} />);
+
+    fireEvent.change(screen.getByLabelText('Viết lại câu tiếng Anh'), {
+      target: {value: 'The cat sleeps.'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
+    fireEvent.click(screen.getByRole('button', {name: /Tiếp tục/}));
+
+    await waitFor(() => expect(screen.getByText('Câu 2 / 3')).toBeInTheDocument());
+  });
+
+  it('does not reinsert a card once its post-review strength reaches Stable', async () => {
+    const cards = [
+      buildCard({fsrsState: 2, fsrsRetrievability: 1}),
+      buildCard({id: 'sentence-2', englishSentence: 'Dogs bark.', fsrsState: 2, fsrsRetrievability: 1}),
+    ];
+    const onSubmitReview = vi.fn().mockResolvedValue(buildCard({fsrsState: 2, fsrsRetrievability: 0.6}));
+    render(<SentenceReviewView sentenceCards={cards} onSubmitReview={onSubmitReview} />);
+
+    fireEvent.change(screen.getByLabelText('Viết lại câu tiếng Anh'), {
+      target: {value: 'The cat sleeps.'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
+    fireEvent.click(screen.getByRole('button', {name: /Tiếp tục/}));
+
     await waitFor(() => expect(screen.getByText('Câu 2 / 2')).toBeInTheDocument());
   });
 });

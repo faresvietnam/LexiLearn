@@ -16,8 +16,11 @@ import {WordOrderQuestion} from './WordOrderQuestion';
 
 interface SentenceReviewViewProps {
   sentenceCards: SentenceCard[];
-  onSubmitReview: (cardId: string, rating: AutomaticRating) => Promise<boolean>;
+  onSubmitReview: (cardId: string, rating: AutomaticRating) => Promise<SentenceCard | null>;
 }
+
+const REINSERT_OFFSET = 4;
+const GRADUATED_STRENGTHS = new Set(['stable', 'strong']);
 
 function pickPromptKind(): 'image' | 'vietnamese' {
   return Math.random() < 0.5 ? 'image' : 'vietnamese';
@@ -36,7 +39,7 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
   sentenceCards,
   onSubmitReview,
 }) => {
-  const [queue] = useState(() => sentenceCards
+  const [queue, setQueue] = useState<SentenceCard[]>(() => sentenceCards
     .filter((card) => Date.parse(card.nextReviewDate) <= Date.now())
     .sort((a, b) => Date.parse(a.nextReviewDate) - Date.parse(b.nextReviewDate)));
   const [index, setIndex] = useState(0);
@@ -71,7 +74,14 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
     submittingRef.current = true;
     setIsSubmitting(true);
     try {
-      await onSubmitReview(card.id, rating);
+      const updatedCard = await onSubmitReview(card.id, rating);
+      if (updatedCard && !GRADUATED_STRENGTHS.has(deriveSentenceMemoryStrength(updatedCard))) {
+        setQueue((current) => {
+          const next = [...current];
+          next.splice(Math.min(index + REINSERT_OFFSET, next.length), 0, updatedCard);
+          return next;
+        });
+      }
       advance();
     } finally {
       submittingRef.current = false;
