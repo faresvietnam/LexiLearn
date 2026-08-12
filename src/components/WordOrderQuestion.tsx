@@ -5,7 +5,10 @@ interface WordOrderQuestionProps {
   sentence: string;
   audioUrl?: string;
   distractorPool?: string[];
-  onResolve: (result: {isCorrect: boolean; wrongAttempts: number; responseTimeMs: number}) => void;
+  onCorrect?: (wrongAttempts: number) => void;
+  correctExtra?: React.ReactNode;
+  continueDisabled?: boolean;
+  onResolve: (result: {isCorrect: boolean; wrongAttempts: number}) => void;
 }
 
 const MIN_DISTRACTORS = 3;
@@ -52,6 +55,9 @@ export const WordOrderQuestion: React.FC<WordOrderQuestionProps> = ({
   sentence,
   audioUrl,
   distractorPool = [],
+  onCorrect,
+  correctExtra,
+  continueDisabled = false,
   onResolve,
 }) => {
   const tokensRef = useRef(sentence.trim().split(/\s+/).map(stripPunctuation));
@@ -62,8 +68,6 @@ export const WordOrderQuestion: React.FC<WordOrderQuestionProps> = ({
   const [wrongAttempts, setWrongAttempts] = useState(0);
   const [showWrongHint, setShowWrongHint] = useState(false);
   const [phase, setPhase] = useState<Phase>('answering');
-  const startTimeRef = useRef(performance.now());
-  const resolvedResponseTimeRef = useRef(0);
   const dragSourceRef = useRef<ChipLocation | null>(null);
   const resolvedRef = useRef(false);
 
@@ -132,11 +136,11 @@ export const WordOrderQuestion: React.FC<WordOrderQuestionProps> = ({
 
     const isCorrect = answer.length === tokens.length
       && answer.every((word, i) => word.toLowerCase() === tokens[i].toLowerCase());
-    resolvedResponseTimeRef.current = performance.now() - startTimeRef.current;
 
     if (isCorrect) {
       setPhase('correct');
       void playSentenceAudio(sentence, audioUrl);
+      onCorrect?.(wrongAttempts);
       return;
     }
 
@@ -153,11 +157,12 @@ export const WordOrderQuestion: React.FC<WordOrderQuestionProps> = ({
   const handleContinue = () => {
     if (resolvedRef.current) return;
     if (phase === 'correct') {
+      if (continueDisabled) return;
       resolvedRef.current = true;
-      onResolve({isCorrect: true, wrongAttempts, responseTimeMs: resolvedResponseTimeRef.current});
+      onResolve({isCorrect: true, wrongAttempts});
     } else if (phase === 'revealed') {
       resolvedRef.current = true;
-      onResolve({isCorrect: false, wrongAttempts: 2, responseTimeMs: resolvedResponseTimeRef.current});
+      onResolve({isCorrect: false, wrongAttempts: 2});
     }
   };
 
@@ -207,10 +212,12 @@ export const WordOrderQuestion: React.FC<WordOrderQuestionProps> = ({
             </span>
           ))}
         </div>
+        {correctExtra}
         <button
           type="button"
           onClick={handleContinue}
-          className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition"
+          disabled={continueDisabled}
+          className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl transition"
         >
           Tiếp tục (Enter)
         </button>

@@ -39,6 +39,9 @@ function buildCard(overrides: Partial<SentenceCard> = {}): SentenceCard {
   };
 }
 
+const waitForContinueEnabled = () =>
+  waitFor(() => expect(screen.getByRole('button', {name: /Tiếp tục/})).toBeEnabled());
+
 describe('SentenceReviewView', () => {
   it('shows a "not enough cards" message and the memory-strength distribution when fewer than 5 sentences exist', () => {
     render(
@@ -71,26 +74,27 @@ describe('SentenceReviewView', () => {
     expect(screen.getByText('Số câu đang có: 5')).toBeInTheDocument();
   });
 
-  it('pauses after a correct typed answer, plays audio immediately, and waits for Tiếp tục', async () => {
+  it('submits immediately after a correct typed answer, shows memory strength + next review, and advances on Tiếp tục', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.9);
-    let now = 0;
-    vi.spyOn(performance, 'now').mockImplementation(() => now);
-    const onSubmitReview = vi.fn().mockResolvedValue(buildCard({fsrsState: 2, fsrsRetrievability: 1}));
+    const onSubmitReview = vi.fn().mockResolvedValue(buildCard({fsrsState: 2, fsrsRetrievability: 0.6}));
     render(<SentenceReviewView sentenceCards={[buildCard({fsrsState: 2})]} onSubmitReview={onSubmitReview} />);
 
     expect(screen.getByText('Con mèo đang ngủ.')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Viết lại câu tiếng Anh'), {
       target: {value: 'The cat sleeps.'},
     });
-    now = 12_000; // matches expectedTypingResponseTimeMs(3) for "The cat sleeps." -> normal pace
     fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
 
     expect(screen.getByText('Chính xác!')).toBeInTheDocument();
     expect(playSentenceAudio).toHaveBeenCalledWith('The cat sleeps.', undefined);
-    expect(onSubmitReview).not.toHaveBeenCalled();
+    expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', 'Good');
+    expect(onSubmitReview).toHaveBeenCalledOnce();
+
+    expect(await screen.findByText('Memory Strength: 60%')).toBeInTheDocument();
+    await waitForContinueEnabled();
 
     fireEvent.click(screen.getByRole('button', {name: /Tiếp tục/}));
-    await waitFor(() => expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', 'Good'));
+    expect(onSubmitReview).toHaveBeenCalledOnce();
   });
 
   it('does not skip a card when Tiếp tục is clicked rapidly more than once after a correct typed answer', async () => {
@@ -106,13 +110,14 @@ describe('SentenceReviewView', () => {
       target: {value: 'The cat sleeps.'},
     });
     fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
+    await waitForContinueEnabled();
 
     const continueButton = screen.getByRole('button', {name: /Tiếp tục/});
     fireEvent.click(continueButton);
     fireEvent.click(continueButton);
     fireEvent.click(continueButton);
 
-    await waitFor(() => expect(onSubmitReview).toHaveBeenCalledOnce());
+    expect(onSubmitReview).toHaveBeenCalledOnce();
     expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', expect.any(String));
     await waitFor(() => expect(screen.getByText('Câu 2 / 3')).toBeInTheDocument());
   });
@@ -130,17 +135,18 @@ describe('SentenceReviewView', () => {
       target: {value: 'The cat sleeps.'},
     });
     fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
+    await waitForContinueEnabled();
 
     fireEvent.keyDown(window, {key: 'Enter'});
     fireEvent.keyDown(window, {key: 'Enter'});
     fireEvent.keyDown(window, {key: 'Enter'});
 
-    await waitFor(() => expect(onSubmitReview).toHaveBeenCalledOnce());
+    expect(onSubmitReview).toHaveBeenCalledOnce();
     expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', expect.any(String));
     await waitFor(() => expect(screen.getByText('Câu 2 / 3')).toBeInTheDocument());
   });
 
-  it('continues from the correct pause on Enter, and replays audio on p', () => {
+  it('continues from the correct pause on Enter, and replays audio on p', async () => {
     const onSubmitReview = vi.fn().mockResolvedValue(buildCard({fsrsState: 2, fsrsRetrievability: 1}));
     render(<SentenceReviewView sentenceCards={[buildCard({fsrsState: 2})]} onSubmitReview={onSubmitReview} />);
 
@@ -149,12 +155,14 @@ describe('SentenceReviewView', () => {
     });
     fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
     expect(playSentenceAudio).toHaveBeenCalledTimes(1);
+    expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', expect.any(String));
 
     fireEvent.keyDown(window, {key: 'p'});
     expect(playSentenceAudio).toHaveBeenCalledTimes(2);
 
+    await waitForContinueEnabled();
     fireEvent.keyDown(window, {key: 'Enter'});
-    expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', expect.any(String));
+    expect(onSubmitReview).toHaveBeenCalledOnce();
   });
 
   it('ignores p while the answer input has focus', () => {
@@ -193,9 +201,8 @@ describe('SentenceReviewView', () => {
 
     fireEvent.change(screen.getByLabelText('Viết lại câu tiếng Anh'), {target: {value: 'The cat sleeps.'}});
     submit();
-    fireEvent.click(screen.getByRole('button', {name: /Tiếp tục/}));
 
-    await waitFor(() => expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', 'Hard'));
+    expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', 'Hard');
   });
 
   it('auto-plays audio on the 3rd-wrong-attempt reveal and continues on Enter', async () => {
@@ -220,6 +227,7 @@ describe('SentenceReviewView', () => {
 
     expect(await screen.findByTestId('character-diff-user-row')).toBeInTheDocument();
     expect(playSentenceAudio).toHaveBeenCalledWith('The cat sleeps.', undefined);
+    expect(onSubmitReview).not.toHaveBeenCalled();
 
     fireEvent.keyDown(window, {key: 'Enter'});
 
@@ -227,9 +235,7 @@ describe('SentenceReviewView', () => {
     await waitFor(() => expect(screen.getByText('Câu 2 / 2')).toBeInTheDocument());
   });
 
-  it('renders the word-order question for a not-yet-mastered card and rates a correct, on-pace arrangement Good', async () => {
-    let now = 0;
-    vi.spyOn(performance, 'now').mockImplementation(() => now);
+  it('renders the word-order question for a not-yet-mastered card and rates a correct arrangement Good', async () => {
     const onSubmitReview = vi.fn().mockResolvedValue(buildCard({fsrsState: 2, fsrsRetrievability: 1}));
     render(<SentenceReviewView sentenceCards={[buildCard({fsrsState: 0})]} onSubmitReview={onSubmitReview} />);
 
@@ -237,14 +243,14 @@ describe('SentenceReviewView', () => {
     fireEvent.click(screen.getByRole('button', {name: 'The'}));
     fireEvent.click(screen.getByRole('button', {name: 'cat'}));
     fireEvent.click(screen.getByRole('button', {name: 'sleeps'}));
-    now = 4_000; // matches expectedWordOrderResponseTimeMs(3) -> normal pace
     fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
 
-    expect(onSubmitReview).not.toHaveBeenCalled();
     expect(playSentenceAudio).toHaveBeenCalledWith('The cat sleeps.', undefined);
+    expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', 'Good');
 
+    await waitForContinueEnabled();
     fireEvent.click(screen.getByRole('button', {name: /Tiếp tục/}));
-    await waitFor(() => expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', 'Good'));
+    expect(onSubmitReview).toHaveBeenCalledOnce();
   });
 
   it('rates Again after 3 wrong word-order attempts and advances on continue', async () => {
@@ -273,6 +279,7 @@ describe('SentenceReviewView', () => {
     submitWrongOrder();
 
     expect(await screen.findByText('The cat sleeps.')).toBeInTheDocument();
+    expect(onSubmitReview).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', {name: /Tiếp tục/}));
 
     await waitFor(() => expect(onSubmitReview).toHaveBeenCalledWith('sentence-1', 'Again'));
@@ -291,6 +298,7 @@ describe('SentenceReviewView', () => {
       target: {value: 'The cat sleeps.'},
     });
     fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
+    await waitForContinueEnabled();
     fireEvent.click(screen.getByRole('button', {name: /Tiếp tục/}));
 
     await waitFor(() => expect(screen.getByText('Câu 2 / 3')).toBeInTheDocument());
@@ -308,6 +316,7 @@ describe('SentenceReviewView', () => {
       target: {value: 'The cat sleeps.'},
     });
     fireEvent.click(screen.getByRole('button', {name: 'Kiểm tra'}));
+    await waitForContinueEnabled();
     fireEvent.click(screen.getByRole('button', {name: /Tiếp tục/}));
 
     await waitFor(() => expect(screen.getByText('Câu 2 / 2')).toBeInTheDocument());

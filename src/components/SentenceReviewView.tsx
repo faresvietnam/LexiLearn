@@ -5,8 +5,6 @@ import type {AutomaticRating} from '../features/scheduling/automaticRating';
 import {
   deriveSentenceMemoryStrength,
   deriveSentenceRating,
-  expectedTypingResponseTimeMs,
-  expectedWordOrderResponseTimeMs,
 } from '../features/scheduling/sentenceRating';
 import {formatComeBackAt} from '../features/scheduling/relativeDueTime';
 import {normalizeText} from '../utils/charDiff';
@@ -26,8 +24,13 @@ function pickPromptKind(): 'image' | 'vietnamese' {
   return Math.random() < 0.5 ? 'image' : 'vietnamese';
 }
 
-function wordCount(sentence: string): number {
-  return sentence.trim().split(/\s+/).filter(Boolean).length;
+function ReviewPreview({card}: {card: SentenceCard}) {
+  return (
+    <div className="text-sm text-slate-500 space-y-0.5">
+      <p>Memory Strength: {Math.round(card.fsrsRetrievability * 100)}%</p>
+      <p>{formatComeBackAt(new Date(card.nextReviewDate), new Date())}</p>
+    </div>
+  );
 }
 
 function isTextInputElement(target: EventTarget | null): boolean {
@@ -49,9 +52,8 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
   const [showWrongHint, setShowWrongHint] = useState(false);
   const [showDiff, setShowDiff] = useState(false);
   const [showCorrectPause, setShowCorrectPause] = useState(false);
-  const [pendingRating, setPendingRating] = useState<AutomaticRating | null>(null);
+  const [correctPreviewCard, setCorrectPreviewCard] = useState<SentenceCard | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const startTimeRef = useRef(performance.now());
   const submittingRef = useRef(false);
 
   const card = queue[index];
@@ -65,8 +67,18 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
     setShowWrongHint(false);
     setShowDiff(false);
     setShowCorrectPause(false);
-    setPendingRating(null);
-    startTimeRef.current = performance.now();
+    setCorrectPreviewCard(null);
+  };
+
+  const applyReviewResult = (updatedCard: SentenceCard | null) => {
+    if (updatedCard && !GRADUATED_STRENGTHS.has(deriveSentenceMemoryStrength(updatedCard))) {
+      setQueue((current) => {
+        const next = [...current];
+        next.splice(Math.min(index + REINSERT_OFFSET, next.length), 0, updatedCard);
+        return next;
+      });
+    }
+    advance();
   };
 
   const submitAndAdvance = async (rating: AutomaticRating) => {
@@ -75,14 +87,20 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
     setIsSubmitting(true);
     try {
       const updatedCard = await onSubmitReview(card.id, rating);
-      if (updatedCard && !GRADUATED_STRENGTHS.has(deriveSentenceMemoryStrength(updatedCard))) {
-        setQueue((current) => {
-          const next = [...current];
-          next.splice(Math.min(index + REINSERT_OFFSET, next.length), 0, updatedCard);
-          return next;
-        });
-      }
-      advance();
+      applyReviewResult(updatedCard);
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
+    }
+  };
+
+  const revealCorrectAnswer = async (rating: AutomaticRating) => {
+    if (!card || submittingRef.current) return;
+    submittingRef.current = true;
+    setIsSubmitting(true);
+    try {
+      const updatedCard = await onSubmitReview(card.id, rating);
+      setCorrectPreviewCard(updatedCard);
     } finally {
       submittingRef.current = false;
       setIsSubmitting(false);
@@ -95,15 +113,10 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
 
     const isCorrect = normalizeText(typedAnswer) === normalizeText(card.englishSentence);
     if (isCorrect) {
-      const responseTimeMs = performance.now() - startTimeRef.current;
-      const rating = deriveSentenceRating({
-        wrongAttemptsBeforeSuccess: wrongAttempts,
-        responseTimeMs,
-        expectedResponseTimeMs: expectedTypingResponseTimeMs(wordCount(card.englishSentence)),
-      });
-      setPendingRating(rating);
+      const rating = deriveSentenceRating({wrongAttemptsBeforeSuccess: wrongAttempts});
       setShowCorrectPause(true);
       void playSentenceAudio(card.englishSentence, card.audioUrl);
+      void revealCorrectAnswer(rating);
       return;
     }
 
@@ -119,22 +132,23 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
   };
 
   const handleContinueAfterCorrect = () => {
-    if (!pendingRating) return;
-    void submitAndAdvance(pendingRating);
+    if (!correctPreviewCard) return;
+    applyReviewResult(correctPreviewCard);
   };
 
   const handleContinueAfterDiff = () => void submitAndAdvance('Again');
 
-  const handleWordOrderResolve = (result: {isCorrect: boolean; wrongAttempts: number; responseTimeMs: number}) => {
+  const handleWordOrderCorrect = (wrongAttempts: number) => {
+    void revealCorrectAnswer(deriveSentenceRating({wrongAttemptsBeforeSuccess: wrongAttempts}));
+  };
+
+  const handleWordOrderResolve = (result: {isCorrect: boolean; wrongAttempts: number}) => {
     if (!card) return;
-    const rating = result.isCorrect
-      ? deriveSentenceRating({
-          wrongAttemptsBeforeSuccess: result.wrongAttempts,
-          responseTimeMs: result.responseTimeMs,
-          expectedResponseTimeMs: expectedWordOrderResponseTimeMs(wordCount(card.englishSentence)),
-        })
-      : 'Again';
-    void submitAndAdvance(rating);
+    if (result.isCorrect) {
+      applyReviewResult(correctPreviewCard);
+      return;
+    }
+    void submitAndAdvance('Again');
   };
 
   useEffect(() => {
@@ -152,7 +166,7 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [questionKind, showCorrectPause, showDiff, pendingRating, card]);
+  }, [questionKind, showCorrectPause, showDiff, correctPreviewCard, card]);
 
   if (!card) {
     const total = sentenceCards.length;
@@ -262,16 +276,20 @@ export const SentenceReviewView: React.FC<SentenceReviewViewProps> = ({
             distractorPool={sentenceCards
               .filter((other) => other.id !== card.id)
               .flatMap((other) => other.englishSentence.trim().split(/\s+/))}
+            onCorrect={handleWordOrderCorrect}
+            correctExtra={correctPreviewCard ? <ReviewPreview card={correctPreviewCard} /> : undefined}
+            continueDisabled={!correctPreviewCard}
             onResolve={handleWordOrderResolve}
           />
         ) : showCorrectPause ? (
           <div className="space-y-4 text-center">
             <p className="text-lg font-bold text-emerald-600">Chính xác!</p>
             <p className="text-lg font-semibold text-slate-900">{card.englishSentence}</p>
+            {correctPreviewCard && <ReviewPreview card={correctPreviewCard} />}
             <button
               type="button"
               onClick={handleContinueAfterCorrect}
-              disabled={isSubmitting}
+              disabled={isSubmitting || !correctPreviewCard}
               className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition"
             >
               Tiếp tục (Enter)

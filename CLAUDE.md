@@ -42,3 +42,9 @@ This project is indexed by GitNexus as **LexiLearn** (1443 symbols, 2687 relatio
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+
+## Always Use These Skills
+
+- **`/superpowers:brainstorming`** — before any creative/feature work (before writing a plan or touching code).
+- **`/ponytail:ponytail`** — for every coding task (write/add/refactor/fix/review), to keep the solution minimal.
+- **`/gitnexus-cli`** — for GitNexus CLI operations (index/analyze/status/clean/wiki).
