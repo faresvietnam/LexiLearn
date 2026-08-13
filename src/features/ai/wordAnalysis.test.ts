@@ -17,9 +17,9 @@ const ANALYSIS = {
     definitionEn: 'to move goods or people',
     partOfSpeech: 'verb',
     examples: [
-      {sentence: 'They transport goods by rail.'},
-      {sentence: 'Ships transport cargo overseas.'},
-      {sentence: 'Buses transport students daily.'},
+      {sentence: 'They transport goods by rail.', sentenceVi: 'Họ vận chuyển hàng hóa bằng đường sắt.'},
+      {sentence: 'Ships transport cargo overseas.', sentenceVi: 'Tàu thuyền vận chuyển hàng hóa ra nước ngoài.'},
+      {sentence: 'Buses transport students daily.', sentenceVi: 'Xe buýt chở học sinh hằng ngày.'},
     ],
   }],
   wordFamily: ['transportation'],

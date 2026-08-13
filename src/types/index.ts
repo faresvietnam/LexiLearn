@@ -36,6 +36,7 @@ export interface ExampleSentence {
   id: string;
   meaningCardId: string;
   sentence: string; // e.g. "The goods were _____ by truck."
+  sentenceVi?: string; // Vietnamese translation of the whole sentence
   expectedAnswer: string; // e.g. "transported"
   baseWord: string; // e.g. "transport"
   wordForm: string; // e.g. "past_tense"
@@ -239,6 +240,7 @@ export interface StudyAttemptInput {
 
 export type JsonWordExampleInput = {
   sentence: string;
+  sentence_vi?: string;
   expected_answer?: string;
   word_form?: string;
   difficulty?: 'easy' | 'medium' | 'hard';

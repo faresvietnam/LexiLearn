@@ -59,7 +59,7 @@ const VOCABULARY_SELECT = `
     global_meanings(
       id, meaning_vi, part_of_speech, definition_en, display_order, status,
       global_examples(
-        id, sentence, expected_answer, word_form, difficulty, status
+        id, sentence, sentence_vi, expected_answer, word_form, difficulty, status
       )
     )
   ),
@@ -68,7 +68,7 @@ const VOCABULARY_SELECT = `
     status, admin_comment, submission_version, created_at,
     private_word_parts(id, text, type, meaning, position),
     private_meanings(id, meaning_vi, part_of_speech, definition_en, display_order,
-      private_examples(id, sentence, expected_answer, word_form, difficulty)
+      private_examples(id, sentence, sentence_vi, expected_answer, word_form, difficulty)
     )
   )
 `;
@@ -344,6 +344,7 @@ export async function createPrivateWord(
         .filter((example) => example.sentence.trim())
         .map((example) => ({
           sentence: example.sentence.trim(),
+          sentence_vi: example.sentenceVi?.trim() || null,
           expected_answer: example.expectedAnswer || word.word,
           word_form: example.wordForm || 'base',
           difficulty: example.difficulty || 'medium',

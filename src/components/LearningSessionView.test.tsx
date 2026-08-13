@@ -971,6 +971,74 @@ describe('LearningSessionView FSRS-driven in-session reinsertion', () => {
     // tail of the queue — instead of exactly 3 questions later.
     expect(screen.getByText('Câu 2 / 3')).toBeInTheDocument();
   });
+
+  it('shows the Vietnamese sentence translation under a sentence_completion question when present', () => {
+    const sentenceCompletionQuestion: Question = {
+      ...question,
+      type: 'sentence_completion',
+      prompt: 'Hoàn thành câu bằng từ hoặc dạng từ thích hợp:',
+      exampleSentence: {
+        id: 'ex-1',
+        meaningCardId: meaningCard.id,
+        sentence: 'I always _____ my keys.',
+        sentenceVi: 'Tôi luôn nhớ chìa khóa của mình.',
+        expectedAnswer: 'remember',
+        baseWord: 'remember',
+        wordForm: 'base',
+        partOfSpeech: 'verb',
+        difficulty: 'medium',
+        approvalStatus: 'approved',
+      },
+    };
+
+    render(
+      <LearningSessionView
+        questions={[sentenceCompletionQuestion]}
+        settings={settings}
+        isExtraReview={false}
+        onMeaningCardUpdated={() => undefined}
+        onAttempt={() => undefined}
+        onFinishSession={() => undefined}
+        onExitSession={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText('Tôi luôn nhớ chìa khóa của mình.')).toBeInTheDocument();
+  });
+
+  it('omits the translation line when the example sentence has no Vietnamese translation', () => {
+    const sentenceCompletionQuestion: Question = {
+      ...question,
+      type: 'sentence_completion',
+      prompt: 'Hoàn thành câu bằng từ hoặc dạng từ thích hợp:',
+      exampleSentence: {
+        id: 'ex-2',
+        meaningCardId: meaningCard.id,
+        sentence: 'I always _____ my keys.',
+        expectedAnswer: 'remember',
+        baseWord: 'remember',
+        wordForm: 'base',
+        partOfSpeech: 'verb',
+        difficulty: 'medium',
+        approvalStatus: 'approved',
+      },
+    };
+
+    render(
+      <LearningSessionView
+        questions={[sentenceCompletionQuestion]}
+        settings={settings}
+        isExtraReview={false}
+        onMeaningCardUpdated={() => undefined}
+        onAttempt={() => undefined}
+        onFinishSession={() => undefined}
+        onExitSession={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText('I always _____ my keys.', {exact: false})).toBeInTheDocument();
+    expect(screen.queryByText(/nhớ chìa khóa/)).not.toBeInTheDocument();
+  });
 });
 
 describe('maskSentenceAnswer', () => {

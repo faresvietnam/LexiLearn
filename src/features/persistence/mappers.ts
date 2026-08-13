@@ -81,6 +81,7 @@ type LearningCardRow = {
 type GlobalExampleRow = {
   id: string;
   sentence: string;
+  sentence_vi: string | null;
   expected_answer: string;
   word_form: string | null;
   difficulty: ExampleSentence['difficulty'];
@@ -109,6 +110,7 @@ type PrivateMeaningRow = {
 type PrivateExampleRow = {
   id: string;
   sentence: string;
+  sentence_vi: string | null;
   expected_answer: string;
   word_form: string;
   difficulty: 'easy' | 'medium' | 'hard';
@@ -229,6 +231,7 @@ function mapMeaning(
           id: example.id,
           meaningCardId: id,
           sentence: example.sentence,
+          ...(example.sentence_vi ? {sentenceVi: example.sentence_vi} : {}),
           expectedAnswer: example.expected_answer,
           baseWord: word,
           wordForm: example.word_form ?? 'base',
@@ -241,6 +244,7 @@ function mapMeaning(
           id: example.id,
           meaningCardId: id,
           sentence: example.sentence,
+          ...(example.sentence_vi ? {sentenceVi: example.sentence_vi} : {}),
           expectedAnswer: example.expected_answer,
           baseWord: word,
           wordForm: example.word_form,

@@ -53,6 +53,7 @@ function validateExample(
   const difficulty = DIFFICULTIES.find((candidate) => candidate === value.difficulty);
   return {
     sentence: value.sentence.trim(),
+    ...(isNonEmptyString(value.sentence_vi) ? {sentence_vi: value.sentence_vi.trim()} : {}),
     ...(isNonEmptyString(value.expected_answer) ? {expected_answer: value.expected_answer.trim()} : {}),
     ...(isNonEmptyString(value.word_form) ? {word_form: value.word_form.trim()} : {}),
     ...(difficulty ? {difficulty} : {}),

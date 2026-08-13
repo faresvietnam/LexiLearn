@@ -16,9 +16,9 @@ const ANALYSIS = {
     definitionEn: 'to move quickly on foot',
     partOfSpeech: 'verb',
     examples: [
-      {sentence: 'I run every morning.'},
-      {sentence: 'They run around the park.'},
-      {sentence: 'We run to catch the bus.'},
+      {sentence: 'I run every morning.', sentenceVi: 'Tôi chạy bộ mỗi sáng.'},
+      {sentence: 'They run around the park.', sentenceVi: 'Họ chạy quanh công viên.'},
+      {sentence: 'We run to catch the bus.', sentenceVi: 'Chúng tôi chạy để bắt kịp xe buýt.'},
     ],
   }],
   wordFamily: ['runner'],

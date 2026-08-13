@@ -15,6 +15,7 @@ describe('buildImportedWord', () => {
         definition_en: 'the movement of people or goods',
         examples: [{
           sentence: 'Public transportation is convenient.',
+          sentence_vi: 'Giao thông công cộng rất tiện lợi.',
           expected_answer: 'transportation',
           word_form: 'base',
           difficulty: 'easy',
@@ -44,6 +45,7 @@ describe('buildImportedWord', () => {
     }]);
     expect(word.meanings[0].exampleSentences).toMatchObject([{
       sentence: 'Public transportation is convenient.',
+      sentenceVi: 'Giao thông công cộng rất tiện lợi.',
       expectedAnswer: 'transportation',
       wordForm: 'base',
       difficulty: 'easy',
@@ -84,6 +86,7 @@ describe('buildImportedWord', () => {
       wordForm: 'base',
       difficulty: 'medium',
     });
+    expect(word.meanings[0].exampleSentences[0].sentenceVi).toBeUndefined();
   });
 
   it('builds multiple meanings, each with its own examples', () => {

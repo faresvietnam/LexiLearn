@@ -17,10 +17,10 @@ it under the masked sentence during review.
 Add `sentenceVi?: string` to `ExampleSentence` (`src/types/index.ts`) —
 optional, since existing rows and manually-typed sentences may lack it.
 
-DB: add a nullable `sentence_vi text` column to both `private_examples`
-(304 existing rows, 2 owners) and `global_examples` (currently 0 rows —
-added anyway for schema symmetry between the two tables, which otherwise
-mirror `sentence`/`expected_answer`/`word_form`/`difficulty` exactly).
+DB: add a nullable `sentence_vi text` column to `private_examples` (304
+existing rows, 2 owners). `global_examples` (currently 0 rows) already has
+this column from the original schema migration — the app just never wired
+it up on either side.
 
 **Explicitly out of scope:** the "Chỉnh sửa" (edit) form in
 `WordDetailModal.tsx`. Its `onSaveWord` handler only updates local React

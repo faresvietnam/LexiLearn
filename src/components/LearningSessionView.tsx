@@ -596,8 +596,13 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
 
           {/* Context Display */}
           {currentQuestion.type === 'sentence_completion' && currentQuestion.exampleSentence && (
-            <div className="p-4 rounded-2xl bg-white border border-slate-200 text-lg text-indigo-900 font-medium shadow-xs">
-              "{maskSentenceAnswer(currentQuestion.exampleSentence.sentence, currentQuestion.expectedAnswer)}"
+            <div className="p-4 rounded-2xl bg-white border border-slate-200 text-lg text-indigo-900 font-medium shadow-xs space-y-1.5">
+              <p>"{maskSentenceAnswer(currentQuestion.exampleSentence.sentence, currentQuestion.expectedAnswer)}"</p>
+              {currentQuestion.exampleSentence.sentenceVi && (
+                <p className="text-sm text-slate-500 font-normal">
+                  {currentQuestion.exampleSentence.sentenceVi}
+                </p>
+              )}
             </div>
           )}
           {currentQuestion.type === 'image_question' && currentQuestion.word.imageUrl && (

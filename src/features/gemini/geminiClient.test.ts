@@ -32,6 +32,7 @@ const ANALYSIS = {
       examples: [
         {
           sentence: 'Public transportation is convenient.',
+          sentenceVi: 'Giao thông công cộng rất tiện lợi.',
           expectedAnswer: 'transportation',
           baseWord: 'transportation',
           wordForm: 'base',
@@ -40,6 +41,7 @@ const ANALYSIS = {
         },
         {
           sentence: 'The city needs better public transportation.',
+          sentenceVi: 'Thành phố cần giao thông công cộng tốt hơn.',
           expectedAnswer: 'transportation',
           baseWord: 'transportation',
           wordForm: 'base',
@@ -48,6 +50,7 @@ const ANALYSIS = {
         },
         {
           sentence: 'Transportation costs increased this year.',
+          sentenceVi: 'Chi phí giao thông đã tăng trong năm nay.',
           expectedAnswer: 'transportation',
           baseWord: 'transportation',
           wordForm: 'base',
@@ -152,9 +155,9 @@ describe('analyzeWordWithGemini', () => {
         definitionEn: 'able to be used again or multiple times',
         partOfSpeech: 'adjective',
         examples: [
-          {sentence: 'We should bring reusable bags.'},
-          {sentence: 'This bottle is reusable.'},
-          {sentence: 'Choose reusable containers.'},
+          {sentence: 'We should bring reusable bags.', sentenceVi: 'Chúng ta nên mang túi tái sử dụng.'},
+          {sentence: 'This bottle is reusable.', sentenceVi: 'Chai này có thể tái sử dụng.'},
+          {sentence: 'Choose reusable containers.', sentenceVi: 'Hãy chọn hộp đựng có thể tái sử dụng.'},
         ],
       }],
     };
@@ -257,9 +260,9 @@ describe('analyzeWordWithGemini', () => {
           definitionEn: 'to leave someone or something behind',
           partOfSpeech: 'Verb',
           examples: [
-            {sentence: 'He abandoned his car.'},
-            {sentence: 'The crew abandoned the ship.'},
-            {sentence: 'Someone abandoned the puppy.'},
+            {sentence: 'He abandoned his car.', sentenceVi: 'Anh ấy đã bỏ lại chiếc xe của mình.'},
+            {sentence: 'The crew abandoned the ship.', sentenceVi: 'Thủy thủ đoàn đã bỏ tàu.'},
+            {sentence: 'Someone abandoned the puppy.', sentenceVi: 'Ai đó đã bỏ rơi chú chó con.'},
           ],
         },
         {
@@ -267,9 +270,9 @@ describe('analyzeWordWithGemini', () => {
           definitionEn: 'to stop doing something before it is finished',
           partOfSpeech: 'verb',
           examples: [
-            {sentence: 'They abandoned the search.'},
-            {sentence: 'The company abandoned the project.'},
-            {sentence: 'She abandoned her original plan.'},
+            {sentence: 'They abandoned the search.', sentenceVi: 'Họ đã từ bỏ cuộc tìm kiếm.'},
+            {sentence: 'The company abandoned the project.', sentenceVi: 'Công ty đã từ bỏ dự án.'},
+            {sentence: 'She abandoned her original plan.', sentenceVi: 'Cô ấy đã từ bỏ kế hoạch ban đầu.'},
           ],
         },
       ],
@@ -303,23 +306,26 @@ describe('analyzeWordWithGemini', () => {
   it.each([
     {
       label: 'fewer than three',
-      examples: [{sentence: 'One.'}, {sentence: 'Two.'}],
+      examples: [
+        {sentence: 'One.', sentenceVi: 'Một.'},
+        {sentence: 'Two.', sentenceVi: 'Hai.'},
+      ],
     },
     {
       label: 'more than three',
       examples: [
-        {sentence: 'One.'},
-        {sentence: 'Two.'},
-        {sentence: 'Three.'},
-        {sentence: 'Four.'},
+        {sentence: 'One.', sentenceVi: 'Một.'},
+        {sentence: 'Two.', sentenceVi: 'Hai.'},
+        {sentence: 'Three.', sentenceVi: 'Ba.'},
+        {sentence: 'Four.', sentenceVi: 'Bốn.'},
       ],
     },
     {
       label: 'duplicate',
       examples: [
-        {sentence: 'Same sentence.'},
-        {sentence: 'Same sentence.'},
-        {sentence: 'Another sentence.'},
+        {sentence: 'Same sentence.', sentenceVi: 'Câu giống nhau.'},
+        {sentence: 'Same sentence.', sentenceVi: 'Câu giống nhau.'},
+        {sentence: 'Another sentence.', sentenceVi: 'Một câu khác.'},
       ],
     },
   ])('rejects $label examples for one meaning', async ({examples}) => {

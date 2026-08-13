@@ -34,7 +34,7 @@ const SAMPLE_JSON = `[
       {
         "meaning_vi": "Giao thông vận tải",
         "part_of_speech": "noun",
-        "examples": [{"sentence": "Public transportation is convenient."}]
+        "examples": [{"sentence": "Public transportation is convenient.", "sentence_vi": "Giao thông công cộng rất tiện lợi."}]
       }
     ],
     "parts": [
@@ -68,9 +68,9 @@ YÊU CẦU NỘI DUNG:
         "part_of_speech": "noun",
         "definition_en": "A food made from flour, water, and yeast, then baked.",
         "examples": [
-          {"sentence": "She bought a loaf of bread for breakfast."},
-          {"sentence": "This bread is fresh and soft."},
-          {"sentence": "He spread butter on a slice of bread."}
+          {"sentence": "She bought a loaf of bread for breakfast.", "sentence_vi": "Cô ấy mua một ổ bánh mì cho bữa sáng."},
+          {"sentence": "This bread is fresh and soft.", "sentence_vi": "Ổ bánh mì này tươi và mềm."},
+          {"sentence": "He spread butter on a slice of bread.", "sentence_vi": "Anh ấy phết bơ lên một lát bánh mì."}
         ]
       }
     ],
@@ -86,7 +86,7 @@ QUY TẮC BẮT BUỘC:
    - "meaning_vi": bắt buộc, nghĩa tiếng Việt (có thể ghi 2-3 nghĩa gần nhau, cách nhau bằng ";").
    - "part_of_speech": bắt buộc, đúng 1 giá trị: "noun" | "verb" | "adjective" | "adverb" | "preposition" | ...
    - "definition_en": định nghĩa tiếng Anh ngắn, đơn giản, dễ hiểu.
-   - "examples": đúng 3 câu ví dụ tiếng Anh tự nhiên, đúng ngữ pháp, mỗi câu chỉ cần field "sentence".
+   - "examples": đúng 3 câu ví dụ tiếng Anh tự nhiên, đúng ngữ pháp, mỗi câu gồm field "sentence" và "sentence_vi" (bản dịch tiếng Việt sát nghĩa của chính câu đó, không phải nghĩa của từ).
 3. "parts": CHỈ điền khi từ là từ ghép/có tiền tố-hậu tố rõ ràng (vd "pineapple" = "pine"+"apple", "watermelon" = "water"+"melon", "transportation" = "trans"+"port"+"ation"). Mỗi phần tử gồm:
    - "text": phần của từ
    - "type": bắt buộc đúng 1 trong: "prefix" | "root" | "base" | "suffix" | "combining_form" | "compound_component"

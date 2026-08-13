@@ -32,6 +32,7 @@ export type GeminiWordAnalysis = {
     partOfSpeech: string;
     examples: Array<{
       sentence: string;
+      sentenceVi: string;
       expectedAnswer: string;
       baseWord: string;
       wordForm: string;
@@ -70,7 +71,7 @@ type AnalyzeWordInput = {
 };
 
 export function buildPrompt(word: string) {
-  return `Analyze the English input "${word}" for a Vietnamese learner. Return JSON only. Set canonicalWord to the dictionary headword: convert past tense, past participles, -ing verb forms, and plural nouns (including irregular forms) to their base form. Preserve comparative and superlative forms such as better, larger, and largest. Preserve words such as news when that form is already the dictionary headword. Analyze IPA, meanings, morphology, word family, and examples for canonicalWord, not the original inflected input. Return at most one meanings entry per part of speech. When one part of speech has several common senses, combine their Vietnamese translations in meaningVi and their concise English explanations in definitionEn instead of creating duplicate entries. Every meaningVi field, including wordStructure[].meaningVi, must contain Vietnamese only; never put an English definition in meaningVi. Include exactly 3 distinct, natural English example sentences per part of speech. Use accurate IPA and up to 5 word-family items. Every wordStructure.text must be an exact consecutive surface substring of canonicalWord, in order; after removing boundary hyphens, concatenating all parts must equal canonicalWord exactly. Do not restore dropped letters or use underlying dictionary forms in wordStructure. If an exact morphology split is unclear or affected by a spelling change, return an empty wordStructure; do not guess.`;
+  return `Analyze the English input "${word}" for a Vietnamese learner. Return JSON only. Set canonicalWord to the dictionary headword: convert past tense, past participles, -ing verb forms, and plural nouns (including irregular forms) to their base form. Preserve comparative and superlative forms such as better, larger, and largest. Preserve words such as news when that form is already the dictionary headword. Analyze IPA, meanings, morphology, word family, and examples for canonicalWord, not the original inflected input. Return at most one meanings entry per part of speech. When one part of speech has several common senses, combine their Vietnamese translations in meaningVi and their concise English explanations in definitionEn instead of creating duplicate entries. Every meaningVi field, including wordStructure[].meaningVi, must contain Vietnamese only; never put an English definition in meaningVi. Include exactly 3 distinct, natural English example sentences per part of speech, and for each example sentence give sentenceVi: a natural, accurate Vietnamese translation of that exact sentence (not the word's meaning). Use accurate IPA and up to 5 word-family items. Every wordStructure.text must be an exact consecutive surface substring of canonicalWord, in order; after removing boundary hyphens, concatenating all parts must equal canonicalWord exactly. Do not restore dropped letters or use underlying dictionary forms in wordStructure. If an exact morphology split is unclear or affected by a spelling change, return an empty wordStructure; do not guess.`;
 }
 
 const RESPONSE_SCHEMA = {
@@ -133,8 +134,12 @@ const RESPONSE_SCHEMA = {
               type: 'object',
               properties: {
                 sentence: {type: 'string'},
+                sentenceVi: {
+                  type: 'string',
+                  description: 'Natural Vietnamese translation of this exact sentence, written only in Vietnamese.',
+                },
               },
-              required: ['sentence'],
+              required: ['sentence', 'sentenceVi'],
             },
           },
         },
@@ -181,7 +186,8 @@ function isExample(
   value: unknown,
 ): value is GeminiWordAnalysis['meanings'][number]['examples'][number] {
   return isRecord(value)
-    && isNonEmptyString(value.sentence);
+    && isNonEmptyString(value.sentence)
+    && isNonEmptyString(value.sentenceVi);
 }
 
 function isMeaning(
@@ -275,6 +281,7 @@ export function parseAnalysis(value: unknown): GeminiWordAnalysis {
         partOfSpeech: meaningPartOfSpeech,
         examples: (meaning.examples as Array<Record<string, unknown>>).map((example) => ({
           sentence: example.sentence as string,
+          sentenceVi: typeof example.sentenceVi === 'string' ? example.sentenceVi : '',
           expectedAnswer: typeof example.expectedAnswer === 'string'
             ? example.expectedAnswer
             : canonicalWord,

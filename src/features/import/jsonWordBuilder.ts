@@ -22,6 +22,7 @@ export function buildImportedWord(
       id: `ex_${meaningCardId}_${exampleIndex}`,
       meaningCardId,
       sentence: example.sentence,
+      ...(example.sentence_vi ? {sentenceVi: example.sentence_vi} : {}),
       expectedAnswer: example.expected_answer || normalizedWord,
       baseWord: normalizedWord,
       wordForm: example.word_form || 'base',

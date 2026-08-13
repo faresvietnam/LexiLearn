@@ -107,6 +107,7 @@ function geminiResponse({
               partOfSpeech: 'noun',
               examples: [{
                 sentence: `${canonicalWord} appears in the first example.`,
+                sentenceVi: `${canonicalWord} xuất hiện trong ví dụ đầu tiên.`,
                 expectedAnswer: canonicalWord,
                 baseWord: canonicalWord,
                 wordForm: 'base',
@@ -114,6 +115,7 @@ function geminiResponse({
                 difficulty: 'medium',
               }, {
                 sentence: `${canonicalWord} appears in the second example.`,
+                sentenceVi: `${canonicalWord} xuất hiện trong ví dụ thứ hai.`,
                 expectedAnswer: canonicalWord,
                 baseWord: canonicalWord,
                 wordForm: 'base',
@@ -121,6 +123,7 @@ function geminiResponse({
                 difficulty: 'medium',
               }, {
                 sentence: `${canonicalWord} appears in the third example.`,
+                sentenceVi: `${canonicalWord} xuất hiện trong ví dụ thứ ba.`,
                 expectedAnswer: canonicalWord,
                 baseWord: canonicalWord,
                 wordForm: 'base',
@@ -208,6 +211,30 @@ describe('AddWordModal Gemini Auto-Fill', () => {
         }),
       }),
     );
+  });
+
+  it('carries the Vietnamese sentence translation from Gemini through to the saved word', async () => {
+    vi.mocked(fetch).mockResolvedValue(geminiResponse());
+    const onAddWord = renderModal(PERSONAL_KEY);
+    fireEvent.change(screen.getByPlaceholderText('e.g. transportation'), {
+      target: {value: 'transportation'},
+    });
+
+    fireEvent.click(screen.getByRole('button', {name: 'AI Auto-Fill'}));
+    await waitFor(() => {
+      expect(screen.getByLabelText('Bản dịch tiếng Việt 1.1')).toHaveValue(
+        'transportation xuất hiện trong ví dụ đầu tiên.',
+      );
+    });
+
+    fireEvent.click(screen.getByRole('button', {name: 'Lưu từ vựng'}));
+
+    await waitFor(() => expect(onAddWord).toHaveBeenCalledOnce());
+    const savedWord = onAddWord.mock.calls[0][0];
+    expect(savedWord.meanings[0].exampleSentences[0]).toMatchObject({
+      sentence: 'transportation appears in the first example.',
+      sentenceVi: 'transportation xuất hiện trong ví dụ đầu tiên.',
+    });
   });
 
   it('updates the visible word to the canonical headword after AI Auto-Fill', async () => {
@@ -384,6 +411,32 @@ describe('AddWordModal meaning editor', () => {
         exampleSentences: [],
       },
     ]);
+  });
+
+  it('saves a manually-typed Vietnamese translation, and omits it when left blank', async () => {
+    const onAddWord = renderModal(null);
+    fireEvent.change(screen.getByPlaceholderText('e.g. transportation'), {
+      target: {value: 'compose'},
+    });
+    fireEvent.change(screen.getByLabelText('Nghĩa tiếng Việt 1'), {
+      target: {value: 'soạn, sáng tác'},
+    });
+    fireEvent.change(screen.getByLabelText('Câu ví dụ 1.1'), {
+      target: {value: 'She composed a short song.'},
+    });
+    fireEvent.change(screen.getByLabelText('Bản dịch tiếng Việt 1.1'), {
+      target: {value: 'Cô ấy đã sáng tác một bài hát ngắn.'},
+    });
+
+    fireEvent.click(screen.getByRole('button', {name: 'Lưu từ vựng'}));
+
+    await waitFor(() => expect(onAddWord).toHaveBeenCalledOnce());
+    const exampleSentences = onAddWord.mock.calls[0][0].meanings[0].exampleSentences;
+    expect(exampleSentences[0]).toMatchObject({
+      sentence: 'She composed a short song.',
+      sentenceVi: 'Cô ấy đã sáng tác một bài hát ngắn.',
+    });
+    expect(exampleSentences).toHaveLength(1);
   });
 
   it('preserves an inflected word when the user saves without AI', async () => {

@@ -225,6 +225,7 @@ describe('persistence mappers', () => {
           global_examples: [{
             id: 'example-1',
             sentence: 'We _____ goods by rail.',
+            sentence_vi: null,
             expected_answer: 'transport',
             word_form: 'base',
             difficulty: 'medium',
@@ -661,6 +662,7 @@ describe('successful learner persistence', () => {
           definition_en: 'an ambitious and difficult undertaking',
           examples: [{
             sentence: 'This is a moonshot project.',
+            sentence_vi: null,
             expected_answer: 'moonshot',
             word_form: 'base',
             difficulty: 'medium',

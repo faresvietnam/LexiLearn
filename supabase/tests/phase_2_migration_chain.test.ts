@@ -55,6 +55,7 @@ describe('database migration chain', () => {
       '20260807080000_word_level_new_word_quota.sql',
       '20260810120000_add_sentence_cards.sql',
       '20260810130000_add_sentence_card_ipa_audio.sql',
+      '20260813120000_add_example_sentence_vi.sql',
     ]);
   });
 

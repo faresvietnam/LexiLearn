@@ -11,7 +11,10 @@ const validEntry = {
       meaning_vi: 'giao thông vận tải',
       part_of_speech: 'noun',
       definition_en: 'the movement of people or goods',
-      examples: [{sentence: 'Public transportation is convenient.'}],
+      examples: [{
+        sentence: 'Public transportation is convenient.',
+        sentence_vi: 'Giao thông công cộng rất tiện lợi.',
+      }],
     },
   ],
   parts: [
