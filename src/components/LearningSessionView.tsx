@@ -872,6 +872,17 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
               </div>
             </div>
 
+            {reviewSchedule && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 font-semibold text-indigo-800">
+                  Predicted recall: {Math.round(reviewSchedule.retrievability * 100)}%
+                </div>
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 font-semibold text-indigo-800">
+                  Review again: {formatRelativeDueTime(reviewSchedule.card.due)}
+                </div>
+              </div>
+            )}
+
             <div className="space-y-3">
               <div className="text-xs font-bold uppercase text-slate-500 tracking-wider">
                 Tất cả nghĩa và ví dụ
@@ -920,17 +931,6 @@ export const LearningSessionView: React.FC<LearningSessionViewProps> = ({
                 );
               })}
             </div>
-
-            {reviewSchedule && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 font-semibold text-indigo-800">
-                  Predicted recall: {Math.round(reviewSchedule.retrievability * 100)}%
-                </div>
-                <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 font-semibold text-indigo-800">
-                  Review again: {formatRelativeDueTime(reviewSchedule.card.due)}
-                </div>
-              </div>
-            )}
 
             {reviewSaveError && (
               <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 space-y-2">
